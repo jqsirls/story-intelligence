@@ -57,10 +57,11 @@ CREATE TABLE data_retention_policies (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   table_name TEXT NOT NULL,
   retention_period INTERVAL NOT NULL,
-  deletion_strategy TEXT CHECK (deletion_strategy IN ('hard_delete', 'soft_delete', 'anonymize')) NOT NULL,
+  deletion_strategy TEXT CHECK (deletion_strategy IN ('hard_delete', 'soft_delete', 'anonymize', 'archive')) NOT NULL,
   last_cleanup_at TIMESTAMPTZ,
   is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT data_retention_policies_table_name_key UNIQUE (table_name)
 );
 
 -- Insert default retention policies

@@ -42,7 +42,18 @@ ALTER TABLE stories ADD COLUMN IF NOT EXISTS qr_scan_count INTEGER DEFAULT 0;
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_stories_asset_status ON stories 
   USING GIN (asset_generation_status);
-CREATE INDEX IF NOT EXISTS idx_stories_creator_status ON stories (creator_user_id, status);
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'stories'
+      AND column_name = 'creator_user_id'
+  ) THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_stories_creator_status ON stories (creator_user_id, status)';
+  END IF;
+END $$;
 CREATE INDEX IF NOT EXISTS idx_stories_library_created ON stories (library_id, created_at DESC);
 
 -- ============================================================================

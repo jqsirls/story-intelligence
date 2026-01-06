@@ -13,14 +13,18 @@ CREATE TABLE conversation_checkpoints (
   device_context JSONB DEFAULT '{}',
   user_context JSONB NOT NULL DEFAULT '{}',
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '7 days'),
-  
-  -- Indexes for performance
-  INDEX idx_conversation_checkpoints_session_id ON conversation_checkpoints(session_id),
-  INDEX idx_conversation_checkpoints_user_id ON conversation_checkpoints(user_id),
-  INDEX idx_conversation_checkpoints_created_at ON conversation_checkpoints(created_at),
-  INDEX idx_conversation_checkpoints_expires_at ON conversation_checkpoints(expires_at)
+  expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '7 days')
 );
+
+-- Indexes for conversation_checkpoints
+CREATE INDEX IF NOT EXISTS idx_conversation_checkpoints_session_id
+  ON conversation_checkpoints(session_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_checkpoints_user_id
+  ON conversation_checkpoints(user_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_checkpoints_created_at
+  ON conversation_checkpoints(created_at);
+CREATE INDEX IF NOT EXISTS idx_conversation_checkpoints_expires_at
+  ON conversation_checkpoints(expires_at);
 
 -- Conversation interruptions table
 CREATE TABLE conversation_interruptions (
@@ -41,15 +45,20 @@ CREATE TABLE conversation_interruptions (
   recovered_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '24 hours'),
-  metadata JSONB DEFAULT '{}',
-  
-  -- Indexes for performance
-  INDEX idx_conversation_interruptions_session_id ON conversation_interruptions(session_id),
-  INDEX idx_conversation_interruptions_user_id ON conversation_interruptions(user_id),
-  INDEX idx_conversation_interruptions_type ON conversation_interruptions(interruption_type),
-  INDEX idx_conversation_interruptions_recovered ON conversation_interruptions(is_recovered),
-  INDEX idx_conversation_interruptions_created_at ON conversation_interruptions(created_at)
+  metadata JSONB DEFAULT '{}'
 );
+
+-- Indexes for conversation_interruptions
+CREATE INDEX IF NOT EXISTS idx_conversation_interruptions_session_id
+  ON conversation_interruptions(session_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_interruptions_user_id
+  ON conversation_interruptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_interruptions_type
+  ON conversation_interruptions(interruption_type);
+CREATE INDEX IF NOT EXISTS idx_conversation_interruptions_recovered
+  ON conversation_interruptions(is_recovered);
+CREATE INDEX IF NOT EXISTS idx_conversation_interruptions_created_at
+  ON conversation_interruptions(created_at);
 
 -- User context separation table for multi-user shared devices
 CREATE TABLE user_context_separations (
@@ -60,13 +69,16 @@ CREATE TABLE user_context_separations (
   all_user_ids UUID[] NOT NULL,
   user_contexts JSONB NOT NULL DEFAULT '{}',
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '24 hours'),
-  
-  -- Indexes for performance
-  INDEX idx_user_context_separations_session_id ON user_context_separations(session_id),
-  INDEX idx_user_context_separations_primary_user ON user_context_separations(primary_user_id),
-  INDEX idx_user_context_separations_created_at ON user_context_separations(created_at)
+  expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '24 hours')
 );
+
+-- Indexes for user_context_separations
+CREATE INDEX IF NOT EXISTS idx_user_context_separations_session_id
+  ON user_context_separations(session_id);
+CREATE INDEX IF NOT EXISTS idx_user_context_separations_primary_user
+  ON user_context_separations(primary_user_id);
+CREATE INDEX IF NOT EXISTS idx_user_context_separations_created_at
+  ON user_context_separations(created_at);
 
 -- Conversation sessions table (enhanced from existing)
 CREATE TABLE IF NOT EXISTS conversation_sessions (
@@ -85,14 +97,18 @@ CREATE TABLE IF NOT EXISTS conversation_sessions (
   last_interruption_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
-  expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '30 days'),
-  
-  -- Indexes for performance
-  INDEX idx_conversation_sessions_session_id ON conversation_sessions(session_id),
-  INDEX idx_conversation_sessions_user_id ON conversation_sessions(user_id),
-  INDEX idx_conversation_sessions_parent_session ON conversation_sessions(parent_session_id),
-  INDEX idx_conversation_sessions_updated_at ON conversation_sessions(updated_at)
+  expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '30 days')
 );
+
+-- Indexes for conversation_sessions
+CREATE INDEX IF NOT EXISTS idx_conversation_sessions_session_id
+  ON conversation_sessions(session_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_sessions_user_id
+  ON conversation_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_sessions_parent_session
+  ON conversation_sessions(parent_session_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_sessions_updated_at
+  ON conversation_sessions(updated_at);
 
 -- Row Level Security (RLS) policies
 

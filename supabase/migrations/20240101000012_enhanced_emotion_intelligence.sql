@@ -10,13 +10,16 @@ CREATE TABLE IF NOT EXISTS response_latency_data (
   question TEXT NOT NULL,
   response_time INTEGER NOT NULL, -- milliseconds
   context JSONB DEFAULT '{}',
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  
-  -- Indexes for performance
-  INDEX idx_response_latency_user_session (user_id, session_id),
-  INDEX idx_response_latency_created_at (created_at),
-  INDEX idx_response_latency_question_type (question_type)
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Indexes for response_latency_data
+CREATE INDEX IF NOT EXISTS idx_response_latency_user_session
+  ON response_latency_data(user_id, session_id);
+CREATE INDEX IF NOT EXISTS idx_response_latency_created_at
+  ON response_latency_data(created_at);
+CREATE INDEX IF NOT EXISTS idx_response_latency_question_type
+  ON response_latency_data(question_type);
 
 -- Story choice tracking for pattern analysis
 CREATE TABLE IF NOT EXISTS story_choices (
@@ -29,14 +32,18 @@ CREATE TABLE IF NOT EXISTS story_choices (
   selected_choice TEXT NOT NULL,
   response_time INTEGER NOT NULL, -- milliseconds
   emotional_context TEXT CHECK (emotional_context IN ('happy', 'sad', 'scared', 'angry', 'neutral')),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  
-  -- Indexes for performance
-  INDEX idx_story_choices_user (user_id),
-  INDEX idx_story_choices_session (session_id),
-  INDEX idx_story_choices_created_at (created_at),
-  INDEX idx_story_choices_emotional_context (emotional_context)
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Indexes for story_choices
+CREATE INDEX IF NOT EXISTS idx_story_choices_user
+  ON story_choices(user_id);
+CREATE INDEX IF NOT EXISTS idx_story_choices_session
+  ON story_choices(session_id);
+CREATE INDEX IF NOT EXISTS idx_story_choices_created_at
+  ON story_choices(created_at);
+CREATE INDEX IF NOT EXISTS idx_story_choices_emotional_context
+  ON story_choices(emotional_context);
 
 -- Voice analysis results for sophisticated emotion detection
 CREATE TABLE IF NOT EXISTS voice_analysis_results (
@@ -51,17 +58,21 @@ CREATE TABLE IF NOT EXISTS voice_analysis_results (
   emotional_markers JSONB DEFAULT '[]',
   stress_indicators JSONB DEFAULT '[]',
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '30 days'), -- Audio analysis data retention
-  
-  -- Indexes for performance
-  INDEX idx_voice_analysis_user (user_id),
-  INDEX idx_voice_analysis_session (session_id),
-  INDEX idx_voice_analysis_created_at (created_at),
-  INDEX idx_voice_analysis_expires_at (expires_at)
+  expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '30 days') -- Audio analysis data retention
 );
 
+-- Indexes for voice_analysis_results
+CREATE INDEX IF NOT EXISTS idx_voice_analysis_user
+  ON voice_analysis_results(user_id);
+CREATE INDEX IF NOT EXISTS idx_voice_analysis_session
+  ON voice_analysis_results(session_id);
+CREATE INDEX IF NOT EXISTS idx_voice_analysis_created_at
+  ON voice_analysis_results(created_at);
+CREATE INDEX IF NOT EXISTS idx_voice_analysis_expires_at
+  ON voice_analysis_results(expires_at);
+
 -- Engagement metrics tracking
-CREATE TABLE IF NOT EXISTS engagement_metrics (
+CREATE TABLE IF NOT EXISTS emotion_engagement_metrics (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES users NOT NULL,
   session_id TEXT NOT NULL,
@@ -71,14 +82,18 @@ CREATE TABLE IF NOT EXISTS engagement_metrics (
   attention_span INTEGER NOT NULL, -- seconds
   fatigue_indicators JSONB DEFAULT '[]',
   recommendations TEXT[] DEFAULT '{}',
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  
-  -- Indexes for performance
-  INDEX idx_engagement_metrics_user (user_id),
-  INDEX idx_engagement_metrics_session (session_id),
-  INDEX idx_engagement_metrics_level (engagement_level),
-  INDEX idx_engagement_metrics_created_at (created_at)
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Indexes for emotion_engagement_metrics
+CREATE INDEX IF NOT EXISTS idx_emotion_engagement_metrics_user
+  ON emotion_engagement_metrics(user_id);
+CREATE INDEX IF NOT EXISTS idx_emotion_engagement_metrics_session
+  ON emotion_engagement_metrics(session_id);
+CREATE INDEX IF NOT EXISTS idx_emotion_engagement_metrics_level
+  ON emotion_engagement_metrics(engagement_level);
+CREATE INDEX IF NOT EXISTS idx_emotion_engagement_metrics_created_at
+  ON emotion_engagement_metrics(created_at);
 
 -- Choice patterns for developmental insights
 CREATE TABLE IF NOT EXISTS choice_patterns (
@@ -92,16 +107,22 @@ CREATE TABLE IF NOT EXISTS choice_patterns (
   developmental_insights TEXT[] DEFAULT '{}',
   time_range JSONB NOT NULL, -- {start: timestamp, end: timestamp}
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  
-  -- Indexes for performance
-  INDEX idx_choice_patterns_user (user_id),
-  INDEX idx_choice_patterns_type (pattern_type),
-  INDEX idx_choice_patterns_created_at (created_at),
-  
-  -- Unique constraint to prevent duplicate patterns for same user/type/timerange
-  UNIQUE(user_id, pattern_type, ((time_range->>'start')::timestamptz))
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+
+  -- Note: index + uniqueness handled via CREATE INDEX statements below
 );
+
+-- Indexes for choice_patterns
+CREATE INDEX IF NOT EXISTS idx_choice_patterns_user
+  ON choice_patterns(user_id);
+CREATE INDEX IF NOT EXISTS idx_choice_patterns_type
+  ON choice_patterns(pattern_type);
+CREATE INDEX IF NOT EXISTS idx_choice_patterns_created_at
+  ON choice_patterns(created_at);
+
+-- Unique index to prevent duplicate patterns for same user/type/time_range start
+CREATE INDEX IF NOT EXISTS idx_choice_patterns_unique_user_type_start
+  ON choice_patterns(user_id, pattern_type, (time_range->>'start'));
 
 -- Longitudinal trend tracking
 CREATE TABLE IF NOT EXISTS emotional_trends (
@@ -118,16 +139,22 @@ CREATE TABLE IF NOT EXISTS emotional_trends (
   risk_factors JSONB DEFAULT '[]',
   protective_factors JSONB DEFAULT '[]',
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  
-  -- Indexes for performance
-  INDEX idx_emotional_trends_user (user_id),
-  INDEX idx_emotional_trends_trend (overall_trend),
-  INDEX idx_emotional_trends_created_at (created_at),
-  
-  -- Unique constraint for user/timerange
-  UNIQUE(user_id, ((time_range->>'start')::timestamptz), ((time_range->>'end')::timestamptz))
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+
+  -- Note: index + uniqueness handled via CREATE INDEX statements below
 );
+
+-- Indexes for emotional_trends
+CREATE INDEX IF NOT EXISTS idx_emotional_trends_user
+  ON emotional_trends(user_id);
+CREATE INDEX IF NOT EXISTS idx_emotional_trends_trend
+  ON emotional_trends(overall_trend);
+CREATE INDEX IF NOT EXISTS idx_emotional_trends_created_at
+  ON emotional_trends(created_at);
+
+-- Unique index for user/time_range start+end
+CREATE INDEX IF NOT EXISTS idx_emotional_trends_unique_user_start_end
+  ON emotional_trends(user_id, (time_range->>'start'), (time_range->>'end'));
 
 -- Intervention triggers tracking
 CREATE TABLE IF NOT EXISTS intervention_triggers (
@@ -140,15 +167,23 @@ CREATE TABLE IF NOT EXISTS intervention_triggers (
   recommendations TEXT[] NOT NULL,
   detected_at TIMESTAMPTZ DEFAULT NOW(),
   resolved_at TIMESTAMPTZ,
-  resolution_notes TEXT,
-  
-  -- Indexes for performance
-  INDEX idx_intervention_triggers_user (user_id),
-  INDEX idx_intervention_triggers_type (trigger_type),
-  INDEX idx_intervention_triggers_severity (severity),
-  INDEX idx_intervention_triggers_detected_at (detected_at),
-  INDEX idx_intervention_triggers_unresolved (resolved_at) WHERE resolved_at IS NULL
+  resolution_notes TEXT
+
+  -- Note: indexes handled via CREATE INDEX statements below
 );
+
+-- Indexes for intervention_triggers
+CREATE INDEX IF NOT EXISTS idx_intervention_triggers_user
+  ON intervention_triggers(user_id);
+CREATE INDEX IF NOT EXISTS idx_intervention_triggers_type
+  ON intervention_triggers(trigger_type);
+CREATE INDEX IF NOT EXISTS idx_intervention_triggers_severity
+  ON intervention_triggers(severity);
+CREATE INDEX IF NOT EXISTS idx_intervention_triggers_detected_at
+  ON intervention_triggers(detected_at);
+CREATE INDEX IF NOT EXISTS idx_intervention_triggers_unresolved
+  ON intervention_triggers(resolved_at)
+  WHERE resolved_at IS NULL;
 
 -- Emotional correlations tracking
 CREATE TABLE IF NOT EXISTS emotional_correlations (
@@ -162,16 +197,22 @@ CREATE TABLE IF NOT EXISTS emotional_correlations (
   sample_size INTEGER NOT NULL,
   time_range JSONB NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  
-  -- Indexes for performance
-  INDEX idx_emotional_correlations_user (user_id),
-  INDEX idx_emotional_correlations_mood (mood),
-  INDEX idx_emotional_correlations_created_at (created_at),
-  
-  -- Unique constraint for user/mood/timerange
-  UNIQUE(user_id, mood, ((time_range->>'start')::timestamptz))
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+
+  -- Note: index + uniqueness handled via CREATE INDEX statements below
 );
+
+-- Indexes for emotional_correlations
+CREATE INDEX IF NOT EXISTS idx_emotional_correlations_user
+  ON emotional_correlations(user_id);
+CREATE INDEX IF NOT EXISTS idx_emotional_correlations_mood
+  ON emotional_correlations(mood);
+CREATE INDEX IF NOT EXISTS idx_emotional_correlations_created_at
+  ON emotional_correlations(created_at);
+
+-- Unique index for user/mood/time_range start
+CREATE INDEX IF NOT EXISTS idx_emotional_correlations_unique_user_mood_start
+  ON emotional_correlations(user_id, mood, (time_range->>'start'));
 
 -- Row Level Security Policies
 
@@ -191,8 +232,8 @@ CREATE POLICY voice_analysis_results_policy ON voice_analysis_results
   FOR ALL USING (user_id = auth.uid());
 
 -- Engagement metrics - users can only access their own data
-ALTER TABLE engagement_metrics ENABLE ROW LEVEL SECURITY;
-CREATE POLICY engagement_metrics_policy ON engagement_metrics
+ALTER TABLE emotion_engagement_metrics ENABLE ROW LEVEL SECURITY;
+CREATE POLICY emotion_engagement_metrics_policy ON emotion_engagement_metrics
   FOR ALL USING (user_id = auth.uid());
 
 -- Choice patterns - users can only access their own data
@@ -258,7 +299,7 @@ BEGIN
       WHEN 'low' THEN 1
     END
   ) INTO early_engagement
-  FROM engagement_metrics
+  FROM emotion_engagement_metrics
   WHERE user_id = p_user_id
     AND created_at >= NOW() - (p_days || ' days')::INTERVAL
     AND created_at <= NOW() - (p_days/2 || ' days')::INTERVAL;
@@ -271,7 +312,7 @@ BEGIN
       WHEN 'low' THEN 1
     END
   ) INTO recent_engagement
-  FROM engagement_metrics
+  FROM emotion_engagement_metrics
   WHERE user_id = p_user_id
     AND created_at >= NOW() - (p_days/2 || ' days')::INTERVAL;
 
@@ -341,16 +382,16 @@ END;
 $$;
 
 -- Create indexes for better performance
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_emotions_user_created_at ON emotions(user_id, created_at);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_emotions_mood_confidence ON emotions(mood, confidence);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_response_latency_response_time ON response_latency_data(response_time);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_story_choices_response_time ON story_choices(response_time);
+CREATE INDEX IF NOT EXISTS idx_emotions_user_created_at ON emotions(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_emotions_mood_confidence ON emotions(mood, confidence);
+CREATE INDEX IF NOT EXISTS idx_response_latency_response_time ON response_latency_data(response_time);
+CREATE INDEX IF NOT EXISTS idx_story_choices_response_time ON story_choices(response_time);
 
 -- Grant necessary permissions
 GRANT SELECT, INSERT, UPDATE, DELETE ON response_latency_data TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON story_choices TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON voice_analysis_results TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON engagement_metrics TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON emotion_engagement_metrics TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON choice_patterns TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON emotional_trends TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON intervention_triggers TO authenticated;
@@ -364,7 +405,7 @@ GRANT EXECUTE ON FUNCTION detect_pattern_anomalies(UUID) TO authenticated;
 COMMENT ON TABLE response_latency_data IS 'Tracks response times for engagement analysis and fatigue detection';
 COMMENT ON TABLE story_choices IS 'Records story choices for pattern analysis and emotional correlation';
 COMMENT ON TABLE voice_analysis_results IS 'Stores sophisticated voice pattern analysis results for emotion detection';
-COMMENT ON TABLE engagement_metrics IS 'Aggregated engagement metrics per session for trend analysis';
+COMMENT ON TABLE emotion_engagement_metrics IS 'Aggregated engagement metrics per session for trend analysis';
 COMMENT ON TABLE choice_patterns IS 'Identified behavioral patterns from story choices';
 COMMENT ON TABLE emotional_trends IS 'Longitudinal emotional trend analysis and developmental insights';
 COMMENT ON TABLE intervention_triggers IS 'Detected triggers requiring intervention or attention';
@@ -389,15 +430,21 @@ CREATE TABLE IF NOT EXISTS early_intervention_signals (
   recommended_actions TEXT[] NOT NULL,
   detected_at TIMESTAMPTZ DEFAULT NOW(),
   resolved_at TIMESTAMPTZ,
-  resolution_notes TEXT,
-  
-  -- Indexes for performance
-  INDEX idx_early_intervention_user (user_id),
-  INDEX idx_early_intervention_type (signal_type),
-  INDEX idx_early_intervention_severity (severity),
-  INDEX idx_early_intervention_detected_at (detected_at),
-  INDEX idx_early_intervention_unresolved (resolved_at) WHERE resolved_at IS NULL
+  resolution_notes TEXT
 );
+
+-- Indexes for early_intervention_signals
+CREATE INDEX IF NOT EXISTS idx_early_intervention_user
+  ON early_intervention_signals(user_id);
+CREATE INDEX IF NOT EXISTS idx_early_intervention_type
+  ON early_intervention_signals(signal_type);
+CREATE INDEX IF NOT EXISTS idx_early_intervention_severity
+  ON early_intervention_signals(severity);
+CREATE INDEX IF NOT EXISTS idx_early_intervention_detected_at
+  ON early_intervention_signals(detected_at);
+CREATE INDEX IF NOT EXISTS idx_early_intervention_unresolved
+  ON early_intervention_signals(resolved_at)
+  WHERE resolved_at IS NULL;
 
 -- Risk assessments tracking
 CREATE TABLE IF NOT EXISTS risk_assessments (
@@ -411,15 +458,20 @@ CREATE TABLE IF NOT EXISTS risk_assessments (
   next_assessment_due TIMESTAMPTZ NOT NULL,
   assessment_date TIMESTAMPTZ DEFAULT NOW(),
   assessor TEXT DEFAULT 'system',
-  notes TEXT,
-  
-  -- Indexes for performance
-  INDEX idx_risk_assessments_user (user_id),
-  INDEX idx_risk_assessments_risk_level (overall_risk_level),
-  INDEX idx_risk_assessments_urgency (intervention_urgency),
-  INDEX idx_risk_assessments_next_due (next_assessment_due),
-  INDEX idx_risk_assessments_date (assessment_date)
+  notes TEXT
 );
+
+-- Indexes for risk_assessments
+CREATE INDEX IF NOT EXISTS idx_risk_assessments_user
+  ON risk_assessments(user_id);
+CREATE INDEX IF NOT EXISTS idx_risk_assessments_risk_level
+  ON risk_assessments(overall_risk_level);
+CREATE INDEX IF NOT EXISTS idx_risk_assessments_urgency
+  ON risk_assessments(intervention_urgency);
+CREATE INDEX IF NOT EXISTS idx_risk_assessments_next_due
+  ON risk_assessments(next_assessment_due);
+CREATE INDEX IF NOT EXISTS idx_risk_assessments_date
+  ON risk_assessments(assessment_date);
 
 -- Therapeutic story pathways
 CREATE TABLE IF NOT EXISTS therapeutic_pathways (
@@ -433,13 +485,16 @@ CREATE TABLE IF NOT EXISTS therapeutic_pathways (
   adaptation_triggers JSONB NOT NULL DEFAULT '[]',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
-  status TEXT CHECK (status IN ('active', 'completed', 'paused', 'cancelled')) DEFAULT 'active',
-  
-  -- Indexes for performance
-  INDEX idx_therapeutic_pathways_user (user_id),
-  INDEX idx_therapeutic_pathways_status (status),
-  INDEX idx_therapeutic_pathways_created_at (created_at)
+  status TEXT CHECK (status IN ('active', 'completed', 'paused', 'cancelled')) DEFAULT 'active'
 );
+
+-- Indexes for therapeutic_pathways
+CREATE INDEX IF NOT EXISTS idx_therapeutic_pathways_user
+  ON therapeutic_pathways(user_id);
+CREATE INDEX IF NOT EXISTS idx_therapeutic_pathways_status
+  ON therapeutic_pathways(status);
+CREATE INDEX IF NOT EXISTS idx_therapeutic_pathways_created_at
+  ON therapeutic_pathways(created_at);
 
 -- Emotional journeys tracking
 CREATE TABLE IF NOT EXISTS emotional_journeys (
@@ -453,14 +508,18 @@ CREATE TABLE IF NOT EXISTS emotional_journeys (
   adaptations JSONB NOT NULL DEFAULT '[]',
   outcomes JSONB NOT NULL DEFAULT '[]',
   status TEXT CHECK (status IN ('active', 'completed', 'paused', 'cancelled')) DEFAULT 'active',
-  completion_date TIMESTAMPTZ,
-  
-  -- Indexes for performance
-  INDEX idx_emotional_journeys_user (user_id),
-  INDEX idx_emotional_journeys_pathway (pathway_id),
-  INDEX idx_emotional_journeys_status (status),
-  INDEX idx_emotional_journeys_start_date (start_date)
+  completion_date TIMESTAMPTZ
 );
+
+-- Indexes for emotional_journeys
+CREATE INDEX IF NOT EXISTS idx_emotional_journeys_user
+  ON emotional_journeys(user_id);
+CREATE INDEX IF NOT EXISTS idx_emotional_journeys_pathway
+  ON emotional_journeys(pathway_id);
+CREATE INDEX IF NOT EXISTS idx_emotional_journeys_status
+  ON emotional_journeys(status);
+CREATE INDEX IF NOT EXISTS idx_emotional_journeys_start_date
+  ON emotional_journeys(start_date);
 
 -- Story recommendations tracking
 CREATE TABLE IF NOT EXISTS story_recommendations (
@@ -477,15 +536,21 @@ CREATE TABLE IF NOT EXISTS story_recommendations (
   accepted BOOLEAN,
   accepted_at TIMESTAMPTZ,
   feedback TEXT,
-  emotional_outcome TEXT,
-  
-  -- Indexes for performance
-  INDEX idx_story_recommendations_user (user_id),
-  INDEX idx_story_recommendations_type (story_type),
-  INDEX idx_story_recommendations_tone (tone),
-  INDEX idx_story_recommendations_recommended_at (recommended_at),
-  INDEX idx_story_recommendations_accepted (accepted) WHERE accepted IS NOT NULL
+  emotional_outcome TEXT
 );
+
+-- Indexes for story_recommendations
+CREATE INDEX IF NOT EXISTS idx_story_recommendations_user
+  ON story_recommendations(user_id);
+CREATE INDEX IF NOT EXISTS idx_story_recommendations_type
+  ON story_recommendations(story_type);
+CREATE INDEX IF NOT EXISTS idx_story_recommendations_tone
+  ON story_recommendations(tone);
+CREATE INDEX IF NOT EXISTS idx_story_recommendations_recommended_at
+  ON story_recommendations(recommended_at);
+CREATE INDEX IF NOT EXISTS idx_story_recommendations_accepted
+  ON story_recommendations(accepted)
+  WHERE accepted IS NOT NULL;
 
 -- Crisis indicators and responses
 CREATE TABLE IF NOT EXISTS crisis_indicators (
@@ -498,15 +563,20 @@ CREATE TABLE IF NOT EXISTS crisis_indicators (
   source TEXT CHECK (source IN ('voice_analysis', 'text_content', 'behavioral_pattern', 'direct_disclosure')) NOT NULL,
   evidence TEXT[] NOT NULL,
   context JSONB NOT NULL,
-  detected_at TIMESTAMPTZ DEFAULT NOW(),
-  
-  -- Indexes for performance
-  INDEX idx_crisis_indicators_user (user_id),
-  INDEX idx_crisis_indicators_session (session_id),
-  INDEX idx_crisis_indicators_type (indicator_type),
-  INDEX idx_crisis_indicators_severity (severity),
-  INDEX idx_crisis_indicators_detected_at (detected_at)
+  detected_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Indexes for crisis_indicators
+CREATE INDEX IF NOT EXISTS idx_crisis_indicators_user
+  ON crisis_indicators(user_id);
+CREATE INDEX IF NOT EXISTS idx_crisis_indicators_session
+  ON crisis_indicators(session_id);
+CREATE INDEX IF NOT EXISTS idx_crisis_indicators_type
+  ON crisis_indicators(indicator_type);
+CREATE INDEX IF NOT EXISTS idx_crisis_indicators_severity
+  ON crisis_indicators(severity);
+CREATE INDEX IF NOT EXISTS idx_crisis_indicators_detected_at
+  ON crisis_indicators(detected_at);
 
 -- Crisis responses tracking
 CREATE TABLE IF NOT EXISTS crisis_responses (
@@ -522,14 +592,19 @@ CREATE TABLE IF NOT EXISTS crisis_responses (
   documentation_required BOOLEAN NOT NULL,
   detected_at TIMESTAMPTZ DEFAULT NOW(),
   resolved_at TIMESTAMPTZ,
-  resolution_notes TEXT,
-  
-  -- Indexes for performance
-  INDEX idx_crisis_responses_user (user_id),
-  INDEX idx_crisis_responses_risk_level (risk_level),
-  INDEX idx_crisis_responses_detected_at (detected_at),
-  INDEX idx_crisis_responses_unresolved (resolved_at) WHERE resolved_at IS NULL
+  resolution_notes TEXT
 );
+
+-- Indexes for crisis_responses
+CREATE INDEX IF NOT EXISTS idx_crisis_responses_user
+  ON crisis_responses(user_id);
+CREATE INDEX IF NOT EXISTS idx_crisis_responses_risk_level
+  ON crisis_responses(risk_level);
+CREATE INDEX IF NOT EXISTS idx_crisis_responses_detected_at
+  ON crisis_responses(detected_at);
+CREATE INDEX IF NOT EXISTS idx_crisis_responses_unresolved
+  ON crisis_responses(resolved_at)
+  WHERE resolved_at IS NULL;
 
 -- Safety plans
 CREATE TABLE IF NOT EXISTS safety_plans (
@@ -545,13 +620,16 @@ CREATE TABLE IF NOT EXISTS safety_plans (
   review_schedule TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
-  status TEXT CHECK (status IN ('active', 'inactive', 'archived')) DEFAULT 'active',
-  
-  -- Indexes for performance
-  INDEX idx_safety_plans_user (user_id),
-  INDEX idx_safety_plans_status (status),
-  INDEX idx_safety_plans_created_at (created_at)
+  status TEXT CHECK (status IN ('active', 'inactive', 'archived')) DEFAULT 'active'
 );
+
+-- Indexes for safety_plans
+CREATE INDEX IF NOT EXISTS idx_safety_plans_user
+  ON safety_plans(user_id);
+CREATE INDEX IF NOT EXISTS idx_safety_plans_status
+  ON safety_plans(status);
+CREATE INDEX IF NOT EXISTS idx_safety_plans_created_at
+  ON safety_plans(created_at);
 
 -- Row Level Security Policies for new tables
 

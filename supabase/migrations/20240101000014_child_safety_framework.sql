@@ -172,6 +172,9 @@ CREATE INDEX IF NOT EXISTS idx_content_safety_pattern ON content_safety_logs(use
 
 -- Row Level Security Policies
 
+-- PR0 boot blocker fix: add missing users.role column referenced by staff-access policies below
+ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT;
+
 -- Safety incidents - only accessible by the user and authorized staff
 ALTER TABLE safety_incidents ENABLE ROW LEVEL SECURITY;
 
