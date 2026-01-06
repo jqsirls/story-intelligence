@@ -141,7 +141,7 @@ CREATE OR REPLACE FUNCTION create_sub_library_with_avatar(
   p_avatar_type TEXT,
   p_avatar_data JSONB
 )
-RETURNS UUID AS $
+RETURNS UUID AS $$
 DECLARE
   new_library_id UUID;
 BEGIN
@@ -165,7 +165,7 @@ BEGIN
   
   RETURN new_library_id;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to handle story transfer requests
 CREATE OR REPLACE FUNCTION create_story_transfer_request(
@@ -173,7 +173,7 @@ CREATE OR REPLACE FUNCTION create_story_transfer_request(
   p_to_library_id UUID,
   p_transfer_message TEXT DEFAULT NULL
 )
-RETURNS UUID AS $
+RETURNS UUID AS $$
 DECLARE
   transfer_id UUID;
   from_library_id UUID;
@@ -204,7 +204,7 @@ BEGIN
   
   RETURN transfer_id;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to accept/reject story transfer
 CREATE OR REPLACE FUNCTION respond_to_story_transfer(
@@ -212,7 +212,7 @@ CREATE OR REPLACE FUNCTION respond_to_story_transfer(
   p_response TEXT, -- 'accepted' or 'rejected'
   p_response_message TEXT DEFAULT NULL
 )
-RETURNS BOOLEAN AS $
+RETURNS BOOLEAN AS $$
 DECLARE
   transfer_record RECORD;
 BEGIN
@@ -247,7 +247,7 @@ BEGIN
   
   RETURN TRUE;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to share character across libraries
 CREATE OR REPLACE FUNCTION share_character(
@@ -255,7 +255,7 @@ CREATE OR REPLACE FUNCTION share_character(
   p_target_library_id UUID,
   p_share_type TEXT -- 'copy' or 'reference'
 )
-RETURNS UUID AS $
+RETURNS UUID AS $$
 DECLARE
   character_record RECORD;
   source_library_id UUID;
@@ -263,10 +263,13 @@ DECLARE
   share_id UUID;
 BEGIN
   -- Get character and source library
-  SELECT c.*, s.library_id INTO character_record, source_library_id
+  SELECT c.* INTO character_record
   FROM characters c
-  JOIN stories s ON c.story_id = s.id
   WHERE c.id = p_character_id;
+  
+  SELECT s.library_id INTO source_library_id
+  FROM stories s
+  WHERE s.id = character_record.story_id;
   
   IF character_record IS NULL THEN
     RAISE EXCEPTION 'Character not found';
@@ -301,7 +304,7 @@ BEGIN
   
   RETURN share_id;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to get hierarchical library access (parent can see all sub-library stories)
 CREATE OR REPLACE FUNCTION get_hierarchical_library_stories(p_library_id UUID)
@@ -315,7 +318,7 @@ RETURNS TABLE(
   age_rating INTEGER,
   created_at TIMESTAMPTZ,
   finalized_at TIMESTAMPTZ
-) AS $
+) AS $$
 BEGIN
   -- Check permission on main library
   IF NOT check_library_permission_with_coppa(p_library_id, 'Viewer') THEN
@@ -339,7 +342,7 @@ BEGIN
      OR l.parent_library = p_library_id
   ORDER BY s.created_at DESC;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to get emotional patterns scoped to sub-library
 CREATE OR REPLACE FUNCTION get_sub_library_emotional_patterns(
@@ -351,7 +354,7 @@ RETURNS TABLE(
   frequency BIGINT,
   avg_confidence NUMERIC,
   trend TEXT
-) AS $
+) AS $$
 BEGIN
   -- Check permission
   IF NOT check_library_permission_with_coppa(p_sub_library_id, 'Viewer') THEN
@@ -370,11 +373,11 @@ BEGIN
   GROUP BY e.mood
   ORDER BY frequency DESC;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Cleanup function for expired transfer requests
 CREATE OR REPLACE FUNCTION cleanup_expired_transfer_requests()
-RETURNS INTEGER AS $
+RETURNS INTEGER AS $$
 DECLARE
   expired_count INTEGER;
 BEGIN
@@ -386,7 +389,7 @@ BEGIN
   
   RETURN expired_count;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Grant permissions
 GRANT EXECUTE ON FUNCTION create_sub_library_with_avatar(UUID, TEXT, TEXT, JSONB) TO authenticated;

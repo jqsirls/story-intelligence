@@ -73,16 +73,22 @@ END $$;
 
 -- Drop policies on parent_notification_preferences table (if exists)
 -- These are the policies mentioned in the error message
-DROP POLICY IF EXISTS parent_notification_prefs_select ON parent_notification_preferences;
-DROP POLICY IF EXISTS parent_notification_prefs_insert ON parent_notification_preferences;
-DROP POLICY IF EXISTS parent_notification_prefs_update ON parent_notification_preferences;
-DROP POLICY IF EXISTS parent_notification_prefs_delete ON parent_notification_preferences;
+DO $$
+BEGIN
+  IF to_regclass('public.parent_notification_preferences') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS parent_notification_prefs_select ON parent_notification_preferences';
+    EXECUTE 'DROP POLICY IF EXISTS parent_notification_prefs_insert ON parent_notification_preferences';
+    EXECUTE 'DROP POLICY IF EXISTS parent_notification_prefs_update ON parent_notification_preferences';
+    EXECUTE 'DROP POLICY IF EXISTS parent_notification_prefs_delete ON parent_notification_preferences';
+  END IF;
 
--- Drop policies on parent_notification_log table (if exists)
-DROP POLICY IF EXISTS parent_notification_log_select ON parent_notification_log;
-DROP POLICY IF EXISTS parent_notification_log_insert ON parent_notification_log;
-DROP POLICY IF EXISTS parent_notification_log_update ON parent_notification_log;
-DROP POLICY IF EXISTS parent_notification_log_delete ON parent_notification_log;
+  IF to_regclass('public.parent_notification_log') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS parent_notification_log_select ON parent_notification_log';
+    EXECUTE 'DROP POLICY IF EXISTS parent_notification_log_insert ON parent_notification_log';
+    EXECUTE 'DROP POLICY IF EXISTS parent_notification_log_update ON parent_notification_log';
+    EXECUTE 'DROP POLICY IF EXISTS parent_notification_log_delete ON parent_notification_log';
+  END IF;
+END $$;
 
 -- Drop any other policies that reference users.parent_email
 -- Check for policies on users table that reference parent_email
@@ -92,12 +98,12 @@ DROP POLICY IF EXISTS users_profile_policy ON users;
 -- (It will be recreated without parent_email parameter if needed)
 DROP FUNCTION IF EXISTS validate_user_registration(INTEGER, TEXT, TEXT);
 
--- Drop trigger function that references parent_email and age
-DROP FUNCTION IF EXISTS trigger_validate_user_registration();
-
 -- Drop any triggers that might reference parent_email or age
 DROP TRIGGER IF EXISTS trigger_validate_user_registration ON users;
 DROP TRIGGER IF EXISTS validate_user_registration_trigger ON users;
+
+-- Drop trigger function that references parent_email and age
+DROP FUNCTION IF EXISTS trigger_validate_user_registration();
 
 -- Also drop the set_coppa_protection trigger if it references age
 DROP TRIGGER IF EXISTS trigger_set_coppa_protection ON users;

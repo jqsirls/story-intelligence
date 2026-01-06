@@ -96,8 +96,15 @@ ALTER TABLE auth_sessions ADD COLUMN IF NOT EXISTS platform_capabilities TEXT[] 
 ALTER TABLE auth_sessions ADD COLUMN IF NOT EXISTS smart_home_enabled BOOLEAN DEFAULT FALSE;
 
 -- Multi-platform consent tracking (enhanced)
-ALTER TABLE consent_records ADD COLUMN IF NOT EXISTS platform TEXT;
-ALTER TABLE consent_records ADD COLUMN IF NOT EXISTS platform_specific_data JSONB DEFAULT '{}';
+DO $$
+BEGIN
+  IF to_regclass('public.consent_records') IS NOT NULL THEN
+    ALTER TABLE public.consent_records ADD COLUMN IF NOT EXISTS platform TEXT;
+    ALTER TABLE public.consent_records ADD COLUMN IF NOT EXISTS platform_specific_data JSONB DEFAULT '{}';
+  ELSE
+    RAISE NOTICE 'public.consent_records not present; skipping consent_records platform columns';
+  END IF;
+END $$;
 
 -- Indexes for performance
 CREATE INDEX idx_smart_home_devices_user_id ON smart_home_devices(user_id);
@@ -152,30 +159,30 @@ INSERT INTO story_lighting_profiles (story_type, profile_name, base_profile, nar
   '{"brightness": 20, "color": "#FF9500", "saturation": 60}',
   '{"peaceful_moment": {"color": "#FFB347", "brightness": 15, "transition": 3000}, "gentle_adventure": {"color": "#87CEEB", "brightness": 25, "transition": 2000}, "story_end": {"brightness": 5, "transition": 10000}}',
   '{"brightness": {"min": 5, "max": 30}, "colorRestrictions": ["no_red", "no_bright_blue"], "transitionSpeed": "gentle"}',
-  '["alexa_plus", "google_assistant", "apple_siri"]'
+  ARRAY['alexa_plus', 'google_assistant', 'apple_siri']
 ),
 ('Adventure', 'default',
   '{"brightness": 70, "color": "#32CD32", "saturation": 80}',
   '{"exciting_moment": {"color": "#FFD700", "brightness": 85, "transition": 1000}, "mysterious_scene": {"color": "#9370DB", "brightness": 40, "transition": 2000}, "victory_moment": {"color": "#00FF00", "brightness": 90, "transition": 500}}',
   '{"brightness": {"min": 40, "max": 90}, "colorRestrictions": [], "transitionSpeed": "dynamic"}',
-  '["alexa_plus", "google_assistant", "apple_siri"]'
+  ARRAY['alexa_plus', 'google_assistant', 'apple_siri']
 ),
 ('Educational', 'default',
   '{"brightness": 80, "color": "#87CEEB", "saturation": 70}',
   '{"discovery_moment": {"color": "#FFD700", "brightness": 85, "transition": 1500}, "thinking_pause": {"brightness": 60, "transition": 2000}, "achievement": {"color": "#32CD32", "brightness": 90, "transition": 1000}}',
   '{"brightness": {"min": 60, "max": 90}, "colorRestrictions": [], "transitionSpeed": "moderate"}',
-  '["alexa_plus", "google_assistant", "apple_siri"]'
+  ARRAY['alexa_plus', 'google_assistant', 'apple_siri']
 ),
 ('Mental Health', 'calming',
   '{"brightness": 40, "color": "#E6E6FA", "saturation": 50}',
   '{"calming_moment": {"color": "#DDA0DD", "brightness": 30, "transition": 4000}, "reassurance": {"color": "#98FB98", "brightness": 45, "transition": 3000}, "confidence_building": {"color": "#F0E68C", "brightness": 50, "transition": 2000}}',
   '{"brightness": {"min": 20, "max": 60}, "colorRestrictions": ["no_red", "no_orange"], "transitionSpeed": "gentle"}',
-  '["alexa_plus", "google_assistant", "apple_siri"]'
+  ARRAY['alexa_plus', 'google_assistant', 'apple_siri']
 );
 
 -- Functions for token management
 CREATE OR REPLACE FUNCTION cleanup_expired_device_tokens()
-RETURNS INTEGER AS $
+RETURNS INTEGER AS $$
 DECLARE
   expired_count INTEGER;
 BEGIN
@@ -202,7 +209,7 @@ BEGIN
   
   RETURN expired_count;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to validate smart home consent
 CREATE OR REPLACE FUNCTION validate_smart_home_consent(
@@ -210,7 +217,7 @@ CREATE OR REPLACE FUNCTION validate_smart_home_consent(
   p_device_type TEXT,
   p_platform TEXT
 )
-RETURNS BOOLEAN AS $
+RETURNS BOOLEAN AS $$
 DECLARE
   user_age INTEGER;
   has_consent BOOLEAN := FALSE;
@@ -235,7 +242,7 @@ BEGIN
   
   RETURN has_consent;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to log smart home actions for audit
 CREATE OR REPLACE FUNCTION log_smart_home_action(
@@ -247,7 +254,7 @@ CREATE OR REPLACE FUNCTION log_smart_home_action(
   p_session_id TEXT DEFAULT NULL,
   p_error_message TEXT DEFAULT NULL
 )
-RETURNS UUID AS $
+RETURNS UUID AS $$
 DECLARE
   log_id UUID;
 BEGIN
@@ -277,7 +284,7 @@ BEGIN
   
   RETURN log_id;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Grant permissions
 GRANT EXECUTE ON FUNCTION cleanup_expired_device_tokens() TO service_role;

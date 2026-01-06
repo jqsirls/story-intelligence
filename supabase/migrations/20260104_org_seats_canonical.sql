@@ -72,7 +72,7 @@ BEGIN
       AND n.nspname = 'public'
       AND c.relname = 'idx_organizations_owner'
   ) THEN
-    CREATE INDEX idx_organizations_owner ON public.organizations(owner_user_id);
+    CREATE INDEX idx_organizations_owner ON public.organizations(owner_id);
   END IF;
 END$$;
 
@@ -170,6 +170,6 @@ CREATE POLICY organizations_policy
   ON public.organizations
   FOR SELECT
   TO public
-  USING (owner_user_id = auth.uid() OR public.is_org_member(id));
+  USING (owner_id = auth.uid() OR public.is_org_member(id));
 
 

@@ -35,13 +35,18 @@ CREATE TABLE IF NOT EXISTS public.reward_ledger (
   
   -- Timestamps
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  
-  -- Indexes for performance
-  INDEX idx_reward_ledger_user (user_id),
-  INDEX idx_reward_ledger_status (status) WHERE status = 'pending',
-  INDEX idx_reward_ledger_expires (expires_at) WHERE expires_at IS NOT NULL AND status = 'pending'
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Indexes for public.reward_ledger
+CREATE INDEX IF NOT EXISTS idx_reward_ledger_user
+  ON public.reward_ledger(user_id);
+CREATE INDEX IF NOT EXISTS idx_reward_ledger_status
+  ON public.reward_ledger(status)
+  WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_reward_ledger_expires
+  ON public.reward_ledger(expires_at)
+  WHERE expires_at IS NOT NULL AND status = 'pending';
 
 -- Function to calculate available credits for a user
 CREATE OR REPLACE FUNCTION public.calculate_user_credits(p_user_id UUID)
@@ -88,14 +93,19 @@ CREATE TABLE IF NOT EXISTS public.consumption_metrics (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   
   -- Unique constraint
-  UNIQUE(story_id, user_id),
-  
-  -- Indexes
-  INDEX idx_consumption_metrics_story (story_id),
-  INDEX idx_consumption_metrics_user (user_id),
-  INDEX idx_consumption_metrics_engagement (engagement_score) WHERE engagement_score > 70,
-  INDEX idx_consumption_metrics_last_read (last_read_at)
+  UNIQUE(story_id, user_id)
 );
+
+-- Indexes for public.consumption_metrics
+CREATE INDEX IF NOT EXISTS idx_consumption_metrics_story
+  ON public.consumption_metrics(story_id);
+CREATE INDEX IF NOT EXISTS idx_consumption_metrics_user
+  ON public.consumption_metrics(user_id);
+CREATE INDEX IF NOT EXISTS idx_consumption_metrics_engagement
+  ON public.consumption_metrics(engagement_score)
+  WHERE engagement_score > 70;
+CREATE INDEX IF NOT EXISTS idx_consumption_metrics_last_read
+  ON public.consumption_metrics(last_read_at);
 
 -- Function to track consumption event
 CREATE OR REPLACE FUNCTION public.track_consumption_event(
@@ -171,14 +181,19 @@ CREATE TABLE IF NOT EXISTS public.story_effectiveness (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   
   -- Unique constraint
-  UNIQUE(story_id, user_id),
-  
-  -- Indexes
-  INDEX idx_story_effectiveness_story (story_id),
-  INDEX idx_story_effectiveness_user (user_id),
-  INDEX idx_story_effectiveness_score (effectiveness_score) WHERE effectiveness_score > 70,
-  INDEX idx_story_effectiveness_context (context_tags) USING GIN
+  UNIQUE(story_id, user_id)
 );
+
+-- Indexes for public.story_effectiveness
+CREATE INDEX IF NOT EXISTS idx_story_effectiveness_story
+  ON public.story_effectiveness(story_id);
+CREATE INDEX IF NOT EXISTS idx_story_effectiveness_user
+  ON public.story_effectiveness(user_id);
+CREATE INDEX IF NOT EXISTS idx_story_effectiveness_score
+  ON public.story_effectiveness(effectiveness_score)
+  WHERE effectiveness_score > 70;
+CREATE INDEX IF NOT EXISTS idx_story_effectiveness_context
+  ON public.story_effectiveness USING GIN (context_tags);
 
 -- Function to calculate story effectiveness (comparative)
 CREATE OR REPLACE FUNCTION public.calculate_story_effectiveness(
@@ -278,14 +293,20 @@ CREATE TABLE IF NOT EXISTS public.recommendation_outcomes (
   
   -- Timestamps
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  
-  -- Indexes
-  INDEX idx_recommendation_outcomes_user (user_id),
-  INDEX idx_recommendation_outcomes_type_context (recommendation_type, ((context->>'childAge')::int)),
-  INDEX idx_recommendation_outcomes_declined (outcome) WHERE outcome = 'DECLINED',
-  INDEX idx_recommendation_outcomes_pending (outcome) WHERE outcome = 'PENDING'
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Indexes for public.recommendation_outcomes
+CREATE INDEX IF NOT EXISTS idx_recommendation_outcomes_user
+  ON public.recommendation_outcomes(user_id);
+CREATE INDEX IF NOT EXISTS idx_recommendation_outcomes_type_context
+  ON public.recommendation_outcomes(recommendation_type, ((context->>'childAge')::int));
+CREATE INDEX IF NOT EXISTS idx_recommendation_outcomes_declined
+  ON public.recommendation_outcomes(outcome)
+  WHERE outcome = 'DECLINED';
+CREATE INDEX IF NOT EXISTS idx_recommendation_outcomes_pending
+  ON public.recommendation_outcomes(outcome)
+  WHERE outcome = 'PENDING';
 
 -- ============================================================================
 -- 5. HUMAN OVERRIDES - Learn from corrections
@@ -319,13 +340,16 @@ CREATE TABLE IF NOT EXISTS public.human_overrides (
   metadata JSONB DEFAULT '{}',
   
   -- Timestamps
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  
-  -- Indexes
-  INDEX idx_human_overrides_type (pipeline_type, override_type),
-  INDEX idx_human_overrides_occurred (occurred_at),
-  INDEX idx_human_overrides_user (user_id)
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Indexes for public.human_overrides
+CREATE INDEX IF NOT EXISTS idx_human_overrides_type
+  ON public.human_overrides(pipeline_type, override_type);
+CREATE INDEX IF NOT EXISTS idx_human_overrides_occurred
+  ON public.human_overrides(occurred_at);
+CREATE INDEX IF NOT EXISTS idx_human_overrides_user
+  ON public.human_overrides(user_id);
 
 -- ============================================================================
 -- 6. EMAIL PREFERENCES - User control over communications
@@ -402,14 +426,18 @@ CREATE TABLE IF NOT EXISTS public.email_delivery_log (
   
   -- Timestamps
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  
-  -- Indexes
-  INDEX idx_email_delivery_log_user (user_id),
-  INDEX idx_email_delivery_log_sent_at (sent_at),
-  INDEX idx_email_delivery_log_type (email_type),
-  INDEX idx_email_delivery_log_status (status)
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Indexes for public.email_delivery_log
+CREATE INDEX IF NOT EXISTS idx_email_delivery_log_user
+  ON public.email_delivery_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_email_delivery_log_sent_at
+  ON public.email_delivery_log(sent_at);
+CREATE INDEX IF NOT EXISTS idx_email_delivery_log_type
+  ON public.email_delivery_log(email_type);
+CREATE INDEX IF NOT EXISTS idx_email_delivery_log_status
+  ON public.email_delivery_log(status);
 
 -- Function to check if email should be sent (frequency caps)
 CREATE OR REPLACE FUNCTION public.should_send_email(
@@ -520,15 +548,21 @@ CREATE TABLE IF NOT EXISTS public.pipeline_executions (
   
   -- Timestamps
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  
-  -- Indexes
-  INDEX idx_pipeline_executions_type (pipeline_type),
-  INDEX idx_pipeline_executions_user (user_id),
-  INDEX idx_pipeline_executions_status (status),
-  INDEX idx_pipeline_executions_vetoed (vetoed) WHERE vetoed = TRUE,
-  INDEX idx_pipeline_executions_created (created_at)
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Indexes for public.pipeline_executions
+CREATE INDEX IF NOT EXISTS idx_pipeline_executions_type
+  ON public.pipeline_executions(pipeline_type);
+CREATE INDEX IF NOT EXISTS idx_pipeline_executions_user
+  ON public.pipeline_executions(user_id);
+CREATE INDEX IF NOT EXISTS idx_pipeline_executions_status
+  ON public.pipeline_executions(status);
+CREATE INDEX IF NOT EXISTS idx_pipeline_executions_vetoed
+  ON public.pipeline_executions(vetoed)
+  WHERE vetoed = TRUE;
+CREATE INDEX IF NOT EXISTS idx_pipeline_executions_created
+  ON public.pipeline_executions(created_at);
 
 -- ============================================================================
 -- 9. ALTER EXISTING TABLES - Add missing columns

@@ -157,7 +157,7 @@ CREATE POLICY event_subscriptions_policy ON event_subscriptions
 
 -- Function to clean up old events
 CREATE OR REPLACE FUNCTION cleanup_old_events(retention_days INTEGER DEFAULT 90)
-RETURNS INTEGER AS $
+RETURNS INTEGER AS $$
 DECLARE
   deleted_count INTEGER;
   cutoff_date TIMESTAMPTZ;
@@ -188,7 +188,7 @@ BEGIN
   
   RETURN deleted_count;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to get event statistics
 CREATE OR REPLACE FUNCTION get_event_statistics()
@@ -199,7 +199,7 @@ RETURNS TABLE(
   oldest_event TIMESTAMPTZ,
   newest_event TIMESTAMPTZ,
   active_correlations BIGINT
-) AS $
+) AS $$
 BEGIN
   RETURN QUERY
   SELECT 
@@ -212,7 +212,7 @@ BEGIN
     (SELECT MAX(event_time) FROM event_store) as newest_event,
     (SELECT COUNT(*) FROM event_correlations) as active_correlations;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to record event processing metrics
 CREATE OR REPLACE FUNCTION record_event_metrics(
@@ -229,7 +229,7 @@ CREATE OR REPLACE FUNCTION record_event_metrics(
   p_user_id UUID DEFAULT NULL,
   p_session_id TEXT DEFAULT NULL
 )
-RETURNS UUID AS $
+RETURNS UUID AS $$
 DECLARE
   metric_id UUID;
 BEGIN
@@ -247,7 +247,7 @@ BEGIN
   
   RETURN metric_id;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to update event replay status
 CREATE OR REPLACE FUNCTION update_replay_status(
@@ -256,7 +256,7 @@ CREATE OR REPLACE FUNCTION update_replay_status(
   p_events_replayed INTEGER DEFAULT NULL,
   p_error_message TEXT DEFAULT NULL
 )
-RETURNS VOID AS $
+RETURNS VOID AS $$
 BEGIN
   UPDATE event_replays 
   SET 
@@ -268,7 +268,7 @@ BEGIN
     updated_at = NOW()
   WHERE id = p_replay_id;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Grant permissions
 GRANT EXECUTE ON FUNCTION cleanup_old_events(INTEGER) TO service_role;
@@ -382,7 +382,7 @@ RETURNS TABLE(
   error_rate NUMERIC,
   active_alerts BIGINT,
   last_metric_time TIMESTAMPTZ
-) AS $
+) AS $$
 BEGIN
   RETURN QUERY
   SELECT 
@@ -400,7 +400,7 @@ BEGIN
   ORDER BY sm.timestamp DESC
   LIMIT 1;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Grant permissions for monitoring functions
 GRANT EXECUTE ON FUNCTION get_system_health() TO authenticated;

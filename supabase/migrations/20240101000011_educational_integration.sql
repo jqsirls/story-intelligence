@@ -77,8 +77,9 @@ CREATE TABLE teachers (
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
-);-- Classr
-ooms
+);
+
+-- Classrooms
 CREATE TABLE classrooms (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
@@ -178,8 +179,9 @@ CREATE TABLE participant_contributions (
   word_count INTEGER NOT NULL,
   timestamp TIMESTAMPTZ DEFAULT NOW(),
   created_at TIMESTAMPTZ DEFAULT NOW()
-);-- Par
-ent-teacher communications
+);
+
+-- Parent-teacher communications
 CREATE TABLE parent_teacher_communications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   student_id UUID REFERENCES students NOT NULL,
@@ -271,8 +273,9 @@ ALTER TABLE group_storytelling_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE session_participants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE participant_contributions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE parent_teacher_communications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE student_progress ENABLE ROW LEVEL SECURITY;-
-- RLS Policies
+ALTER TABLE student_progress ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies
 
 -- Curriculum frameworks - readable by all authenticated users
 CREATE POLICY curriculum_frameworks_read ON curriculum_frameworks

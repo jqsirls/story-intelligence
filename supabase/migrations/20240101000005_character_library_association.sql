@@ -49,7 +49,7 @@ CREATE OR REPLACE FUNCTION create_character_in_library(
   p_traits JSONB,
   p_art_prompt TEXT DEFAULT NULL
 )
-RETURNS UUID AS $
+RETURNS UUID AS $$
 DECLARE
   character_id UUID;
 BEGIN
@@ -81,7 +81,7 @@ BEGIN
   
   RETURN character_id;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to update character
 CREATE OR REPLACE FUNCTION update_character(
@@ -91,7 +91,7 @@ CREATE OR REPLACE FUNCTION update_character(
   p_art_prompt TEXT DEFAULT NULL,
   p_appearance_url TEXT DEFAULT NULL
 )
-RETURNS BOOLEAN AS $
+RETURNS BOOLEAN AS $$
 DECLARE
   lib_id UUID;
 BEGIN
@@ -129,11 +129,11 @@ BEGIN
   
   RETURN TRUE;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to delete character
 CREATE OR REPLACE FUNCTION delete_character(p_character_id UUID)
-RETURNS BOOLEAN AS $
+RETURNS BOOLEAN AS $$
 DECLARE
   lib_id UUID;
 BEGIN
@@ -164,7 +164,7 @@ BEGIN
   
   RETURN TRUE;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to get characters in a library
 CREATE OR REPLACE FUNCTION get_library_characters(p_library_id UUID)
@@ -176,7 +176,7 @@ RETURNS TABLE(
   appearance_url TEXT,
   created_at TIMESTAMPTZ,
   updated_at TIMESTAMPTZ
-) AS $
+) AS $$
 BEGIN
   -- Check permissions
   IF NOT check_library_permission(p_library_id, 'Viewer') THEN
@@ -189,7 +189,7 @@ BEGIN
   WHERE c.library_id = p_library_id
   ORDER BY c.created_at DESC;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Grant permissions
 GRANT EXECUTE ON FUNCTION create_character_in_library(UUID, TEXT, JSONB, TEXT) TO authenticated;

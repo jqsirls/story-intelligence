@@ -37,8 +37,28 @@ CREATE TABLE IF NOT EXISTS api_keys (
     created_at TIMESTAMPTZ DEFAULT now(),
     revoked_at TIMESTAMPTZ
 );
-CREATE INDEX IF NOT EXISTS idx_api_keys_org_id ON api_keys(organization_id);
-CREATE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys(key_hash);
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'api_keys'
+      AND column_name = 'organization_id'
+  ) THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_api_keys_org_id ON api_keys(organization_id)';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'api_keys'
+      AND column_name = 'key_hash'
+  ) THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys(key_hash)';
+  END IF;
+END $$;
 
 -- 4. Sessions table (REQUIRED)
 CREATE TABLE IF NOT EXISTS sessions (

@@ -13,6 +13,7 @@ deployment-package.zip
 .env
 .env.*
 !.env.example
+!supabase/.env
 
 # Local credentials (never commit)
 .config/supabase-credentials.sh
@@ -21,6 +22,9 @@ deployment-package.zip
 ~/
 **/.twilio_credentials
 **/.cursor/mcp.json
+
+# Supabase local state (never commit)
+supabase/.branches/
 
 # AWS
 .aws/
