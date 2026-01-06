@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Storytailor Embed - Local Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .demo-section {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .embed-container {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .code {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 12px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+        }
+        .status {
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin: 8px 0;
+            font-weight: 500;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌟 Storytailor Embed - Local Development Test</h1>
+        
+        <div class="demo-section">
+            <h2>Test Status</h2>
+            <div id="status" class="status warning">
+                Initializing embed widget...
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2>Embed Widget Demo</h2>
+            <p>This demonstrates the Storytailor embed widget using the locally built files.</p>
+            
+            <div class="embed-container">
+                <!-- Storytailor Embed Widget -->
+                <div 
+                    data-storytailor-key="__SET_STORYTAILOR_TOKEN__"
+                    data-storytailor-theme="magical"
+                    style="width: 100%; height: 600px; border: 1px solid #ddd; border-radius: 8px;">
+                </div>
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2>Integration Code</h2>
+            <p>Here's the HTML code used for this demo:</p>
+            <div class="code">
+&lt;!-- Webflow/HTML --&gt;
+&lt;div data-storytailor-key="your-api-key-here"
+     data-storytailor-theme="magical"
+     style="width: 400px; height: 600px;"&gt;&lt;/div&gt;
+&lt;script src="../dist/storytailor-embed.js"&gt;&lt;/script&gt;
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2>Alternative CDN URLs</h2>
+            <p>For production use, you can host the embed script on your own CDN or use these alternatives:</p>
+            <div class="code">
+&lt;!-- Option 1: Self-hosted --&gt;
+&lt;script src="https://your-domain.com/js/storytailor-embed.min.js"&gt;&lt;/script&gt;
+
+&lt;!-- Option 2: GitHub Pages (for testing) --&gt;
+&lt;script src="https://your-username.github.io/storytailor-embed/storytailor-embed.min.js"&gt;&lt;/script&gt;
+
+&lt;!-- Option 3: jsDelivr CDN --&gt;
+&lt;script src="https://cdn.jsdelivr.net/gh/your-username/storytailor-embed@main/dist/storytailor-embed.min.js"&gt;&lt;/script&gt;
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2>Debug Information</h2>
+            <div id="debug-info">
+                <p>Loading debug information...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load the locally built embed script -->
+    <script src="../dist/storytailor-embed.js"></script>
+    
+    <script>
+        // Debug and status tracking
+        function updateStatus(message, type = 'warning') {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+        }
+
+        function updateDebugInfo(info) {
+            const debugEl = document.getElementById('debug-info');
+            debugEl.innerHTML = `
+                <p><strong>Script Loaded:</strong> ${info.scriptLoaded ? '✅ Yes' : '❌ No'}</p>
+                <p><strong>StorytalorEmbed Available:</strong> ${info.embedAvailable ? '✅ Yes' : '❌ No'}</p>
+                <p><strong>Auto-initialization:</strong> ${info.autoInit ? '✅ Attempted' : '❌ Not attempted'}</p>
+                <p><strong>Containers Found:</strong> ${info.containersFound}</p>
+                <p><strong>Errors:</strong> ${info.errors.length > 0 ? info.errors.join(', ') : 'None'}</p>
+                <p><strong>Timestamp:</strong> ${new Date().toLocaleTimeString()}</p>
+            `;
+        }
+
+        // Track initialization
+        let debugInfo = {
+            scriptLoaded: false,
+            embedAvailable: false,
+            autoInit: false,
+            containersFound: 0,
+            errors: []
+        };
+
+        // Check if script loaded
+        window.addEventListener('load', () => {
+            debugInfo.scriptLoaded = true;
+            
+            // Check if StorytalorEmbed is available
+            if (typeof window.StorytalorEmbed !== 'undefined') {
+                debugInfo.embedAvailable = true;
+                updateStatus('✅ Embed script loaded successfully!', 'success');
+            } else {
+                debugInfo.errors.push('StorytalorEmbed not found on window object');
+                updateStatus('❌ Embed script failed to load', 'error');
+            }
+
+            // Check for containers
+            const containers = document.querySelectorAll('[data-storytailor-key]');
+            debugInfo.containersFound = containers.length;
+            
+            if (containers.length > 0) {
+                debugInfo.autoInit = true;
+                updateStatus(`🚀 Found ${containers.length} embed container(s), initializing...`, 'warning');
+                
+                // Wait a bit for auto-initialization
+                setTimeout(() => {
+                    const initialized = document.querySelectorAll('.storytailor-embed');
+                    if (initialized.length > 0) {
+                        updateStatus('🎉 Embed widget initialized successfully!', 'success');
+                    } else {
+                        debugInfo.errors.push('Auto-initialization may have failed');
+                        updateStatus('⚠️ Embed widget may not have initialized properly', 'warning');
+                    }
+                    updateDebugInfo(debugInfo);
+                }, 2000);
+            } else {
+                debugInfo.errors.push('No embed containers found');
+                updateStatus('❌ No embed containers found', 'error');
+            }
+
+            updateDebugInfo(debugInfo);
+        });
+
+        // Catch any JavaScript errors
+        window.addEventListener('error', (event) => {
+            debugInfo.errors.push(`${event.error?.message || event.message}`);
+            updateStatus(`❌ JavaScript Error: ${event.error?.message || event.message}`, 'error');
+            updateDebugInfo(debugInfo);
+        });
+
+        // Manual initialization fallback
+        setTimeout(() => {
+            if (!debugInfo.embedAvailable && typeof window.StorytalorEmbed === 'undefined') {
+                updateStatus('❌ Embed script not loaded. Check console for errors.', 'error');
+                debugInfo.errors.push('Script failed to load after timeout');
+                updateDebugInfo(debugInfo);
+            }
+        }, 5000);
+    </script>
+</body>
+</html>

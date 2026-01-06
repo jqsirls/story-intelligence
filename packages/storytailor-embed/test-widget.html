@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Storytailor Widget Test</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f7fa;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        #storytailor-widget {
+            width: 100%;
+            height: 600px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f0f9ff;
+            border-left: 4px solid #3b82f6;
+            border-radius: 4px;
+        }
+        .error {
+            background: #fef2f2;
+            border-left-color: #ef4444;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🧪 Storytailor Widget Test</h1>
+        <p><strong>Purpose:</strong> Test if widget loads and initializes correctly</p>
+        
+        <div id="storytailor-widget"></div>
+        
+        <div id="status" class="status">
+            ⏳ Loading widget...
+        </div>
+        
+        <div id="console-log"></div>
+    </div>
+
+    <!-- Load widget from CloudFront -->
+    <script src="https://d1roaoxii58pco.cloudfront.net/storytailor-embed.min.js"></script>
+    
+    <script>
+        const statusDiv = document.getElementById('status');
+        const consoleDiv = document.getElementById('console-log');
+        
+        // Capture console logs
+        const originalLog = console.log;
+        const originalError = console.error;
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const div = document.createElement('div');
+            div.textContent = '📝 ' + args.join(' ');
+            div.style.cssText = 'padding: 5px; margin: 5px 0; background: #f9fafb; border-left: 2px solid #3b82f6;';
+            consoleDiv.appendChild(div);
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            const div = document.createElement('div');
+            div.textContent = '❌ ' + args.join(' ');
+            div.style.cssText = 'padding: 5px; margin: 5px 0; background: #fef2f2; border-left: 2px solid #ef4444;';
+            consoleDiv.appendChild(div);
+        };
+        
+        // Check if widget loaded
+        window.addEventListener('load', () => {
+            console.log('Page loaded');
+            console.log('typeof StorytalorEmbed:', typeof StorytalorEmbed);
+            
+            if (typeof StorytalorEmbed === 'undefined') {
+                statusDiv.textContent = '❌ StorytalorEmbed not loaded from CDN';
+                statusDiv.className = 'status error';
+                console.error('StorytalorEmbed is undefined');
+                return;
+            }
+            
+            console.log('StorytalorEmbed loaded successfully');
+            console.log('StorytalorEmbed.init:', typeof StorytalorEmbed.init);
+            
+            try {
+                // Initialize widget
+                statusDiv.textContent = '🔄 Initializing widget...';
+                
+                StorytalorEmbed.init({
+                    apiKey: 'sk_widget_3f6e3d1f718a795548b6a02476b01b966314befc72069f43929b5f22f7945530',
+                    container: '#storytailor-widget',
+                    theme: 'magical',
+                    features: {
+                        voice: true,
+                        stories: true,
+                        reader: true
+                    },
+                    autoStart: true,
+                    welcomeMessage: "Hi! I'm your AI storyteller. What kind of story would you like to create?",
+                    debug: true
+                });
+                
+                statusDiv.textContent = '✅ Widget initialized successfully!';
+                statusDiv.className = 'status';
+                console.log('Widget init() called successfully');
+                
+            } catch (error) {
+                statusDiv.textContent = '❌ Error initializing widget: ' + error.message;
+                statusDiv.className = 'status error';
+                console.error('Init error:', error);
+            }
+        });
+        
+        // Listen for widget events
+        if (typeof StorytalorEmbed !== 'undefined') {
+            StorytalorEmbed.on('init.complete', () => {
+                console.log('🎉 Widget init complete event fired');
+            });
+            
+            StorytalorEmbed.on('init.error', (error) => {
+                console.error('Widget init error event:', error);
+            });
+        }
+    </script>
+</body>
+</html>
+

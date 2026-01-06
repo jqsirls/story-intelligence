@@ -1,0 +1,24 @@
+{
+  "id": "pricing/overview",
+  "title": "Pricing Overview",
+  "description": "Choose the plan that's right for you",
+  "source": "@site/docs/pricing/overview.md",
+  "sourceDirName": "pricing",
+  "slug": "/pricing/overview",
+  "permalink": "/docs/pricing/overview",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/storytailor-inc/Storytailor-agent/tree/main/docs-site/docs/pricing/overview.md",
+  "tags": [],
+  "version": "current",
+  "frontMatter": {},
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Story Intelligence™ API Pricing",
+    "permalink": "/docs/pricing/api-platform"
+  },
+  "next": {
+    "title": "Web SDK",
+    "permalink": "/docs/sdks/web"
+  }
+}

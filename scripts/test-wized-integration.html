@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wized Integration Test - Storytailor</title>
+  <script src="https://cdn.wized.com/v2/wized.js"></script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+    }
+    h1 { color: #111; }
+    .test-result {
+      padding: 12px;
+      margin: 8px 0;
+      border-radius: 8px;
+      border-left: 4px solid #ddd;
+    }
+    .test-result.passed {
+      background: #f0fdf4;
+      border-color: #10b981;
+    }
+    .test-result.failed {
+      background: #fef2f2;
+      border-color: #ef4444;
+    }
+    .test-result.pending {
+      background: #fffbeb;
+      border-color: #f59e0b;
+    }
+    button {
+      padding: 12px 24px;
+      background: #4F46E5;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 20px 0;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .credentials {
+      background: #f3f4f6;
+      padding: 16px;
+      border-radius: 8px;
+      margin: 20px 0;
+    }
+    .credentials input {
+      width: 100%;
+      padding: 8px;
+      margin: 4px 0;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🧪 Wized Integration Test</h1>
+  <p>Test Storytailor API integration with Wized Embed 2.0</p>
+  
+  <div class="credentials">
+    <h3>Test Credentials</h3>
+    <input type="email" id="test-email" placeholder="Test email" />
+    <input type="password" id="test-password" placeholder="Test password" />
+  </div>
+  
+  <button id="run-tests">Run All Tests</button>
+  
+  <div id="test-results"></div>
+  
+  <script>
+  function withWized(cb){ window.Wized=window.Wized||[]; window.Wized.push(cb); }
+  
+  // Configure Wized (you'll need to set this up in Wized dashboard)
+  const API_BASE = 'https://api.storytailor.dev/api/v1';
+  
+  const tests = [
+    { name: 'Login', request: 'Login', requiresAuth: false },
+    { name: 'Get Stories', request: 'GetStories', requiresAuth: true },
+    { name: 'Get Characters', request: 'GetCharacters', requiresAuth: true },
+    { name: 'Get Libraries', request: 'GetLibraries', requiresAuth: true },
+    { name: 'Get Credits', request: 'GetCredits', requiresAuth: true },
+    { name: 'Get Referral Link', request: 'GetReferralLink', requiresAuth: true },
+    { name: 'Get Email Preferences', request: 'GetEmailPreferences', requiresAuth: true },
+    { name: 'Get Notifications', request: 'GetNotifications', requiresAuth: true },
+    { name: 'Get Daily Insights', request: 'GetDailyInsights', requiresAuth: true },
+  ];
+  
+  function addResult(test, status, message = '') {
+    const results = document.getElementById('test-results');
+    const div = document.createElement('div');
+    div.className = `test-result ${status}`;
+    
+    const statusEmoji = status === 'passed' ? '✅' : status === 'failed' ? '❌' : '⏳';
+    div.innerHTML = `
+      <strong>${statusEmoji} ${test}</strong>
+      ${message ? `<div style="margin-top:4px;font-size:14px;color:#666">${message}</div>` : ''}
+    `;
+    
+    results.appendChild(div);
+  }
+  
+  document.getElementById('run-tests').onclick = async () => {
+    const btn = document.getElementById('run-tests');
+    btn.disabled = true;
+    btn.textContent = 'Running Tests...';
+    
+    document.getElementById('test-results').innerHTML = '';
+    
+    const email = document.getElementById('test-email').value;
+    const password = document.getElementById('test-password').value;
+    
+    if (!email || !password) {
+      alert('Please enter test credentials');
+      btn.disabled = false;
+      btn.textContent = 'Run All Tests';
+      return;
+    }
+    
+    withWized(async (Wized) => {
+      let passed = 0;
+      let failed = 0;
+      
+      for (const test of tests) {
+        addResult(test.name, 'pending', 'Testing...');
+        
+        try {
+          if (test.name === 'Login') {
+            // Manual login since Wized request may not be configured
+            const response = await fetch(`${API_BASE}/auth/login`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, password })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success && data.data.accessToken) {
+              Wized.data.v = Wized.data.v || {};
+              Wized.data.v.accessToken = data.data.accessToken;
+              Wized.data.v.userId = data.data.user.id;
+              Wized.data.v.userType = data.data.user.userType;
+              
+              addResult(test.name, 'passed', `Token: ${data.data.accessToken.substring(0, 20)}...`);
+              passed++;
+            } else {
+              addResult(test.name, 'failed', data.error || 'Login failed');
+              failed++;
+            }
+          } else if (test.requiresAuth) {
+            // Test requires authentication
+            if (!Wized.data.v?.accessToken) {
+              addResult(test.name, 'failed', 'No auth token (login first)');
+              failed++;
+              continue;
+            }
+            
+            // Try to execute Wized request (if configured)
+            try {
+              await Wized.requests.execute(test.request);
+              addResult(test.name, 'passed');
+              passed++;
+            } catch (e) {
+              addResult(test.name, 'failed', e.message || 'Request not configured or failed');
+              failed++;
+            }
+          }
+        } catch (e) {
+          addResult(test.name, 'failed', e.message);
+          failed++;
+        }
+        
+        // Update last result to remove pending
+        const results = document.querySelectorAll('.test-result');
+        const lastResult = results[results.length - 1];
+        if (lastResult.classList.contains('pending')) {
+          lastResult.classList.remove('pending');
+        }
+      }
+      
+      // Summary
+      const summaryDiv = document.createElement('div');
+      summaryDiv.style.cssText = 'margin-top:20px;padding:16px;background:#f9fafb;border-radius:8px;font-weight:600';
+      summaryDiv.innerHTML = `
+        <div>✅ Passed: ${passed}</div>
+        <div>❌ Failed: ${failed}</div>
+        <div>Total: ${tests.length}</div>
+      `;
+      document.getElementById('test-results').appendChild(summaryDiv);
+      
+      btn.disabled = false;
+      btn.textContent = 'Run All Tests';
+    });
+  };
+  </script>
+</body>
+</html>
+

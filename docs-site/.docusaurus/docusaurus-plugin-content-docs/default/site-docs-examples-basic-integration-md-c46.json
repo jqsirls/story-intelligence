@@ -1,0 +1,24 @@
+{
+  "id": "examples/basic-integration",
+  "title": "Basic Integration Examples",
+  "description": "Copy-paste code to get started quickly.",
+  "source": "@site/docs/examples/basic-integration.md",
+  "sourceDirName": "examples",
+  "slug": "/examples/basic-integration",
+  "permalink": "/docs/examples/basic-integration",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/storytailor-inc/Storytailor-agent/tree/main/docs-site/docs/examples/basic-integration.md",
+  "tags": [],
+  "version": "current",
+  "frontMatter": {},
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Classroom Setup Guide",
+    "permalink": "/docs/education/classroom-setup"
+  },
+  "next": {
+    "title": "Welcome to Storytailor",
+    "permalink": "/docs/getting-started/introduction"
+  }
+}

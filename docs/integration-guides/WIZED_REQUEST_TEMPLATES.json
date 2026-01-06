@@ -1,0 +1,354 @@
+{
+  "meta": {
+    "version": "1.0.0",
+    "created": "2025-12-25",
+    "description": "Import-ready Wized configuration for all 131 Storytailor API endpoints",
+    "apiBase": "https://api.storytailor.dev/api/v1",
+    "documentation": "https://docs.wized.com/"
+  },
+  "app": {
+    "name": "Storytailor API",
+    "baseUrl": "https://api.storytailor.dev/api/v1",
+    "authType": "bearer",
+    "tokenVariable": "v.accessToken",
+    "headers": {
+      "Content-Type": "application/json"
+    }
+  },
+  "variables": {
+    "authentication": [
+      { "name": "accessToken", "type": "string", "default": null },
+      { "name": "refreshToken", "type": "string", "default": null },
+      { "name": "userId", "type": "string", "default": null },
+      { "name": "userEmail", "type": "string", "default": null },
+      { "name": "userType", "type": "string", "default": null },
+      { "name": "isAuthenticated", "type": "boolean", "default": false }
+    ],
+    "stories": [
+      { "name": "userStories", "type": "array", "default": [] },
+      { "name": "currentStory", "type": "object", "default": null },
+      { "name": "currentStoryId", "type": "string", "default": null },
+      { "name": "storyMetrics", "type": "object", "default": null },
+      { "name": "storyEffectiveness", "type": "object", "default": null }
+    ],
+    "characters": [
+      { "name": "userCharacters", "type": "array", "default": [] },
+      { "name": "selectedCharacterId", "type": "string", "default": null }
+    ],
+    "pipeline": [
+      { "name": "availableCredits", "type": "number", "default": 0 },
+      { "name": "creditsFormatted", "type": "string", "default": "$0.00" },
+      { "name": "referralLink", "type": "string", "default": "" },
+      { "name": "totalReferrals", "type": "number", "default": 0 },
+      { "name": "rewardHistory", "type": "array", "default": [] },
+      { "name": "emailPrefs", "type": "object", "default": {} },
+      { "name": "dailyInsights", "type": "object", "default": null },
+      { "name": "topStories", "type": "array", "default": [] }
+    ],
+    "ui": [
+      { "name": "isLoading", "type": "boolean", "default": false },
+      { "name": "errorMessage", "type": "string", "default": null },
+      { "name": "currentPage", "type": "number", "default": 1 },
+      { "name": "totalPages", "type": "number", "default": 1 }
+    ]
+  },
+  "requests": [
+    {
+      "name": "Login",
+      "method": "POST",
+      "endpoint": "/auth/login",
+      "body": {
+        "email": "v.loginEmail",
+        "password": "v.loginPassword"
+      },
+      "onSuccess": [
+        "v.accessToken = response.data.accessToken",
+        "v.refreshToken = response.data.refreshToken",
+        "v.userId = response.data.user.id",
+        "v.userType = response.data.user.userType",
+        "v.isAuthenticated = true"
+      ]
+    },
+    {
+      "name": "Signup",
+      "method": "POST",
+      "endpoint": "/auth/signup",
+      "body": {
+        "email": "v.signupEmail",
+        "password": "v.signupPassword",
+        "firstName": "v.firstName",
+        "userType": "v.userType",
+        "referralCode": "v.referralCode"
+      },
+      "onSuccess": [
+        "v.accessToken = response.data.accessToken",
+        "v.userId = response.data.user.id"
+      ]
+    },
+    {
+      "name": "GetStories",
+      "method": "GET",
+      "endpoint": "/stories",
+      "params": {
+        "page": "v.currentPage",
+        "perPage": "v.perPage || 20",
+        "sort": "v.sortBy || 'created_at'",
+        "order": "v.sortOrder || 'desc'"
+      },
+      "onSuccess": [
+        "v.userStories = response.data.stories",
+        "v.pagination = response.data.pagination",
+        "v.currentPage = response.data.pagination.page",
+        "v.totalPages = response.data.pagination.totalPages"
+      ]
+    },
+    {
+      "name": "GetStory",
+      "method": "GET",
+      "endpoint": "/stories/{v.currentStoryId}",
+      "onSuccess": [
+        "v.currentStory = response.data"
+      ]
+    },
+    {
+      "name": "CreateStory",
+      "method": "POST",
+      "endpoint": "/stories",
+      "body": {
+        "title": "v.storyTitle",
+        "character_id": "v.selectedCharacterId",
+        "library_id": "v.selectedLibraryId",
+        "age_range": "v.ageRange",
+        "story_length": "v.storyLength",
+        "themes": "v.selectedThemes",
+        "generate_assets": {
+          "audio": true,
+          "art": true,
+          "pdf": "v.generatePDF",
+          "activities": "v.generateActivities"
+        }
+      },
+      "onSuccess": [
+        "v.createdStory = response.data.story",
+        "v.currentStoryId = response.data.story.id"
+      ]
+    },
+    {
+      "name": "GetCharacters",
+      "method": "GET",
+      "endpoint": "/characters",
+      "params": {
+        "page": "v.currentPage",
+        "perPage": 20
+      },
+      "onSuccess": [
+        "v.userCharacters = response.data.characters"
+      ]
+    },
+    {
+      "name": "CreateCharacter",
+      "method": "POST",
+      "endpoint": "/characters",
+      "body": {
+        "name": "v.characterName",
+        "libraryId": "v.selectedLibraryId",
+        "traits": {
+          "personality": "v.personalityTraits",
+          "species": "v.characterSpecies",
+          "age": "v.characterAge",
+          "abilities": "v.specialAbilities"
+        },
+        "artPrompt": "v.artPrompt",
+        "appearanceUrl": "v.appearanceUrl"
+      },
+      "onSuccess": [
+        "v.createdCharacter = response.data.character"
+      ]
+    },
+    {
+      "name": "TrackConsumption",
+      "method": "POST",
+      "endpoint": "/stories/{v.currentStoryId}/consumption",
+      "body": {
+        "eventType": "v.playEventType",
+        "position": "v.audioCurrentTime",
+        "duration": "v.eventDuration",
+        "metadata": {
+          "device": "web",
+          "context": "v.storyContext"
+        }
+      }
+    },
+    {
+      "name": "GetStoryMetrics",
+      "method": "GET",
+      "endpoint": "/stories/{v.storyId}/metrics",
+      "onSuccess": [
+        "v.storyMetrics = response.data"
+      ]
+    },
+    {
+      "name": "GetStoryEffectiveness",
+      "method": "GET",
+      "endpoint": "/stories/{v.storyId}/effectiveness",
+      "onSuccess": [
+        "v.storyEffectiveness = response.data"
+      ]
+    },
+    {
+      "name": "GetEmailPreferences",
+      "method": "GET",
+      "endpoint": "/users/me/email-preferences",
+      "onSuccess": [
+        "v.emailPrefs = response.data"
+      ]
+    },
+    {
+      "name": "UpdateEmailPreferences",
+      "method": "PATCH",
+      "endpoint": "/users/me/email-preferences",
+      "body": {
+        "insights": "v.emailPrefsInsights",
+        "marketing": "v.emailPrefsMarketing",
+        "digestFrequency": "v.digestFrequency",
+        "quietHours": {
+          "start": "v.quietHoursStart",
+          "end": "v.quietHoursEnd"
+        }
+      },
+      "onSuccess": [
+        "v.emailPrefs = response.data"
+      ]
+    },
+    {
+      "name": "GetCredits",
+      "method": "GET",
+      "endpoint": "/users/me/credits",
+      "onSuccess": [
+        "v.availableCredits = response.data.availableCredits",
+        "v.creditsFormatted = response.data.formattedAmount"
+      ]
+    },
+    {
+      "name": "GetRewards",
+      "method": "GET",
+      "endpoint": "/users/me/rewards",
+      "params": {
+        "limit": 50
+      },
+      "onSuccess": [
+        "v.rewardHistory = response.data.rewards",
+        "v.totalEarned = response.data.totalEarned",
+        "v.totalApplied = response.data.totalApplied"
+      ]
+    },
+    {
+      "name": "GetReferralLink",
+      "method": "GET",
+      "endpoint": "/users/me/referral-link",
+      "onSuccess": [
+        "v.referralCode = response.data.referralCode",
+        "v.referralLink = response.data.referralLink",
+        "v.totalReferrals = response.data.totalReferrals",
+        "v.nextMilestone = response.data.nextMilestone"
+      ]
+    },
+    {
+      "name": "GetDailyInsights",
+      "method": "GET",
+      "endpoint": "/users/me/insights/daily",
+      "onSuccess": [
+        "v.dailyInsights = response.data"
+      ]
+    },
+    {
+      "name": "GetTopStories",
+      "method": "GET",
+      "endpoint": "/users/me/effectiveness/top-stories",
+      "params": {
+        "limit": 10
+      },
+      "onSuccess": [
+        "v.topStories = response.data.topStories"
+      ]
+    },
+    {
+      "name": "GetLibraries",
+      "method": "GET",
+      "endpoint": "/libraries",
+      "onSuccess": [
+        "v.userLibraries = response.data.libraries"
+      ]
+    },
+    {
+      "name": "GetNotifications",
+      "method": "GET",
+      "endpoint": "/users/me/notifications",
+      "params": {
+        "page": 1,
+        "perPage": 20
+      },
+      "onSuccess": [
+        "v.notifications = response.data.notifications",
+        "v.unreadCount = response.data.notifications.filter(n => !n.read).length"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "name": "Track Play Start",
+      "trigger": "Audio play event",
+      "actions": [
+        "v.playEventType = 'play_start'",
+        "v.playStartTime = Date.now()",
+        "Run Request: TrackConsumption"
+      ]
+    },
+    {
+      "name": "Track Play Complete",
+      "trigger": "Audio ended event",
+      "actions": [
+        "v.playEventType = 'play_complete'",
+        "Run Request: TrackConsumption",
+        "Wait 2 seconds",
+        "Run Request: GetStoryEffectiveness"
+      ]
+    },
+    {
+      "name": "Copy Referral Link",
+      "trigger": "Click copy button",
+      "actions": [
+        "navigator.clipboard.writeText(v.referralLink)",
+        "v.showCopiedMessage = true",
+        "Wait 3 seconds",
+        "v.showCopiedMessage = false"
+      ]
+    },
+    {
+      "name": "Next Page",
+      "trigger": "Click next button",
+      "conditions": "v.currentPage < v.totalPages",
+      "actions": [
+        "v.currentPage = v.currentPage + 1",
+        "Run Request: GetStories"
+      ]
+    },
+    {
+      "name": "Previous Page",
+      "trigger": "Click previous button",
+      "conditions": "v.currentPage > 1",
+      "actions": [
+        "v.currentPage = v.currentPage - 1",
+        "Run Request: GetStories"
+      ]
+    }
+  ],
+  "notes": [
+    "This JSON is import-ready for Wized dashboard",
+    "Variable names use 'v.' prefix per Wized convention",
+    "Request names use PascalCase",
+    "All 131 endpoints documented in WIZED_COMPLETE_API_REFERENCE.md",
+    "Additional requests can be added following same pattern"
+  ]
+}
+

@@ -1,0 +1,461 @@
+name: Comprehensive CI/CD Pipeline - 100/100 Quality
+
+# REQUIRED GITHUB CONFIGURATION:
+# 1. Create Environments: staging, production (Settings → Environments)
+# 2. Add Secrets (Settings → Secrets and variables → Actions):
+#    - AWS_ACCESS_KEY_ID
+#    - AWS_SECRET_ACCESS_KEY  
+#    - AWS_ACCESS_KEY_ID_PROD
+#    - AWS_SECRET_ACCESS_KEY_PROD
+#    - SLACK_WEBHOOK (optional)
+#    - DEPLOYMENT_API (optional)
+#    - DEPLOYMENT_TOKEN (optional)
+# 3. Add Variables (Settings → Secrets and variables → Actions → Variables):
+#    - ENABLE_SLACK_NOTIFICATIONS (set to 'true' to enable)
+#    - ENABLE_DEPLOYMENT_TRACKING (set to 'true' to enable)
+
+on:
+  push:
+    branches: [ main, develop, staging ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 2 * * *' # Nightly regression tests
+
+env:
+  AWS_REGION: us-east-1
+  NODE_VERSION: 18.x
+  COVERAGE_THRESHOLD: 80
+
+jobs:
+  # Stage 1: Code Quality
+  code-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run ESLint
+        run: npm run lint
+      
+      - name: Run TypeScript type check
+        run: npx tsc --noEmit
+      
+      - name: Check for security vulnerabilities
+        run: npm audit --audit-level=high
+      
+      - name: License compliance check
+        run: npx license-checker --onlyAllow 'MIT;Apache-2.0;BSD-3-Clause;BSD-2-Clause;ISC'
+
+  # Stage 2: Unit Tests (All Agents)
+  unit-tests:
+    needs: code-quality
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        agent: [
+          router, auth-agent, content-agent, emotion-agent, library-agent,
+          commerce-agent, knowledge-base-agent, child-safety-agent,
+          educational-agent, therapeutic-agent, accessibility-agent,
+          localization-agent, smart-home-agent, voice-synthesis-agent,
+          security-framework-agent, analytics-intelligence-agent,
+          conversation-intelligence-agent, insights-agent
+        ]
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run unit tests for ${{ matrix.agent }}
+        run: |
+          cd packages/${{ matrix.agent }}
+          npm test -- --coverage --coverageReporters=lcov
+      
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$(npx lcov-summary packages/${{ matrix.agent }}/coverage/lcov.info | grep "Total" | awk '{print $2}' | sed 's/%//')
+          if (( $(echo "$COVERAGE < ${{ env.COVERAGE_THRESHOLD }}" | bc -l) )); then
+            echo "Coverage $COVERAGE% is below threshold ${{ env.COVERAGE_THRESHOLD }}%"
+            exit 1
+          fi
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          flags: ${{ matrix.agent }}
+          directory: packages/${{ matrix.agent }}/coverage
+
+  # Stage 3: Integration Tests
+  integration-tests:
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Setup test database
+        run: |
+          npm run db:test:setup
+          npm run db:test:migrate
+      
+      - name: Run integration tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/storytailor_test
+          REDIS_URL: redis://localhost:6379
+        run: npm run test:integration -- --coverage
+      
+      - name: Verify orchestration patterns
+        run: npm run test:integration -- --testNamePattern="orchestration"
+      
+      - name: Verify user journeys
+        run: npm run test:integration -- --testNamePattern="journey"
+
+  # Stage 4: E2E Tests
+  e2e-tests:
+    needs: integration-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Deploy test environment
+        id: deploy-test
+        run: |
+          ./scripts/deploy-test-environment.sh
+          echo "api-url=$(cat test-env-url.txt)" >> $GITHUB_OUTPUT
+      
+      - name: Run E2E tests
+        env:
+          API_URL: ${{ steps.deploy-test.outputs.api-url }}
+        run: |
+          npm run test:e2e -- --testTimeout=60000
+      
+      - name: Run crisis detection tests
+        run: npm run test:e2e -- --testNamePattern="crisis"
+      
+      - name: Run COPPA compliance tests
+        run: npm run test:e2e -- --testNamePattern="COPPA"
+      
+      - name: Cleanup test environment
+        if: always()
+        run: ./scripts/cleanup-test-environment.sh
+
+  # Stage 5: Security Tests
+  security-tests:
+    needs: e2e-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Deploy test environment for security tests
+        id: deploy-security-test
+        run: |
+          ./scripts/deploy-test-environment.sh
+          echo "api-url=$(cat test-env-url.txt)" >> $GITHUB_OUTPUT
+      
+      - name: Run OWASP ZAP security scan
+        uses: zaproxy/action-full-scan@v0.4.0
+        with:
+          target: ${{ steps.deploy-security-test.outputs.api-url }}
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a'
+      
+      - name: Run SQL injection tests
+        run: npm run test:security -- --testNamePattern="SQL injection"
+      
+      - name: Run XSS tests
+        run: npm run test:security -- --testNamePattern="XSS"
+      
+      - name: Run authentication tests
+        run: npm run test:security -- --testNamePattern="authentication"
+      
+      - name: Check for secrets in code
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+      
+      - name: Cleanup security test environment
+        if: always()
+        run: ./scripts/cleanup-test-environment.sh
+
+  # Stage 6: Performance Tests
+  performance-tests:
+    needs: e2e-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Deploy test environment for performance tests
+        id: deploy-perf-test
+        run: |
+          ./scripts/deploy-test-environment.sh
+          echo "api-url=$(cat test-env-url.txt)" >> $GITHUB_OUTPUT
+      
+      - name: Setup K6
+        run: |
+          sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+      
+      - name: Run load tests
+        env:
+          API_URL: ${{ steps.deploy-perf-test.outputs.api-url }}
+        run: |
+          k6 run packages/testing/src/load/performance-test.k6.js \
+            --vus 100 \
+            --duration 5m \
+            --out json=test-results.json
+      
+      - name: Analyze performance results
+        run: |
+          node scripts/analyze-performance-results.js test-results.json
+          
+          # Check p95 latency
+          P95=$(jq '.metrics.http_req_duration["p(95)"]' test-results.json)
+          if (( $(echo "$P95 > 200" | bc -l) )); then
+            echo "p95 latency $P95ms exceeds 200ms SLA"
+            exit 1
+          fi
+      
+      - name: Cleanup performance test environment
+        if: always()
+        run: ./scripts/cleanup-test-environment.sh
+
+  # Stage 7: Build & Package
+  build:
+    needs: [security-tests, performance-tests]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package: [
+          router, auth-agent, content-agent, emotion-agent, library-agent,
+          commerce-agent, knowledge-base-agent, child-safety-agent,
+          educational-agent, therapeutic-agent, accessibility-agent,
+          localization-agent, smart-home-agent, voice-synthesis-agent,
+          security-framework-agent, analytics-intelligence-agent,
+          conversation-intelligence-agent, insights-agent
+        ]
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Build ${{ matrix.package }}
+        run: |
+          cd packages/${{ matrix.package }}
+          npm ci --production
+          npm run build
+          zip -r ../../${{ matrix.package }}.zip .
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.package }}-build
+          path: ${{ matrix.package }}.zip
+
+  # Stage 8: Deploy to Staging
+  # NOTE: Requires 'staging' environment to be created in GitHub repository settings
+  deploy-staging:
+    if: github.ref == 'refs/heads/staging'
+    needs: build
+    runs-on: ubuntu-latest
+    environment: staging  # This environment must be created in GitHub Settings → Environments
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}  # Set in GitHub Settings → Secrets
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}  # Set in GitHub Settings → Secrets
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+      
+      - name: Deploy all agents
+        run: |
+          for agent in */; do
+            if [[ -f "${agent}${agent%/}.zip" ]]; then
+              ./scripts/deploy-agent.sh "${agent%/}" staging "${agent}${agent%/}.zip"
+            fi
+          done
+      
+      - name: Run post-deployment tests
+        run: ./scripts/post-deployment-tests.sh staging
+      
+      - name: Update monitoring
+        run: ./scripts/setup-monitoring.sh staging
+
+  # Stage 9: Deploy to Production  
+  # NOTE: Requires 'production' environment to be created in GitHub repository settings
+  deploy-production:
+    if: github.ref == 'refs/heads/main'
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    environment: production  # This environment must be created in GitHub Settings → Environments
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_PROD }}  # Set in GitHub Settings → Secrets
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_PROD }}  # Set in GitHub Settings → Secrets
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Blue-Green deployment check
+        run: ./scripts/blue-green-check.sh
+      
+      - name: Deploy to production (Blue)
+        run: |
+          for agent in */; do
+            if [[ -f "${agent}${agent%/}.zip" ]]; then
+              ./scripts/deploy-agent.sh "${agent%/}" production-blue "${agent}${agent%/}.zip"
+            fi
+          done
+      
+      - name: Run smoke tests on Blue
+        run: ./scripts/smoke-tests.sh production-blue
+      
+      - name: Switch traffic to Blue
+        run: ./scripts/switch-traffic.sh blue
+      
+      - name: Monitor for 5 minutes
+        run: |
+          ./scripts/monitor-deployment.sh 300
+          if [ $? -ne 0 ]; then
+            echo "Issues detected, rolling back"
+            ./scripts/switch-traffic.sh green
+            exit 1
+          fi
+      
+      - name: Complete deployment
+        run: ./scripts/complete-deployment.sh
+
+  # Stage 10: Regression Tests
+  regression-tests:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Run full regression suite
+        run: |
+          npm run test:regression -- --maxWorkers=4
+      
+      - name: Generate regression report
+        if: always()
+        run: |
+          npm run test:report
+          
+      - name: Upload regression report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: regression-report-${{ github.run_id }}
+          path: test-reports/
+
+  # Stage 11: Notifications
+  notify:
+    if: always()
+    needs: [
+      code-quality, unit-tests, integration-tests, e2e-tests,
+      security-tests, performance-tests, build
+    ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine overall status
+        id: status
+        run: |
+          if [[ "${{ needs.code-quality.result }}" == "failure" || \
+                "${{ needs.unit-tests.result }}" == "failure" || \
+                "${{ needs.integration-tests.result }}" == "failure" || \
+                "${{ needs.e2e-tests.result }}" == "failure" || \
+                "${{ needs.security-tests.result }}" == "failure" || \
+                "${{ needs.performance-tests.result }}" == "failure" || \
+                "${{ needs.build.result }}" == "failure" ]]; then
+            echo "status=failure" >> $GITHUB_OUTPUT
+          else
+            echo "status=success" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Slack notification
+        if: ${{ vars.ENABLE_SLACK_NOTIFICATIONS == 'true' }}
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ steps.status.outputs.status }}
+          text: |
+            Pipeline: ${{ github.workflow }}
+            Branch: ${{ github.ref }}
+            Commit: ${{ github.sha }}
+            Author: ${{ github.actor }}
+            Status: ${{ steps.status.outputs.status }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+      
+      - name: Create deployment record
+        if: ${{ success() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') && vars.ENABLE_DEPLOYMENT_TRACKING == 'true' }}
+        env:
+          DEPLOYMENT_API: ${{ secrets.DEPLOYMENT_API }}
+          DEPLOYMENT_TOKEN: ${{ secrets.DEPLOYMENT_TOKEN }}
+        run: |
+          if [ -n "$DEPLOYMENT_API" ] && [ -n "$DEPLOYMENT_TOKEN" ]; then
+            curl -X POST "$DEPLOYMENT_API" \
+              -H "Authorization: Bearer $DEPLOYMENT_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "environment": "${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}",
+                "version": "${{ github.sha }}",
+                "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'",
+                "status": "success"
+              }'
+          else
+            echo "Deployment tracking not configured"
+          fi

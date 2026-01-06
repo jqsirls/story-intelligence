@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>05-data-practices</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5/github-markdown.min.css" />
+</head>
+<body>
+<h1 id="data-practices">Data Practices</h1>
+<h2 id="overview">Overview</h2>
+<p>We believe in collecting as little data as possible. This document
+explains what we collect for both Storytailor (our web platform) and
+Story Intelligence™ (our future AI engine), why we need it, and how long
+we keep it.</p>
+<p>Both products share the same data practices and retention policies,
+ensuring consistent privacy protection.</p>
+<h2 id="data-collection">Data Collection</h2>
+<h3 id="what-we-collect">What We Collect</h3>
+<p>Here’s everything we collect:</p>
+<p><strong>For All Users:</strong> - Age (we need this to know if COPPA
+protections apply, and to create age-appropriate stories) - Email
+address (for account access and communication)</p>
+<p><strong>For Children Under 13 (Current - Storytailor 3.0):</strong> -
+Parent email address (required by COPPA so we can get parental consent)
+- Stories they create (so they can save and return to their stories) -
+Character traits and preferences (to make stories feel personal)</p>
+<p><strong>Additional Data When Story Intelligence™ is Integrated
+(Future - Storytailor 4.0):</strong> - Voice conversations (these help
+create stories through talking, and we delete them after 30 days) -
+Emotional state information (helps us understand what kind of story a
+child needs, and supports safety monitoring)</p>
+<p><strong>For Parents:</strong> - Parent email address (for
+communication and consent management) - Information provided when giving
+consent for child’s account</p>
+<h3 id="what-data-we-do-not-collect">What Data We Do NOT Collect</h3>
+<p>Storytailor does NOT collect: - Full names - Physical addresses -
+Phone numbers - School information - Photos or videos - Location data
+(beyond IP address for security purposes) - Social media information -
+Payment information (handled by third-party payment processors)</p>
+<h2 id="why-we-collect-data">Why We Collect Data</h2>
+<h3 id="purpose-based-collection">Purpose-Based Collection</h3>
+<p>Storytailor only collects data for the following purposes:</p>
+<p><strong>1. Service Delivery</strong> - Story generation and creation
+- Character management - Conversation continuity - User account
+management</p>
+<p><strong>2. Safety and Security</strong> - Safety incident detection -
+Crisis intervention - Parent notifications - Security monitoring</p>
+<p><strong>3. Compliance</strong> - Age verification (COPPA requirement)
+- Parental consent management (COPPA requirement) - Legal compliance and
+audit requirements</p>
+<p><strong>4. Service Improvement</strong> - Anonymized emotional data
+analysis (after 1 year retention period) - Service quality improvement -
+User experience enhancement</p>
+<p><strong>We never sell data to third parties. We never use data for
+advertising or marketing purposes.</strong></p>
+<h2 id="how-we-use-data">How We Use Data</h2>
+<h3 id="story-generation-current---storytailor-3.0">Story Generation
+(Current - Storytailor 3.0)</h3>
+<p><strong>Stories and Characters:</strong> - Used to save stories
+children create - Used to maintain character consistency across stories
+- Stored until user deletes them</p>
+<p><strong>Character Preferences:</strong> - Used to create characters
+that match child’s interests - Stored until user deletes character</p>
+<h3 id="additional-features-future---story-intelligence">Additional
+Features (Future - Story Intelligence™)</h3>
+<p><strong>Voice Conversations:</strong> - Will be used to understand
+child’s interests through talking - Will help generate age-appropriate
+stories through conversation - Will be retained for 30 days, then
+permanently deleted</p>
+<p><strong>Emotional State Data:</strong> - Will be used to understand
+child’s emotional needs - Will be used for therapeutic story pathways -
+Will be used for safety monitoring - Will be retained for 365 days, then
+anonymized (personal identifiers removed)</p>
+<h3 id="safety-and-security">Safety and Security</h3>
+<p><strong>Safety Incident Detection (Both Products):</strong> - Content
+monitored for concerning material - Safety incidents trigger parent
+notifications - Incident summaries stored (content hashed, not raw text)
+- Retained for 7 years (legal requirement), then anonymized</p>
+<p><strong>Enhanced Safety (Story Intelligence™ - Future):</strong> -
+Voice conversations will be analyzed for concerning content - Real-time
+crisis detection and intervention - Advanced emotional state
+monitoring</p>
+<p><strong>Security Monitoring (Both Products):</strong> - IP addresses
+logged for security purposes - Authentication events logged - Security
+violations logged - Used for fraud prevention and security incident
+response</p>
+<h3 id="compliance">Compliance</h3>
+<p><strong>Age Verification:</strong> - Age used to determine COPPA
+protection status - Age used for age-appropriate content generation -
+Stored as part of user account</p>
+<p><strong>Parental Consent:</strong> - Parent email used for consent
+requests and notifications - Consent status tracked and logged - Consent
+history maintained for audit purposes</p>
+<h2 id="data-retention-policies">Data Retention Policies</h2>
+<h3 id="automated-retention-periods">Automated Retention Periods</h3>
+<p>Storytailor implements automated data retention and deletion:</p>
+<table>
+<colgroup>
+<col style="width: 22%" />
+<col style="width: 37%" />
+<col style="width: 39%" />
+</colgroup>
+<thead>
+<tr>
+<th>Data Type</th>
+<th>Retention Period</th>
+<th>What Happens After</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Voice Conversation Transcripts</strong></td>
+<td>30 days</td>
+<td>Permanently deleted</td>
+</tr>
+<tr>
+<td><strong>Emotional State Data</strong></td>
+<td>365 days</td>
+<td>Anonymized (personal identifiers removed)</td>
+</tr>
+<tr>
+<td><strong>Conversation States</strong></td>
+<td>24 hours</td>
+<td>Permanently deleted</td>
+</tr>
+<tr>
+<td><strong>Voice Codes</strong></td>
+<td>1 day</td>
+<td>Permanently deleted</td>
+</tr>
+<tr>
+<td><strong>Stories</strong></td>
+<td>Until deleted by user</td>
+<td>User-controlled deletion</td>
+</tr>
+<tr>
+<td><strong>Characters</strong></td>
+<td>Until deleted by user</td>
+<td>User-controlled deletion</td>
+</tr>
+<tr>
+<td><strong>Audit Logs</strong></td>
+<td>7 years</td>
+<td>Anonymized (legal requirement)</td>
+</tr>
+<tr>
+<td><strong>Safety Incident Records</strong></td>
+<td>7 years</td>
+<td>Anonymized after 1 year</td>
+</tr>
+<tr>
+<td><strong>Parent Email</strong></td>
+<td>Until account deleted</td>
+<td>Deleted with account</td>
+</tr>
+</tbody>
+</table>
+<h3 id="automated-deletion-process">Automated Deletion Process</h3>
+<p><strong>How It Works:</strong> 1. System automatically identifies
+data that has exceeded retention period 2. Data is permanently deleted
+or anonymized based on deletion strategy 3. Deletion is logged for audit
+purposes 4. No manual intervention required</p>
+<p><strong>Deletion Strategies:</strong> - <strong>Hard Delete:</strong>
+Data is permanently removed and cannot be recovered -
+<strong>Anonymization:</strong> Personal identifiers are removed, but
+anonymized data may be retained for service improvement</p>
+<h3 id="manual-deletion">Manual Deletion</h3>
+<p><strong>Parent-Requested Deletion:</strong> - Parents can request
+immediate deletion of all child data - Deletion occurs immediately upon
+verified request - All child data is permanently deleted - Audit logs
+are anonymized (retained for legal compliance) - Parent receives
+confirmation of deletion</p>
+<p><strong>User-Controlled Deletion:</strong> - Users can delete their
+own stories and characters at any time - Deletion is immediate and
+permanent - No recovery possible after deletion</p>
+<p><strong>Account Deletion:</strong> - Account deletion removes all
+associated data - All user data, stories, characters, and preferences
+are deleted - Audit logs are anonymized - Parent email is deleted</p>
+<h2 id="data-minimization-for-children">Data Minimization for
+Children</h2>
+<h3 id="enhanced-protections-for-coppa-protected-users">Enhanced
+Protections for COPPA-Protected Users</h3>
+<p>Children under 13 receive enhanced data protection:</p>
+<p><strong>Stricter Retention:</strong> - Shorter retention periods
+where possible - Faster anonymization of emotional data - Enhanced
+deletion processes</p>
+<p><strong>Content Protection:</strong> - Safety incident content is
+hashed (not stored as raw text) - Only incident summaries stored -
+Enhanced privacy protections</p>
+<p><strong>Access Restrictions:</strong> - Stricter access controls -
+Enhanced audit logging - Parent-only data access</p>
+<h2 id="data-sharing">Data Sharing</h2>
+<h3 id="third-party-services">Third-Party Services</h3>
+<p>Storytailor uses third-party services to provide the platform:</p>
+<p><strong>AWS (Amazon Web Services):</strong> -
+<strong>Purpose:</strong> Infrastructure and storage - <strong>Data
+Shared:</strong> Stories, characters, account information -
+<strong>Protection:</strong> Encryption at rest and in transit, Data
+Processing Agreement (DPA)</p>
+<p><strong>Supabase:</strong> - <strong>Purpose:</strong> Database
+storage - <strong>Data Shared:</strong> All user data stored in database
+- <strong>Protection:</strong> Encryption, Row Level Security, DPA
+available</p>
+<p><strong>SendGrid (Twilio):</strong> - <strong>Purpose:</strong> Email
+delivery to parents - <strong>Data Shared:</strong> Only parent email
+addresses (not child data) - <strong>Protection:</strong> TLS
+encryption, HIPAA-compliant options available</p>
+<p><strong>Data Processing Agreements:</strong> - All third-party
+services have Data Processing Agreements (DPAs) - DPAs ensure services
+only use data to provide the service - DPAs require appropriate security
+measures - DPAs require compliance with applicable privacy laws</p>
+<p><strong>No Data Sales:</strong> - Storytailor never sells data to
+third parties - Storytailor never shares data for marketing or
+advertising - Data is only shared with service providers necessary for
+platform operation</p>
+<h2 id="data-security">Data Security</h2>
+<h3 id="encryption">Encryption</h3>
+<p><strong>At Rest:</strong> - All data encrypted when stored -
+Database-level encryption enabled - Encryption keys managed securely</p>
+<p><strong>In Transit:</strong> - All API communications use TLS 1.3 -
+HTTPS required for all endpoints - Email delivery uses TLS
+encryption</p>
+<h3 id="access-control">Access Control</h3>
+<p><strong>Row Level Security:</strong> - Database tables protected by
+Row Level Security (RLS) - Users can only access their own data -
+Parents can only access their own child’s data - Service access
+restricted to system operations</p>
+<p><strong>Authentication:</strong> - All API endpoints require
+authentication - JWT Bearer tokens for authentication - Token validation
+on every request - Parent-child relationship verification</p>
+<h2 id="data-export">Data Export</h2>
+<h3 id="parent-data-export-rights">Parent Data Export Rights</h3>
+<p>Parents can request export of all child data:</p>
+<p><strong>Export Contents:</strong> - User profile information - All
+story content - All character data - All emotional state data - Consent
+records - Safety incident summaries</p>
+<p><strong>Export Format:</strong> - Machine-readable format (JSON) -
+Downloadable from secure link - Link expires after 7 days - Includes all
+data types collected</p>
+<p><strong>How to Request:</strong> - Email: privacy@storytailor.com -
+Include parent name, relationship to child, child’s user ID or email -
+Verification of parent identity required</p>
+<h2 id="contact-information">Contact Information</h2>
+<p><strong>Privacy Inquiries:</strong> privacy@storytailor.com<br />
+<strong>Technical Contact:</strong> tech@storytailor.com<br />
+<strong>Mailing Address:</strong><br />
+Storytailor Inc.<br />
+7131 w 135th, #1074<br />
+Overland Park, KS 66223</p>
+<p><strong>Response Time:</strong> All privacy inquiries responded to
+within 30 days.</p>
+<hr />
+<p><strong>Storytailor Inc.</strong><br />
+7131 w 135th, #1074<br />
+Overland Park, KS 66223</p>
+</body>
+</html>

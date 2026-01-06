@@ -1,0 +1,487 @@
+# Staging Deployment Pipeline
+# Deploys to staging environment on merge to develop branch
+
+name: Staging Deployment
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Force deployment even if tests fail'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  NODE_VERSION: '18'
+  AWS_REGION: 'us-east-1'
+  ENVIRONMENT: 'staging'
+
+jobs:
+  # Job 1: Pre-deployment validation
+  pre-deploy:
+    name: Pre-deployment Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    outputs:
+      build-hash: ${{ steps.build.outputs.hash }}
+      deploy-ready: ${{ steps.validation.outputs.ready }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run full test suite
+        run: npm run test -- --coverage
+        env:
+          NODE_ENV: test
+
+      - name: Build all packages
+        id: build
+        run: |
+          npm run build
+          BUILD_HASH=$(find packages/*/dist -type f -exec sha256sum {} \; | sha256sum | cut -d' ' -f1)
+          echo "hash=$BUILD_HASH" >> $GITHUB_OUTPUT
+
+      - name: Validate deployment readiness
+        id: validation
+        run: |
+          # Check if all required packages built successfully
+          REQUIRED_PACKAGES=("router" "auth-agent" "storytailor-agent" "content-agent" "library-agent" "emotion-agent" "commerce-agent" "insights-agent" "smart-home-agent" "universal-agent")
+          
+          for package in "${REQUIRED_PACKAGES[@]}"; do
+            if [ ! -d "packages/$package/dist" ]; then
+              echo "❌ Package $package failed to build"
+              echo "ready=false" >> $GITHUB_OUTPUT
+              exit 1
+            fi
+          done
+          
+          echo "✅ All packages built successfully"
+          echo "ready=true" >> $GITHUB_OUTPUT
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-build-${{ steps.build.outputs.hash }}
+          path: |
+            packages/*/dist/
+            infrastructure/
+          retention-days: 7
+
+  # Job 2: Infrastructure deployment
+  infrastructure:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+    needs: [pre-deploy]
+    if: needs.pre-deploy.outputs.deploy-ready == 'true' || github.event.inputs.force_deploy == 'true'
+    timeout-minutes: 30
+    
+    environment:
+      name: staging
+      url: https://staging-api.storytailor.com
+      
+    outputs:
+      api-gateway-url: ${{ steps.terraform.outputs.api_gateway_url }}
+      cloudfront-domain: ${{ steps.terraform.outputs.cloudfront_domain }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+          terraform_wrapper: false
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: staging-build-${{ needs.pre-deploy.outputs.build-hash }}
+          path: .
+
+      - name: Create Lambda deployment packages
+        run: |
+          mkdir -p lambda-packages
+          
+          # Package each agent
+          AGENTS=("router" "auth-agent" "storytailor-agent" "content-agent" "library-agent" "emotion-agent" "commerce-agent" "insights-agent" "smart-home-agent" "universal-agent")
+          
+          for agent in "${AGENTS[@]}"; do
+            echo "Packaging $agent..."
+            cd "packages/$agent"
+            
+            # Create deployment package
+            zip -r "../../lambda-packages/$agent.zip" dist/ node_modules/ package.json
+            
+            cd ../..
+          done
+
+      - name: Terraform Init
+        run: |
+          cd infrastructure/terraform
+          terraform init \
+            -backend-config="bucket=${{ secrets.TERRAFORM_STATE_BUCKET }}" \
+            -backend-config="key=storytailor-staging/terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}"
+
+      - name: Terraform Plan
+        run: |
+          cd infrastructure/terraform
+          terraform plan \
+            -var="environment=staging" \
+            -var="lambda_source_hash=${{ needs.pre-deploy.outputs.build-hash }}" \
+            -var="supabase_url=${{ secrets.SUPABASE_URL_STAGING }}" \
+            -var="supabase_anon_key=${{ secrets.SUPABASE_ANON_KEY_STAGING }}" \
+            -var="supabase_service_key=${{ secrets.SUPABASE_SERVICE_KEY_STAGING }}" \
+            -var="openai_api_key=${{ secrets.OPENAI_API_KEY }}" \
+            -var="elevenlabs_api_key=${{ secrets.ELEVENLABS_API_KEY }}" \
+            -var="stability_api_key=${{ secrets.STABILITY_API_KEY }}" \
+            -var="stripe_secret_key=${{ secrets.STRIPE_SECRET_KEY_TEST }}" \
+            -var="amazon_api_key=${{ secrets.AMAZON_API_KEY }}" \
+            -var="jwt_secret=${{ secrets.JWT_SECRET_STAGING }}" \
+            -var="alexa_skill_id=${{ secrets.ALEXA_SKILL_ID_STAGING }}" \
+            -out=tfplan
+
+      - name: Terraform Apply
+        id: terraform
+        run: |
+          cd infrastructure/terraform
+          terraform apply -auto-approve tfplan
+          
+          # Capture outputs
+          API_GATEWAY_URL=$(terraform output -raw api_gateway_url)
+          CLOUDFRONT_DOMAIN=$(terraform output -raw cloudfront_domain)
+          
+          echo "api_gateway_url=$API_GATEWAY_URL" >> $GITHUB_OUTPUT
+          echo "cloudfront_domain=$CLOUDFRONT_DOMAIN" >> $GITHUB_OUTPUT
+
+      - name: Upload Lambda packages
+        run: |
+          aws s3 sync lambda-packages/ s3://${{ secrets.LAMBDA_ARTIFACTS_BUCKET }}/staging/
+
+      - name: Update Lambda functions
+        run: |
+          AGENTS=("router" "auth-agent" "storytailor-agent" "content-agent" "library-agent" "emotion-agent" "commerce-agent" "insights-agent" "smart-home-agent" "universal-agent")
+          
+          for agent in "${AGENTS[@]}"; do
+            echo "Updating Lambda function: storytailor-staging-$agent"
+            aws lambda update-function-code \
+              --function-name "storytailor-staging-$agent" \
+              --s3-bucket "${{ secrets.LAMBDA_ARTIFACTS_BUCKET }}" \
+              --s3-key "staging/$agent.zip"
+              
+            # Wait for update to complete
+            aws lambda wait function-updated \
+              --function-name "storytailor-staging-$agent"
+          done
+
+  # Job 3: Database migration
+  database:
+    name: Database Migration
+    runs-on: ubuntu-latest
+    needs: [pre-deploy]
+    if: needs.pre-deploy.outputs.deploy-ready == 'true' || github.event.inputs.force_deploy == 'true'
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link to staging project
+        run: |
+          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF_STAGING }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Run database migrations
+        run: |
+          cd supabase
+          supabase db push --include-all
+
+      - name: Validate migration
+        run: |
+          cd supabase
+          supabase db diff --schema public
+
+  # Job 4: Integration tests
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [infrastructure, database]
+    timeout-minutes: 30
+    
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Wait for deployment to be ready
+        run: |
+          echo "Waiting for API Gateway to be ready..."
+          for i in {1..30}; do
+            if curl -f "${{ needs.infrastructure.outputs.api-gateway-url }}/health" > /dev/null 2>&1; then
+              echo "✅ API Gateway is ready"
+              break
+            fi
+            echo "⏳ Waiting... (attempt $i/30)"
+            sleep 10
+          done
+
+      - name: Run integration tests
+        run: |
+          npm run test:integration
+        env:
+          API_BASE_URL: ${{ needs.infrastructure.outputs.api-gateway-url }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL_STAGING }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_STAGING }}
+          REDIS_URL: redis://localhost:6379
+
+      - name: Upload integration test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-test-results
+          path: |
+            integration-test-results.xml
+            integration-coverage/
+          retention-days: 7
+
+  # Job 5: Load testing
+  load-tests:
+    name: Load Testing
+    runs-on: ubuntu-latest
+    needs: [infrastructure, database]
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install K6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: Run load tests
+        run: |
+          k6 run --env API_BASE_URL=${{ needs.infrastructure.outputs.api-gateway-url }} \
+                 --env API_KEY=${{ secrets.API_KEY_STAGING }} \
+                 --env K6_SCENARIO_NAME=staging_load \
+                 --env MAX_VUS=50 \
+                 --env DURATION=5m \
+                 --out json=load-test-results.json \
+                 testing/load/k6-load-tests.js
+
+      - name: Analyze load test results
+        run: |
+          # Check if 95% of requests are under 800ms
+          P95_RESPONSE_TIME=$(jq '.metrics.http_req_duration.values.p95' load-test-results.json)
+          if (( $(echo "$P95_RESPONSE_TIME > 800" | bc -l) )); then
+            echo "❌ P95 response time ($P95_RESPONSE_TIME ms) exceeds 800ms threshold"
+            exit 1
+          fi
+          
+          # Check error rate is under 1%
+          ERROR_RATE=$(jq '.metrics.http_req_failed.values.rate' load-test-results.json)
+          if (( $(echo "$ERROR_RATE > 0.01" | bc -l) )); then
+            echo "❌ Error rate ($ERROR_RATE) exceeds 1% threshold"
+            exit 1
+          fi
+          
+          echo "✅ Load test passed - P95: ${P95_RESPONSE_TIME}ms, Error rate: ${ERROR_RATE}"
+
+      - name: Upload load test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-results
+          path: load-test-results.json
+          retention-days: 7
+
+  # Job 6: Security testing
+  security-tests:
+    name: Security Testing
+    runs-on: ubuntu-latest
+    needs: [infrastructure, database]
+    timeout-minutes: 25
+    
+    services:
+      zap:
+        image: owasp/zap2docker-stable
+        ports:
+          - 8080:8080
+        options: >-
+          --user root
+          --entrypoint=""
+        command: >
+          bash -c "zap.sh -daemon -host 0.0.0.0 -port 8080 -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true"
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          pip install python-owasp-zap-v2.4 requests
+
+      - name: Wait for ZAP to start
+        run: |
+          echo "Waiting for ZAP to start..."
+          for i in {1..30}; do
+            if curl -f http://localhost:8080/JSON/core/view/version/ > /dev/null 2>&1; then
+              echo "✅ ZAP is ready"
+              break
+            fi
+            echo "⏳ Waiting... (attempt $i/30)"
+            sleep 5
+          done
+
+      - name: Run security tests
+        run: |
+          python testing/security/owasp-zap-security-tests.py \
+            --url ${{ needs.infrastructure.outputs.api-gateway-url }} \
+            --api-key ${{ secrets.API_KEY_STAGING }} \
+            --output security-report.json
+
+      - name: Upload security report
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report
+          path: security-report.json
+          retention-days: 30
+
+  # Job 7: Smoke tests
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    needs: [infrastructure, database]
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Run smoke tests
+        run: |
+          # Health check
+          curl -f "${{ needs.infrastructure.outputs.api-gateway-url }}/health" || exit 1
+          
+          # Basic API endpoints
+          curl -f "${{ needs.infrastructure.outputs.api-gateway-url }}/v1/router/health" || exit 1
+          curl -f "${{ needs.infrastructure.outputs.api-gateway-url }}/v1/universal/health" || exit 1
+          
+          # CDN availability
+          curl -f "https://${{ needs.infrastructure.outputs.cloudfront-domain }}" || exit 1
+          
+          echo "✅ All smoke tests passed"
+
+  # Job 8: Deployment notification
+  notify:
+    name: Deployment Notification
+    runs-on: ubuntu-latest
+    needs: [infrastructure, database, integration-tests, load-tests, security-tests, smoke-tests]
+    if: always()
+    
+    steps:
+      - name: Notify success
+        if: ${{ needs.infrastructure.result == 'success' && needs.database.result == 'success' && needs.integration-tests.result == 'success' && needs.load-tests.result == 'success' && needs.security-tests.result == 'success' && needs.smoke-tests.result == 'success' }}
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          channel: '#deployments'
+          text: |
+            🚀 Staging deployment successful!
+            
+            📊 **Deployment Details:**
+            • Environment: Staging
+            • API Gateway: ${{ needs.infrastructure.outputs.api-gateway-url }}
+            • CDN: https://${{ needs.infrastructure.outputs.cloudfront-domain }}
+            • Build Hash: ${{ needs.pre-deploy.outputs.build-hash }}
+            
+            ✅ **Tests Passed:**
+            • Integration Tests
+            • Load Tests (P95 < 800ms)
+            • Security Scan
+            • Smoke Tests
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify failure
+        if: ${{ needs.infrastructure.result == 'failure' || needs.database.result == 'failure' || needs.integration-tests.result == 'failure' || needs.load-tests.result == 'failure' || needs.security-tests.result == 'failure' || needs.smoke-tests.result == 'failure' }}
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          channel: '#deployments'
+          text: |
+            ❌ Staging deployment failed!
+            
+            **Failed Jobs:**
+            ${{ needs.infrastructure.result == 'failure' && '• Infrastructure' || '' }}
+            ${{ needs.database.result == 'failure' && '• Database Migration' || '' }}
+            ${{ needs.integration-tests.result == 'failure' && '• Integration Tests' || '' }}
+            ${{ needs.load-tests.result == 'failure' && '• Load Tests' || '' }}
+            ${{ needs.security-tests.result == 'failure' && '• Security Tests' || '' }}
+            ${{ needs.smoke-tests.result == 'failure' && '• Smoke Tests' || '' }}
+            
+            Please check the workflow logs for details.
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

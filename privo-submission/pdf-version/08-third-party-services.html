@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>08-third-party-services</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5/github-markdown.min.css" />
+</head>
+<body>
+<h1 id="third-party-services">Third-Party Services</h1>
+<h2 id="overview">Overview</h2>
+<p>This document provides compliance documentation for all third-party
+services used by both Storytailor (our web platform) and Story
+Intelligence™ (our future AI engine). All services have publicly
+available Data Processing Agreements (DPAs) and compliance documentation
+that can be referenced for PRIVO certification.</p>
+<p><strong>Approach:</strong> We reference publicly available compliance
+documentation from each service provider rather than including full DPAs
+in this package. All DPAs are available on the respective service
+provider websites.</p>
+<h2 id="aws-services">AWS Services</h2>
+<h3 id="services-used">Services Used</h3>
+<ul>
+<li><strong>AWS Lambda:</strong> Serverless function execution for
+platform operations</li>
+<li><strong>AWS SSM Parameter Store:</strong> Secure storage for secrets
+and configuration</li>
+<li><strong>AWS S3:</strong> Asset storage for stories, images, and
+audio files</li>
+<li><strong>AWS EventBridge:</strong> Event-driven communication between
+services</li>
+<li><strong>AWS CloudWatch:</strong> Logging and monitoring</li>
+</ul>
+<h3 id="compliance-documentation">Compliance Documentation</h3>
+<p><strong>Data Processing Addendum (DPA):</strong> -
+<strong>Status:</strong> Automatically applies to all AWS customers
+globally - <strong>Location:</strong> Incorporated into AWS Service
+Terms - <strong>Reference:</strong>
+https://aws.amazon.com/service-terms/ - <strong>Note:</strong> The AWS
+DPA is automatically incorporated into the AWS Service Terms and applies
+to all customers globally who require it to comply with GDPR when using
+AWS services to process personal data.</p>
+<p><strong>COPPA Support:</strong> - AWS services can be configured to
+support COPPA compliance - <strong>Amazon Lex:</strong> Supports
+<code>childDirected</code> flag to indicate COPPA compliance -
+<strong>Reference:</strong>
+https://docs.aws.amazon.com/lexv2/latest/APIReference/API_DataPrivacy.html
+- <strong>Note:</strong> When using Amazon Lex, setting
+<code>childDirected</code> to <code>true</code> indicates that your
+application is subject to COPPA, and Amazon Lex will handle data
+accordingly.</p>
+<p><strong>Compliance Programs:</strong> - AWS maintains multiple
+compliance certifications - <strong>Reference:</strong>
+https://aws.amazon.com/compliance/ - <strong>Certifications
+Include:</strong> - SOC 2 Type 2 - ISO 27001 - HIPAA - PCI DSS - And
+many more</p>
+<h3 id="data-protection-measures">Data Protection Measures</h3>
+<p><strong>Encryption:</strong> - <strong>At Rest:</strong> S3 buckets
+encrypted, SSM parameters encrypted with AWS KMS - <strong>In
+Transit:</strong> All AWS API calls use HTTPS/TLS -
+<strong>KMS:</strong> AWS Key Management Service for encryption key
+management</p>
+<p><strong>Access Control:</strong> - <strong>IAM Roles:</strong> Lambda
+functions use IAM roles with least privilege - <strong>S3
+Policies:</strong> S3 buckets protected by IAM policies - <strong>SSM
+Encryption:</strong> All SecureString parameters encrypted with AWS
+KMS</p>
+<p><strong>Data Residency:</strong> - Configurable data residency
+options - Data stored in specified AWS regions - <strong>Current
+Region:</strong> us-east-1 (United States)</p>
+<p><strong>Log Retention:</strong> - CloudWatch logs retained per
+retention policy (typically 30 days) - Configurable retention
+periods</p>
+<h3 id="data-flow">Data Flow</h3>
+<p><strong>Data Stored in AWS:</strong> - <strong>Lambda Logs:</strong>
+May contain user IDs, session IDs, story content (CloudWatch Logs) -
+<strong>SSM Parameters:</strong> API keys, secrets (no user data) -
+<strong>S3 Buckets:</strong> Story assets, images, audio files (may
+contain child-created content) - <strong>EventBridge Events:</strong>
+Event data (may contain user IDs, session IDs)</p>
+<p><strong>Data Minimization:</strong> - Only necessary data stored in
+AWS services - Logs contain minimal PII (user IDs, not full user data) -
+S3 assets contain user-created content (stories, images, audio)</p>
+<h3 id="compliance-status">Compliance Status</h3>
+<p><strong>COPPA Compliance:</strong> AWS provides encryption, access
+control, and supports our retention policies<br />
+<strong>GDPR Compliance:</strong> Includes encryption, access control,
+and data minimization features<br />
+<strong>Shared Responsibility:</strong> We’re responsible for how we use
+the services; AWS is responsible for the infrastructure security</p>
+<p><strong>Privacy Risk Assessment:</strong> - <strong>Risk
+Level:</strong> Low (AWS provides enterprise-grade security) -
+<strong>Mitigation:</strong> Encryption, access control, retention
+policies, IAM roles - <strong>Parental Consent:</strong> Required for
+children under 13 (data stored in AWS services)</p>
+<h2 id="supabase">Supabase</h2>
+<h3 id="services-used-1">Services Used</h3>
+<ul>
+<li><strong>PostgreSQL Database:</strong> Primary data storage for all
+user data</li>
+<li><strong>Authentication Service:</strong> User authentication and
+account management</li>
+<li><strong>Row Level Security (RLS):</strong> Database-level access
+control</li>
+</ul>
+<h3 id="compliance-documentation-1">Compliance Documentation</h3>
+<p><strong>Data Processing Addendum (DPA):</strong> -
+<strong>Status:</strong> Available for all Supabase customers -
+<strong>Location:</strong> https://supabase.com/legal/dpa -
+<strong>Process:</strong> DPA can be made legally binding by signing and
+completing details through a PandaDoc document prepared by Supabase -
+<strong>Reference:</strong> Request DPA from the legal documents page of
+your Supabase dashboard</p>
+<p><strong>HIPAA Compliance:</strong> - Supabase offers HIPAA-compliant
+environments - <strong>Reference:</strong>
+https://supabase.com/docs/guides/security/hipaa-compliance -
+<strong>Note:</strong> While Supabase offers HIPAA compliance, COPPA
+compliance is the customer’s responsibility</p>
+<p><strong>Security Certifications:</strong> - <strong>SOC 2 Type
+2:</strong> Certified - <strong>Reference:</strong>
+https://supabase.com/security - <strong>Security Page:</strong>
+https://supabase.com/security</p>
+<p><strong>COPPA Compliance:</strong> - <strong>Status:</strong>
+Customer responsibility - <strong>Note:</strong> Supabase does not
+provide specific COPPA documentation. COPPA compliance is the customer’s
+responsibility. Supabase provides security and compliance features (SOC
+2, HIPAA) that support COPPA compliance.</p>
+<h3 id="data-protection-measures-1">Data Protection Measures</h3>
+<p><strong>Encryption:</strong> - <strong>At Rest:</strong> Database
+encryption enabled - <strong>In Transit:</strong> SSL/TLS required for
+all connections - <strong>Reference:</strong> Supabase automatically
+encrypts data at rest and requires SSL/TLS for all connections</p>
+<p><strong>Row Level Security (RLS):</strong> - <strong>Status:</strong>
+Enabled on all tables - <strong>Implementation:</strong> User-based
+access control policies - <strong>COPPA Protection:</strong> RLS
+policies enforce COPPA-protected user restrictions</p>
+<p><strong>Data Residency:</strong> - Configurable data residency
+options - Data stored in specified regions - <strong>Current
+Region:</strong> United States</p>
+<p><strong>Backup &amp; Recovery:</strong> - Automated backups -
+Point-in-time recovery available - <strong>Reference:</strong> Supabase
+provides automated backup and recovery services</p>
+<h3 id="data-flow-1">Data Flow</h3>
+<p><strong>Data Stored in Supabase:</strong></p>
+<p><em>Current (Storytailor 3.0):</em> - <strong>User Accounts:</strong>
+User IDs, emails, ages, parent emails - <strong>Story Content:</strong>
+Stories created by children - <strong>Character Data:</strong>
+Characters created by children - <strong>Parental Consents:</strong>
+Parent consent records - <strong>Safety Incidents:</strong> Safety
+incident logs (content hashed, not raw text)</p>
+<p><em>Future (Story Intelligence™):</em> - <strong>Emotional
+Data:</strong> Emotion tracking data (365-day retention) - <strong>Audio
+Transcripts:</strong> Voice conversation transcripts (30-day retention)
+- <strong>Conversation States:</strong> Conversation session data
+(24-hour retention)</p>
+<p><strong>Data Protection Measures:</strong> 1. <strong>Row Level
+Security (RLS):</strong> All tables protected by RLS policies 2.
+<strong>Encryption at Rest:</strong> Supabase provides encryption at
+rest 3. <strong>Encrypted Transmission:</strong> All database
+connections use SSL/TLS 4. <strong>Data Retention:</strong> Automated
+retention policies for all data types 5. <strong>COPPA
+Protection:</strong> Automatic COPPA protection flags for users under 13
+6. <strong>Parental Consent:</strong> Parent consent required for
+children under 13 7. <strong>Access Control:</strong> Service role key
+used only for server-side operations 8. <strong>Anonymization:</strong>
+Emotional data anonymized after 365 days (not deleted) 9.
+<strong>Content Hashing:</strong> Safety incidents store content hashes,
+not raw text</p>
+<h3 id="compliance-status-1">Compliance Status</h3>
+<p><strong>COPPA Compliance:</strong> Supports Row Level Security,
+parental consent workflows, and data retention policies<br />
+<strong>GDPR Compliance:</strong> Includes data retention, right to
+erasure, and encryption features<br />
+<strong>Data Minimization:</strong> We only store what’s necessary for
+the service to work</p>
+<p><strong>Privacy Risk Assessment:</strong> - <strong>Risk
+Level:</strong> Low (data stored securely with RLS and encryption) -
+<strong>Mitigation:</strong> RLS policies, encryption, retention
+policies, parental consent - <strong>Parental Consent:</strong> Required
+for children under 13</p>
+<h2 id="sendgrid-twilio">SendGrid (Twilio)</h2>
+<h3 id="services-used-2">Services Used</h3>
+<ul>
+<li><strong>Email Delivery:</strong> Parent notifications, transactional
+emails</li>
+<li><strong>Email Tracking:</strong> Open and click tracking
+(optional)</li>
+</ul>
+<h3 id="compliance-documentation-2">Compliance Documentation</h3>
+<p><strong>HIPAA Compliance:</strong> - SendGrid offers HIPAA-compliant
+email services - <strong>Reference:</strong>
+https://support.sendgrid.com/hc/en-us/articles/360041790233-Is-Twilio-SendGrid-HIPAA-Compliant
+- <strong>Note:</strong> HIPAA compliance available for enterprise
+customers</p>
+<p><strong>Email Compliance:</strong> - SendGrid complies with email
+opt-in/opt-out requirements - <strong>Reference:</strong>
+https://support.sendgrid.com/hc/en-us/articles/4404315959835-Email-Opt-in-and-Opt-out-Requirements
+- <strong>CAN-SPAM Compliance:</strong> SendGrid helps customers comply
+with CAN-SPAM Act</p>
+<p><strong>COPPA Compliance:</strong> - <strong>Status:</strong>
+Customer responsibility - <strong>Note:</strong> SendGrid does not
+provide specific COPPA documentation. COPPA compliance is the customer’s
+responsibility. SendGrid provides email delivery services that can be
+used in a COPPA-compliant manner.</p>
+<p><strong>Data Processing Agreement:</strong> -
+<strong>Status:</strong> Available through Twilio’s legal documentation
+- <strong>Reference:</strong> Contact Twilio support for DPA information
+- <strong>Note:</strong> SendGrid is a Twilio service, so DPAs are
+managed through Twilio</p>
+<h3 id="data-protection-measures-2">Data Protection Measures</h3>
+<p><strong>Encryption:</strong> - <strong>In Transit:</strong> TLS
+encryption for email delivery - <strong>Reference:</strong> All email
+delivery uses TLS encryption</p>
+<p><strong>Data Minimization:</strong> - <strong>Parent Email
+Only:</strong> Only parent email addresses sent (not child emails) -
+<strong>Content Minimization:</strong> Email content limited to
+necessary information - <strong>No PII in Headers:</strong> User IDs and
+other PII not included in email headers</p>
+<p><strong>Purpose Limitation:</strong> - Emails sent only for
+notifications and transactional purposes - No marketing emails sent to
+parents - No child data included in emails</p>
+<p><strong>API Key Security:</strong> - SendGrid API keys stored
+securely in AWS SSM Parameter Store - Keys encrypted and
+access-controlled</p>
+<h3 id="data-flow-2">Data Flow</h3>
+<p><strong>Data Sent to SendGrid:</strong> - <strong>Parent Email
+Addresses:</strong> Sent (for parent notifications) - <strong>Email
+Content:</strong> Sent (notification text, safety alerts) - <strong>User
+ID:</strong> Not sent (only email addresses) - <strong>Child
+Age:</strong> Not sent (only in email content if relevant to
+notification) - <strong>Story Content:</strong> Not sent (only safety
+incident summaries) - <strong>Child Name:</strong> Not sent (only
+generic references like “your child”)</p>
+<p><strong>Data Protection Measures:</strong> 1. <strong>Parent Email
+Only:</strong> Only parent email addresses sent (not child emails) 2.
+<strong>Content Minimization:</strong> Email content limited to
+necessary information 3. <strong>No PII in Headers:</strong> User IDs
+and other PII not included in email headers 4. <strong>Encrypted
+Transmission:</strong> All email delivery uses TLS encryption 5.
+<strong>API Key Security:</strong> SendGrid API keys stored securely 6.
+<strong>Purpose Limitation:</strong> Emails sent only for notifications
+and transactional purposes</p>
+<h3 id="compliance-status-2">Compliance Status</h3>
+<p><strong>COPPA Compliance:</strong> Supports data minimization,
+encryption, and purpose limitation<br />
+<strong>GDPR Compliance:</strong> Includes data minimization,
+encryption, and purpose limitation<br />
+<strong>CAN-SPAM Compliance:</strong> Provides opt-in and opt-out
+support</p>
+<p><strong>Privacy Risk Assessment:</strong> - <strong>Risk
+Level:</strong> Low (only parent emails sent, minimal data) -
+<strong>Mitigation:</strong> Data minimization, encryption, purpose
+limitation - <strong>Parental Consent:</strong> Required for children
+under 13 (parent emails used for notifications)</p>
+<h2 id="data-processing-agreements-summary">Data Processing Agreements
+Summary</h2>
+<h3 id="agreement-status">Agreement Status</h3>
+<table>
+<colgroup>
+<col style="width: 34%" />
+<col style="width: 30%" />
+<col style="width: 20%" />
+<col style="width: 16%" />
+</colgroup>
+<thead>
+<tr>
+<th>Service Provider</th>
+<th>DPA Available</th>
+<th>Location</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>AWS</strong></td>
+<td>Yes</td>
+<td>Automatically applies (AWS Service Terms)</td>
+<td>Active</td>
+</tr>
+<tr>
+<td><strong>Supabase</strong></td>
+<td>Yes</td>
+<td>https://supabase.com/legal/dpa</td>
+<td>Available for signing</td>
+</tr>
+<tr>
+<td><strong>SendGrid (Twilio)</strong></td>
+<td>Yes</td>
+<td>Through Twilio legal documentation</td>
+<td>Available upon request</td>
+</tr>
+</tbody>
+</table>
+<h3 id="dpa-references">DPA References</h3>
+<p><strong>For PRIVO Certification:</strong> - All third-party services
+have publicly available Data Processing Agreements - DPAs can be
+referenced rather than included in this package - All DPAs are available
+on the respective service provider websites</p>
+<h2 id="public-compliance-documentation-links">Public Compliance
+Documentation Links</h2>
+<h3 id="aws">AWS</h3>
+<ul>
+<li><strong>Compliance Programs:</strong>
+https://aws.amazon.com/compliance/</li>
+<li><strong>Service Terms (includes DPA):</strong>
+https://aws.amazon.com/service-terms/</li>
+<li><strong>COPPA Support (Lex):</strong>
+https://docs.aws.amazon.com/lexv2/latest/APIReference/API_DataPrivacy.html</li>
+</ul>
+<h3 id="supabase-1">Supabase</h3>
+<ul>
+<li><strong>Data Processing Addendum:</strong>
+https://supabase.com/legal/dpa</li>
+<li><strong>Security:</strong> https://supabase.com/security</li>
+<li><strong>HIPAA Compliance:</strong>
+https://supabase.com/docs/guides/security/hipaa-compliance</li>
+</ul>
+<h3 id="sendgrid-twilio-1">SendGrid (Twilio)</h3>
+<ul>
+<li><strong>HIPAA Compliance:</strong>
+https://support.sendgrid.com/hc/en-us/articles/360041790233-Is-Twilio-SendGrid-HIPAA-Compliant</li>
+<li><strong>Email Compliance:</strong>
+https://support.sendgrid.com/hc/en-us/articles/4404315959835-Email-Opt-in-and-Opt-out-Requirements</li>
+<li><strong>Twilio Legal:</strong> Contact Twilio support for DPA
+information</li>
+</ul>
+<h2 id="contact-information">Contact Information</h2>
+<p><strong>Privacy Inquiries:</strong> privacy@storytailor.com<br />
+<strong>Technical Contact:</strong> tech@storytailor.com<br />
+<strong>Mailing Address:</strong><br />
+Storytailor Inc.<br />
+7131 w 135th, #1074<br />
+Overland Park, KS 66223</p>
+<hr />
+<p><strong>Storytailor Inc.</strong><br />
+7131 w 135th, #1074<br />
+Overland Park, KS 66223</p>
+</body>
+</html>

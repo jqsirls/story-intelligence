@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>09-testing-verification</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5/github-markdown.min.css" />
+</head>
+<body>
+<h1 id="testing-and-verification-procedures">Testing and Verification
+Procedures</h1>
+<h2 id="overview">Overview</h2>
+<p>This document describes testing and verification procedures that
+PRIVO auditors can use to verify COPPA compliance for both Storytailor
+(our web platform) and Story Intelligence™ (our future AI engine). All
+procedures are designed to be performed without access to internal
+source code or proprietary technical documentation.</p>
+<p>Both products share the same COPPA infrastructure, so testing
+procedures apply to both.</p>
+<h2 id="verification-approach">Verification Approach</h2>
+<p>PRIVO auditors can verify COPPA compliance through:</p>
+<ol type="1">
+<li><strong>API Testing</strong> - Test compliance endpoints
+directly</li>
+<li><strong>Documentation Review</strong> - Review policies and
+procedures</li>
+<li><strong>Process Verification</strong> - Verify workflows and data
+handling</li>
+<li><strong>Compliance Monitoring</strong> - Review audit logs and
+compliance reports</li>
+</ol>
+<h2 id="age-verification-testing">Age Verification Testing</h2>
+<h3 id="test-procedure-1-adult-registration">Test Procedure 1: Adult
+Registration</h3>
+<p><strong>Purpose:</strong> Verify that users 13 and older are not
+subject to COPPA protections.</p>
+<p><strong>Test Steps:</strong> 1. Register a new user with age 35 2.
+Verify registration succeeds 3. Verify COPPA protection flag is set to
+false 4. Verify no parent email is required 5. Verify no consent is
+required</p>
+<p><strong>Expected Results:</strong> - Registration succeeds -
+<code>isCoppaProtected: false</code> -
+<code>requiresConsent: false</code> - No parent email required</p>
+<h3 id="test-procedure-2-child-registration-with-parent-email">Test
+Procedure 2: Child Registration with Parent Email</h3>
+<p><strong>Purpose:</strong> Verify that users under 13 require parent
+email and COPPA protection.</p>
+<p><strong>Test Steps:</strong> 1. Register a new user with age 8 2.
+Provide parent email address 3. Verify registration succeeds 4. Verify
+COPPA protection flag is set to true 5. Verify consent is required</p>
+<p><strong>Expected Results:</strong> - Registration succeeds -
+<code>isCoppaProtected: true</code> - <code>requiresConsent: true</code>
+- Parent email accepted</p>
+<h3 id="test-procedure-3-child-registration-without-parent-email">Test
+Procedure 3: Child Registration without Parent Email</h3>
+<p><strong>Purpose:</strong> Verify that registration is rejected when
+parent email is missing for users under 13.</p>
+<p><strong>Test Steps:</strong> 1. Attempt to register a new user with
+age 10 2. Do NOT provide parent email address 3. Verify registration is
+rejected 4. Verify error message indicates parent email is required</p>
+<p><strong>Expected Results:</strong> - Registration fails - Error
+message: “Children under 13 require parent email for COPPA compliance” -
+Error code: “PARENT_EMAIL_REQUIRED”</p>
+<h2 id="parental-consent-testing">Parental Consent Testing</h2>
+<h3 id="test-procedure-4-consent-request-creation">Test Procedure 4:
+Consent Request Creation</h3>
+<p><strong>Purpose:</strong> Verify that consent requests can be created
+for children under 13.</p>
+<p><strong>Test Steps:</strong> 1. Create a consent request with parent
+email and child age 2. Verify consent request is created 3. Verify
+unique request ID is generated 4. Verify status is set to “pending” 5.
+Verify expiration date is set (7 days from creation)</p>
+<p><strong>Expected Results:</strong> - Consent request created
+successfully - Unique request ID returned - Status: “pending” -
+Expiration date set correctly</p>
+<h3 id="test-procedure-5-consent-verification">Test Procedure 5: Consent
+Verification</h3>
+<p><strong>Purpose:</strong> Verify that parents can verify consent.</p>
+<p><strong>Test Steps:</strong> 1. Use consent request ID from Test
+Procedure 4 2. Submit consent verification 3. Verify consent status
+changes to “verified” 4. Verify consent timestamp is recorded 5. Verify
+parent receives confirmation</p>
+<p><strong>Expected Results:</strong> - Consent verification succeeds -
+Status changes to “verified” - Consent timestamp recorded - Confirmation
+sent to parent</p>
+<h3 id="test-procedure-6-consent-status-check">Test Procedure 6: Consent
+Status Check</h3>
+<p><strong>Purpose:</strong> Verify that consent status can be checked
+at any time.</p>
+<p><strong>Test Steps:</strong> 1. Check consent status for a user 2.
+Verify current status is returned 3. Verify consent metadata is included
+(if available) 4. Verify consent history is accessible</p>
+<p><strong>Expected Results:</strong> - Consent status returned - Status
+values: “none”, “pending”, “verified”, or “revoked” - Metadata included
+when available</p>
+<h3 id="test-procedure-7-consent-revocation">Test Procedure 7: Consent
+Revocation</h3>
+<p><strong>Purpose:</strong> Verify that parents can revoke consent at
+any time.</p>
+<p><strong>Test Steps:</strong> 1. Revoke consent for a user with
+verified consent 2. Verify consent status changes to “revoked” 3. Verify
+data collection stops immediately 4. Verify revocation is logged 5.
+Verify parent receives confirmation</p>
+<p><strong>Expected Results:</strong> - Consent revocation succeeds -
+Status changes to “revoked” - Data collection stops - Revocation logged
+- Confirmation sent to parent</p>
+<h2 id="parental-rights-testing">Parental Rights Testing</h2>
+<h3 id="test-procedure-8-data-access-request">Test Procedure 8: Data
+Access Request</h3>
+<p><strong>Purpose:</strong> Verify that parents can access all data
+about their child.</p>
+<p><strong>Test Steps:</strong> 1. Submit data access request as parent
+2. Verify parent identity is validated 3. Verify all child data is
+returned 4. Verify data includes: user data, stories, characters,
+emotions, consent records 5. Verify response is provided within 30
+days</p>
+<p><strong>Expected Results:</strong> - Data access request succeeds -
+All child data returned - Data in machine-readable format (JSON) -
+Response within 30 days</p>
+<h3 id="test-procedure-9-data-deletion-request">Test Procedure 9: Data
+Deletion Request</h3>
+<p><strong>Purpose:</strong> Verify that parents can request deletion of
+all child data.</p>
+<p><strong>Test Steps:</strong> 1. Submit data deletion request as
+parent 2. Verify parent identity is validated 3. Verify all child data
+is deleted 4. Verify audit logs are anonymized (not deleted) 5. Verify
+parent receives confirmation</p>
+<p><strong>Expected Results:</strong> - Data deletion succeeds - All
+child data permanently deleted - Audit logs anonymized (retained for
+legal compliance) - Confirmation sent to parent</p>
+<h3 id="test-procedure-10-data-export-request">Test Procedure 10: Data
+Export Request</h3>
+<p><strong>Purpose:</strong> Verify that parents can export all child
+data.</p>
+<p><strong>Test Steps:</strong> 1. Submit data export request as parent
+2. Verify parent identity is validated 3. Verify export file is
+generated 4. Verify export includes all data types 5. Verify secure
+download link is provided (expires in 7 days)</p>
+<p><strong>Expected Results:</strong> - Data export succeeds - Export
+file in JSON format - All data types included - Secure download link
+provided - Link expires after 7 days</p>
+<h2 id="data-retention-testing">Data Retention Testing</h2>
+<h3 id="test-procedure-11-automated-deletion-verification">Test
+Procedure 11: Automated Deletion Verification</h3>
+<p><strong>Purpose:</strong> Verify that data is automatically deleted
+according to retention policies.</p>
+<p><strong>Test Steps:</strong> 1. Review data retention policies 2.
+Verify automated deletion processes are in place 3. Verify deletion
+occurs when retention period expires 4. Verify deletion is logged 5.
+Verify different deletion strategies (hard delete vs. anonymization)</p>
+<p><strong>Expected Results:</strong> - Retention policies documented -
+Automated deletion processes operational - Deletion occurs automatically
+- Deletion logged for audit - Appropriate deletion strategy applied</p>
+<h2 id="security-testing">Security Testing</h2>
+<h3 id="test-procedure-12-encryption-verification">Test Procedure 12:
+Encryption Verification</h3>
+<p><strong>Purpose:</strong> Verify that data is encrypted at rest and
+in transit.</p>
+<p><strong>Test Steps:</strong> 1. Verify database encryption is enabled
+2. Verify API communications use HTTPS/TLS 3. Verify email delivery uses
+TLS encryption 4. Verify encryption keys are managed securely</p>
+<p><strong>Expected Results:</strong> - Encryption at rest enabled -
+Encryption in transit (TLS 1.3) required - Secure key management</p>
+<h3 id="test-procedure-13-access-control-verification">Test Procedure
+13: Access Control Verification</h3>
+<p><strong>Purpose:</strong> Verify that access controls are properly
+implemented.</p>
+<p><strong>Test Steps:</strong> 1. Verify Row Level Security (RLS) is
+enabled 2. Verify users can only access their own data 3. Verify parents
+can only access their own child’s data 4. Verify authentication is
+required for all API endpoints 5. Verify parent-child relationship
+verification</p>
+<p><strong>Expected Results:</strong> - RLS policies enforced -
+User-based access control - Parent-child relationship verified -
+Authentication required</p>
+<h2 id="audit-logging-verification">Audit Logging Verification</h2>
+<h3 id="test-procedure-14-audit-log-review">Test Procedure 14: Audit Log
+Review</h3>
+<p><strong>Purpose:</strong> Verify that compliance events are properly
+logged.</p>
+<p><strong>Test Steps:</strong> 1. Review audit log structure 2. Verify
+consent events are logged 3. Verify data access events are logged 4.
+Verify data deletion events are logged 5. Verify security events are
+logged 6. Verify log retention period (7 years)</p>
+<p><strong>Expected Results:</strong> - Audit logs comprehensive - All
+compliance events logged - Logs retained for 7 years - Logs anonymized
+after 1 year</p>
+<h2 id="compliance-monitoring">Compliance Monitoring</h2>
+<h3 id="ongoing-monitoring-procedures">Ongoing Monitoring
+Procedures</h3>
+<p><strong>For PRIVO Auditors:</strong></p>
+<ol type="1">
+<li><strong>Consent Status Monitoring:</strong>
+<ul>
+<li>Review consent status reports</li>
+<li>Verify consent rates and trends</li>
+<li>Identify any compliance issues</li>
+</ul></li>
+<li><strong>Data Retention Monitoring:</strong>
+<ul>
+<li>Review data retention compliance reports</li>
+<li>Verify automated deletion is working</li>
+<li>Verify retention periods are being followed</li>
+</ul></li>
+<li><strong>Parental Rights Monitoring:</strong>
+<ul>
+<li>Review parental rights request summaries</li>
+<li>Verify response times (within 30 days)</li>
+<li>Verify all requests are properly handled</li>
+</ul></li>
+<li><strong>Security Monitoring:</strong>
+<ul>
+<li>Review security incident summaries</li>
+<li>Verify incident response procedures</li>
+<li>Verify security measures are effective</li>
+</ul></li>
+</ol>
+<h2 id="test-environment">Test Environment</h2>
+<p><strong>API Base URL:</strong> Available upon request for PRIVO
+audit<br />
+<strong>Test Credentials:</strong> Available upon request for PRIVO
+audit<br />
+<strong>Documentation:</strong> All API documentation available upon
+request</p>
+<h2 id="contact-information">Contact Information</h2>
+<p><strong>Privacy Inquiries:</strong> privacy@storytailor.com<br />
+<strong>Technical Contact:</strong> tech@storytailor.com<br />
+<strong>Mailing Address:</strong><br />
+Storytailor Inc.<br />
+7131 w 135th, #1074<br />
+Overland Park, KS 66223</p>
+<p><strong>Response Time:</strong> All verification requests responded
+to within 30 days.</p>
+<hr />
+<p><strong>Storytailor Inc.</strong><br />
+7131 w 135th, #1074<br />
+Overland Park, KS 66223</p>
+</body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "id": "internal/sales/pricing-strategy",
+  "title": "Pricing Strategy (Internal - Sales Team)",
+  "description": "🔒 INTERNAL ONLY - Contains actual costs and margins",
+  "source": "@site/docs/internal/sales/pricing-strategy.md",
+  "sourceDirName": "internal/sales",
+  "slug": "/internal/sales/pricing-strategy",
+  "permalink": "/docs/internal/sales/pricing-strategy",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/storytailor-inc/Storytailor-agent/tree/main/docs-site/docs/internal/sales/pricing-strategy.md",
+  "tags": [],
+  "version": "current",
+  "frontMatter": {},
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Welcome to Storytailor",
+    "permalink": "/docs/getting-started/introduction"
+  },
+  "next": {
+    "title": "Partner Program Overview",
+    "permalink": "/docs/partners/overview"
+  }
+}

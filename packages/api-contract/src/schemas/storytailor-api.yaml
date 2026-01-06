@@ -1,0 +1,783 @@
+openapi: 3.0.3
+info:
+  title: Storytailor Platform API
+  description: |
+    Storytailor® Platform API powered by Story Intelligence™
+    
+    Create award-caliber personal stories through natural conversation.
+    All endpoints use Story Intelligence technology for narrative excellence.
+  version: 2.0.0
+  contact:
+    name: Storytailor API Support
+    email: developers@storytailor.com
+    url: https://docs.storytailor.com
+  license:
+    name: Proprietary
+    url: https://storytailor.com/terms
+
+servers:
+  - url: https://api-v2.storytailor.com
+    description: Production API (Story Intelligence powered)
+  - url: https://staging-api.storytailor.com  
+    description: Staging API
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+paths:
+  # Authentication & Users
+  /auth/register:
+    post:
+      tags: [Authentication]
+      summary: Register new user account
+      description: Register user with COPPA compliance and parental verification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegistration'
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Authenticate user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  # Story Intelligence Core
+  /stories:
+    get:
+      tags: [Stories]
+      summary: List user stories
+      description: Get stories created with Story Intelligence™
+      parameters:
+        - name: library_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Stories retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoriesResponse'
+
+    post:
+      tags: [Stories]
+      summary: Create new story
+      description: Start story creation conversation powered by Story Intelligence™
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoryCreationRequest'
+      responses:
+        '201':
+          description: Story creation initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryResponse'
+
+  /stories/{storyId}:
+    get:
+      tags: [Stories]
+      summary: Get story details
+      parameters:
+        - $ref: '#/components/parameters/StoryId'
+      responses:
+        '200':
+          description: Story details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryResponse'
+
+  /stories/{storyId}/continue:
+    post:
+      tags: [Stories]
+      summary: Continue story conversation
+      description: Continue story building with Story Intelligence™
+      parameters:
+        - $ref: '#/components/parameters/StoryId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContinueStoryRequest'
+      responses:
+        '200':
+          description: Story continued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryResponse'
+
+  # Character Management
+  /characters:
+    get:
+      tags: [Characters]
+      summary: List characters
+      description: Get characters created with Story Intelligence™
+      responses:
+        '200':
+          description: Characters retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CharactersResponse'
+
+    post:
+      tags: [Characters]
+      summary: Create character
+      description: Create inclusive character with SI-powered art generation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CharacterCreationRequest'
+      responses:
+        '201':
+          description: Character created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CharacterResponse'
+
+  # Voice & Audio (Story Intelligence powered)
+  /voice/synthesize:
+    post:
+      tags: [Voice]
+      summary: Generate story narration
+      description: Create studio-quality narration with Story Intelligence™
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoiceSynthesisRequest'
+      responses:
+        '200':
+          description: Audio generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoiceSynthesisResponse'
+
+  # Art Generation (Gallery-worthy quality)
+  /art/generate:
+    post:
+      tags: [Art]
+      summary: Generate story artwork
+      description: Create gallery-worthy art with Story Intelligence™
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArtGenerationRequest'
+      responses:
+        '200':
+          description: Art generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtGenerationResponse'
+
+  # Knowledge Base
+  /knowledge/query:
+    post:
+      tags: [Knowledge]
+      summary: Query knowledge base
+      description: Get platform help and Story Intelligence™ information
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KnowledgeQuery'
+      responses:
+        '200':
+          description: Knowledge response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  parameters:
+    StoryId:
+      name: storyId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    # Authentication
+    UserRegistration:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        firstName:
+          type: string
+          maxLength: 50
+        lastName:
+          type: string
+          maxLength: 50
+        age:
+          type: integer
+          minimum: 3
+          maximum: 120
+        parentEmail:
+          type: string
+          format: email
+          description: Required for users under 13 (COPPA compliance)
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        tokens:
+          $ref: '#/components/schemas/Tokens'
+        poweredBy:
+          type: string
+          default: "Story Intelligence™"
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        age:
+          type: integer
+        userType:
+          type: string
+          enum: [child, parent, teacher, organization_admin]
+        libraries:
+          type: array
+          items:
+            $ref: '#/components/schemas/LibraryReference'
+
+    Tokens:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresIn:
+          type: integer
+
+    # Stories (Story Intelligence powered)
+    StoryCreationRequest:
+      type: object
+      required: [libraryId]
+      properties:
+        libraryId:
+          type: string
+          format: uuid
+        characterId:
+          type: string
+          format: uuid
+        storyType:
+          $ref: '#/components/schemas/StoryType'
+        prompt:
+          type: string
+          maxLength: 500
+          description: Initial story prompt or conversation starter
+        ageGroup:
+          $ref: '#/components/schemas/AgeGroup'
+
+    ContinueStoryRequest:
+      type: object
+      required: [input]
+      properties:
+        input:
+          type: string
+          maxLength: 500
+        choiceId:
+          type: string
+          description: Selected choice ID if continuing from choices
+
+    StoryResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        content:
+          $ref: '#/components/schemas/StoryContent'
+        character:
+          $ref: '#/components/schemas/CharacterReference'
+        status:
+          type: string
+          enum: [draft, final]
+        qualityScore:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Story Intelligence™ quality assessment
+        artGenerated:
+          type: boolean
+        audioGenerated:
+          type: boolean
+        poweredBy:
+          type: string
+          default: "Story Intelligence™"
+        createdAt:
+          type: string
+          format: date-time
+
+    StoriesResponse:
+      type: object
+      properties:
+        stories:
+          type: array
+          items:
+            $ref: '#/components/schemas/StoryResponse'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        poweredBy:
+          type: string
+          default: "Story Intelligence™"
+
+    StoryContent:
+      type: object
+      properties:
+        beats:
+          type: array
+          items:
+            $ref: '#/components/schemas/StoryBeat'
+        currentBeat:
+          type: integer
+        heroJourneyPhase:
+          type: string
+          enum: [ordinary_world, call_to_adventure, refusal_of_call, meeting_mentor, crossing_threshold, tests_allies_enemies, approach_inmost_cave, ordeal, reward, road_back, resurrection, return_with_elixir]
+        nextChoices:
+          type: array
+          items:
+            $ref: '#/components/schemas/StoryChoice'
+
+    StoryBeat:
+      type: object
+      properties:
+        id:
+          type: string
+        content:
+          type: string
+        emotionalTone:
+          type: string
+        illustration:
+          $ref: '#/components/schemas/IllustrationReference'
+
+    StoryChoice:
+      type: object
+      properties:
+        id:
+          type: string
+        text:
+          type: string
+        consequence:
+          type: string
+        emotionalImpact:
+          type: string
+
+    StoryType:
+      type: string
+      enum: [adventure, bedtime, birthday, educational, financial_literacy, language_learning, medical_bravery, mental_health, milestones, new_chapter_sequel, tech_readiness]
+
+    AgeGroup:
+      type: string
+      enum: ["3", "4", "5", "6", "7", "8", "9+"]
+
+    # Characters (Inclusive & SI-powered)
+    CharacterCreationRequest:
+      type: object
+      required: [name, libraryId]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        libraryId:
+          type: string
+          format: uuid
+        traits:
+          $ref: '#/components/schemas/CharacterTraits'
+        generateArt:
+          type: boolean
+          default: true
+
+    CharacterResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        traits:
+          $ref: '#/components/schemas/CharacterTraits'
+        artUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+        poweredBy:
+          type: string
+          default: "Story Intelligence™"
+
+    CharactersResponse:
+      type: object
+      properties:
+        characters:
+          type: array
+          items:
+            $ref: '#/components/schemas/CharacterResponse'
+        poweredBy:
+          type: string
+          default: "Story Intelligence™"
+
+    CharacterTraits:
+      type: object
+      properties:
+        species:
+          type: string
+        appearance:
+          type: object
+        personality:
+          type: object
+        abilities:
+          type: array
+          items:
+            type: string
+        inclusivity:
+          $ref: '#/components/schemas/InclusivityTraits'
+
+    InclusivityTraits:
+      type: object
+      properties:
+        ethnicity:
+          type: string
+        disabilities:
+          type: array
+          items:
+            type: string
+        neurodiversity:
+          type: array
+          items:
+            type: string
+        familyStructure:
+          type: string
+
+    # Voice & Audio
+    VoiceSynthesisRequest:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          maxLength: 5000
+        voice:
+          type: string
+          enum: [child_friendly_female, child_friendly_male, narrator_warm, narrator_adventurous]
+        speed:
+          type: number
+          minimum: 0.5
+          maximum: 2.0
+          default: 1.0
+        emotionalTone:
+          type: string
+          enum: [neutral, excited, calm, mysterious, playful]
+
+    VoiceSynthesisResponse:
+      type: object
+      properties:
+        audioUrl:
+          type: string
+          format: uri
+        duration:
+          type: number
+        format:
+          type: string
+          enum: [mp3, wav, ogg]
+        poweredBy:
+          type: string
+          default: "Story Intelligence™"
+
+    # Art Generation  
+    ArtGenerationRequest:
+      type: object
+      required: [prompt]
+      properties:
+        prompt:
+          type: string
+          maxLength: 1000
+        style:
+          type: string
+          enum: [children_book, watercolor, digital_art, sketch]
+        aspectRatio:
+          type: string
+          enum: [square, portrait, landscape]
+        ageAppropriate:
+          type: boolean
+          default: true
+
+    ArtGenerationResponse:
+      type: object
+      properties:
+        imageUrl:
+          type: string
+          format: uri
+        thumbnailUrl:
+          type: string
+          format: uri
+        prompt:
+          type: string
+        style:
+          type: string
+        qualityScore:
+          type: number
+          minimum: 0
+          maximum: 1
+        poweredBy:
+          type: string
+          default: "Story Intelligence™"
+
+    # Knowledge Base
+    KnowledgeQuery:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+          maxLength: 500
+        category:
+          type: string
+          enum: [platform_usage, story_creation, account_management, troubleshooting, features, general]
+        context:
+          type: object
+
+    KnowledgeResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        query:
+          type: string
+        answer:
+          type: string
+        category:
+          type: string
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/KnowledgeSource'
+        relatedQuestions:
+          type: array
+          items:
+            type: string
+        poweredBy:
+          type: string
+          default: "Story Intelligence™"
+
+    KnowledgeSource:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [documentation, faq, tutorial, help_article]
+        title:
+          type: string
+        url:
+          type: string
+          format: uri
+        excerpt:
+          type: string
+
+    # Shared Components
+    LibraryReference:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        role:
+          type: string
+          enum: [Owner, Admin, Editor, Viewer]
+
+    CharacterReference:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        thumbnailUrl:
+          type: string
+          format: uri
+
+    IllustrationReference:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        url:
+          type: string
+          format: uri
+        caption:
+          type: string
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        hasNext:
+          type: boolean
+        hasPrevious:
+          type: boolean
+
+    # Error Responses
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+            
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+            
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+tags:
+  - name: Authentication
+    description: User authentication and account management
+  - name: Stories  
+    description: Story Intelligence™ powered story creation and management
+  - name: Characters
+    description: Inclusive character creation with SI-powered art
+  - name: Voice
+    description: Studio-quality voice synthesis
+  - name: Art
+    description: Gallery-worthy art generation
+  - name: Knowledge
+    description: Platform knowledge and Story Intelligence™ education

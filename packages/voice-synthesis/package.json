@@ -1,0 +1,49 @@
+{
+  "name": "@alexa-multi-agent/voice-synthesis",
+  "version": "1.0.0",
+  "description": "Real-time empathetic voice synthesis for Storytailor's multi-agent platform",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src/**/*.ts",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@alexa-multi-agent/shared-types": "*",
+    "ws": "^8.14.2",
+    "aws-sdk": "^2.1490.0",
+    "redis": "^4.6.10",
+    "winston": "^3.11.0",
+    "zod": "^3.22.4",
+    "uuid": "^9.0.1",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.8",
+    "@types/uuid": "^9.0.6",
+    "@types/node": "^20.8.7",
+    "@types/jest": "^29.5.6",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.2.2",
+    "eslint": "^8.51.0",
+    "@typescript-eslint/eslint-plugin": "^6.7.4",
+    "@typescript-eslint/parser": "^6.7.4"
+  },
+  "keywords": [
+    "voice",
+    "synthesis",
+    "tts",
+    "elevenlabs",
+    "polly",
+    "alexa",
+    "storytelling"
+  ],
+  "author": "Storytailor",
+  "license": "MIT"
+}

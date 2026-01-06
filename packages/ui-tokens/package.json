@@ -1,0 +1,23 @@
+{
+  "name": "@storytailor/ui-tokens",
+  "version": "1.0.0",
+  "description": "Design tokens and theme system for Storytailor platform consistency",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit"
+  },
+  "files": [
+    "dist",
+    "tokens",
+    "README.md"
+  ],
+  "dependencies": {
+    "style-dictionary": "^3.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

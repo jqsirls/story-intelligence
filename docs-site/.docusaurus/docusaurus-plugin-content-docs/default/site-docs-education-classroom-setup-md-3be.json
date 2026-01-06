@@ -1,0 +1,24 @@
+{
+  "id": "education/classroom-setup",
+  "title": "Classroom Setup Guide",
+  "description": "Get Storytailor running in your classroom in 30 minutes.",
+  "source": "@site/docs/education/classroom-setup.md",
+  "sourceDirName": "education",
+  "slug": "/education/classroom-setup",
+  "permalink": "/docs/education/classroom-setup",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/storytailor-inc/Storytailor-agent/tree/main/docs-site/docs/education/classroom-setup.md",
+  "tags": [],
+  "version": "current",
+  "frontMatter": {},
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "API Reference",
+    "permalink": "/docs/api/reference"
+  },
+  "next": {
+    "title": "Basic Integration Examples",
+    "permalink": "/docs/examples/basic-integration"
+  }
+}

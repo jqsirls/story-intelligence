@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Storytailor Embed - Webflow Custom UI Example</title>
+    <style>
+        /* This example shows how to use your own Webflow UI with Storytailor */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f5f7fa;
+        }
+        
+        .page-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        /* Custom Navigation Tabs (Design these in Webflow) */
+        .custom-tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            background: white;
+            padding: 1rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .custom-tab {
+            flex: 1;
+            padding: 1rem 2rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .custom-tab:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .custom-tab.active {
+            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.6);
+        }
+        
+        /* Chat Container */
+        .chat-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            height: 600px;
+            overflow: hidden;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .custom-tabs {
+                flex-direction: column;
+            }
+            
+            .chat-container {
+                height: 500px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-container">
+        <!-- 
+            WEBFLOW INTEGRATION INSTRUCTIONS:
+            
+            1. Design your own tabs/buttons in Webflow's visual editor
+            2. Add an "Embed" element for the chat container
+            3. Copy the <div id="storytailor-chat"> and <script> sections below
+            4. Add onClick handlers to your Webflow buttons (see JavaScript below)
+            5. Replace 'your-api-key-here' with your actual API key
+        -->
+        
+        <!-- Custom Navigation (Design this in Webflow) -->
+        <div class="custom-tabs">
+            <button class="custom-tab active" id="create-story-tab" onclick="showCreateStory()">
+                ✨ Create Story
+            </button>
+            <button class="custom-tab" id="memories-tab" onclick="showMemories()">
+                📚 Memories
+            </button>
+            <button class="custom-tab" id="characters-tab" onclick="showCharacters()">
+                🎭 Characters
+            </button>
+        </div>
+        
+        <!-- Chat Container (Minimal Storytailor embed) -->
+        <div class="chat-container">
+            <div id="storytailor-chat" style="width: 100%; height: 100%;"></div>
+        </div>
+    </div>
+
+    <!-- Load Storytailor Embed from CDN -->
+    <script src="https://cdn.storytailor.com/embed/v1/storytailor-embed.js"></script>
+    
+    <script>
+        // Initialize Storytailor in headless mode (no built-in UI chrome)
+        let storytailor;
+        
+        async function initStorytailor() {
+            storytailor = await StorytalorEmbed.init({
+                // Required
+                apiKey: 'your-api-key-here',
+                container: '#storytailor-chat',
+                
+                // Use 'custom' theme for minimal UI
+                theme: 'custom',
+                
+                // Enable only the chat interface
+                features: {
+                    voice: true,
+                    stories: false,  // We'll handle this with our custom UI
+                    reader: true,
+                    offline: true
+                },
+                
+                // Behavior
+                autoStart: true,
+                welcomeMessage: "Hi! What would you like to create today?",
+                
+                // Privacy
+                coppaMode: true,
+                dataRetention: 'minimal'
+            });
+            
+            // Listen to events
+            storytailor.on('story.created', (story) => {
+                console.log('Story created:', story);
+                // Update your custom UI here
+            });
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', initStorytailor);
+        
+        // Custom tab handlers (connect these to your Webflow buttons)
+        function showCreateStory() {
+            setActiveTab('create-story-tab');
+            storytailor.sendMessage('I want to create a new story');
+        }
+        
+        function showMemories() {
+            setActiveTab('memories-tab');
+            storytailor.showStories(); // Show story grid
+        }
+        
+        function showCharacters() {
+            setActiveTab('characters-tab');
+            storytailor.sendMessage('Show me my characters');
+        }
+        
+        function setActiveTab(tabId) {
+            // Remove active class from all tabs
+            document.querySelectorAll('.custom-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            // Add active class to clicked tab
+            document.getElementById(tabId).classList.add('active');
+        }
+        
+        // Additional custom actions you can trigger from Webflow:
+        
+        // Send a specific message
+        function sendCustomMessage(message) {
+            storytailor.sendMessage(message);
+        }
+        
+        // Start voice recording
+        function startVoiceRecording() {
+            storytailor.startVoiceRecording();
+        }
+        
+        // Show a specific story
+        function showStory(storyId) {
+            storytailor.showStory(storyId);
+        }
+        
+        // Get user's stories (for building custom grid)
+        async function getUserStories() {
+            const stories = await storytailor.getStories({ limit: 20 });
+            console.log('User stories:', stories);
+            return stories;
+        }
+    </script>
+</body>
+</html>
+

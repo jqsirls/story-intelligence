@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Storytailor.com - AI Storytelling for Children</title>
+    <style>
+        body {
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 1rem;
+            text-align: center;
+            color: white;
+        }
+        
+        .main-content {
+            display: flex;
+            max-width: 1200px;
+            margin: 2rem auto;
+            gap: 2rem;
+            padding: 0 1rem;
+        }
+        
+        .info-panel {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        .chat-panel {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 1rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            height: 600px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .storyteller-chat {
+            flex: 1;
+            border: none;
+            border-radius: 10px;
+            background: #f8f9fa;
+        }
+        
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        
+        .feature-card {
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 10px;
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+        }
+        
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        
+        .cta-button {
+            background: linear-gradient(45deg, #ff6b6b, #ffa500);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 25px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 1rem;
+            transition: transform 0.2s;
+        }
+        
+        .cta-button:hover {
+            transform: translateY(-2px);
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🌟 Welcome to Storytailor 🌟</h1>
+        <p>Where AI creates magical, personalized stories for your child</p>
+    </div>
+
+    <div class="main-content">
+        <div class="info-panel">
+            <h2>Create Amazing Stories Together!</h2>
+            <p>Our AI storyteller helps children create personalized stories with characters that look like them, adventures that match their interests, and lessons that help them grow.</p>
+            
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🎭</div>
+                    <h3>Custom Characters</h3>
+                    <p>Create characters that represent your child's identity, interests, and imagination</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🏰</div>
+                    <h3>Adventure Stories</h3>
+                    <p>Choose-your-own-adventure tales that adapt to your child's choices</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🎨</div>
+                    <h3>Beautiful Art</h3>
+                    <p>Every story comes with custom illustrations and printable books</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🏠</div>
+                    <h3>Smart Home Magic</h3>
+                    <p>Stories sync with your smart lights for immersive experiences</p>
+                </div>
+            </div>
+            
+            <div style="text-align: center; margin-top: 2rem;">
+                <button class="cta-button" onclick="startStorytelling()">
+                    🚀 Start Creating Stories!
+                </button>
+                <button class="cta-button" onclick="enableVoice()">
+                    🎤 Try Voice Mode
+                </button>
+            </div>
+        </div>
+
+        <div class="chat-panel">
+            <h3 style="text-align: center; margin-bottom: 1rem; color: #667eea;">
+                💬 Chat with our AI Storyteller
+            </h3>
+            <div id="storyteller-chat" class="storyteller-chat"></div>
+        </div>
+    </div>
+
+    <!-- Storytailor Web SDK -->
+    <script src="https://cdn.storytailor.com/sdk/web/v1/storyteller.js"></script>
+    <script>
+        // Initialize the Storytailor Agent
+        const storyteller = new StorytellerWebSDK({
+            apiKey: 'demo-api-key', // In production, this would be your actual API key
+            containerId: 'storyteller-chat',
+            theme: 'child-friendly',
+            voiceEnabled: false, // Start with text, enable voice on demand
+            smartHomeEnabled: true,
+            customization: {
+                theme: 'magical',
+                branding: {
+                    colors: {
+                        primary: '#667eea',
+                        secondary: '#764ba2',
+                        accent: '#ff6b6b'
+                    },
+                    logo: 'https://storytailor.com/logo.png'
+                },
+                features: {
+                    voiceEnabled: true,
+                    smartHomeEnabled: true,
+                    offlineMode: true
+                }
+            },
+            parentalControls: {
+                enabled: true,
+                ageRestrictions: {
+                    maxAge: 12,
+                    contentFiltering: 'strict',
+                    requireParentalApproval: true
+                }
+            },
+            privacySettings: {
+                dataRetention: 'minimal',
+                consentLevel: 'explicit',
+                coppaCompliant: true
+            }
+        });
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                await storyteller.init();
+                console.log('Storytailor Agent initialized successfully');
+                
+                // Send welcome message
+                setTimeout(() => {
+                    storyteller.sendWelcomeMessage();
+                }, 1000);
+                
+            } catch (error) {
+                console.error('Failed to initialize Storytailor Agent:', error);
+                document.getElementById('storyteller-chat').innerHTML = 
+                    '<div style="padding: 2rem; text-align: center; color: #666;">Unable to load storyteller. Please refresh the page.</div>';
+            }
+        });
+
+        // Button handlers
+        function startStorytelling() {
+            storyteller.sendMessage("I want to create a new story!");
+        }
+
+        function enableVoice() {
+            storyteller.enableVoice().then(() => {
+                storyteller.sendMessage("Let's use voice to create a story together!");
+            }).catch(error => {
+                alert('Voice not supported in this browser. Please try Chrome or Safari.');
+            });
+        }
+
+        // Advanced features
+        storyteller.on('storyCreated', (story) => {
+            console.log('New story created:', story);
+            
+            // Show celebration animation
+            showCelebration();
+            
+            // Offer to connect smart home devices
+            if (story.type === 'bedtime' || story.type === 'adventure') {
+                storyteller.suggestSmartHomeIntegration();
+            }
+        });
+
+        storyteller.on('characterCreated', (character) => {
+            console.log('New character created:', character);
+            
+            // Update UI to show character preview
+            showCharacterPreview(character);
+        });
+
+        storyteller.on('voiceDetected', (transcript) => {
+            console.log('Voice input:', transcript);
+            
+            // Show voice indicator
+            showVoiceIndicator();
+        });
+
+        storyteller.on('smartHomeConnected', (device) => {
+            console.log('Smart home device connected:', device);
+            
+            // Show smart home status
+            showSmartHomeStatus(device);
+        });
+
+        // Helper functions
+        function showCelebration() {
+            // Add celebration animation
+            const celebration = document.createElement('div');
+            celebration.innerHTML = '🎉 Story Created! 🎉';
+            celebration.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: linear-gradient(45deg, #ff6b6b, #ffa500);
+                color: white;
+                padding: 2rem;
+                border-radius: 15px;
+                font-size: 1.5rem;
+                font-weight: bold;
+                z-index: 1000;
+                animation: bounce 0.5s ease-in-out;
+            `;
+            
+            document.body.appendChild(celebration);
+            
+            setTimeout(() => {
+                document.body.removeChild(celebration);
+            }, 3000);
+        }
+
+        function showCharacterPreview(character) {
+            // This would show a preview of the created character
+            console.log('Showing character preview for:', character.name);
+        }
+
+        function showVoiceIndicator() {
+            // This would show a voice recording indicator
+            console.log('Voice input detected');
+        }
+
+        function showSmartHomeStatus(device) {
+            // This would show smart home connection status
+            console.log('Smart home device status:', device.status);
+        }
+
+        // Error handling
+        storyteller.on('error', (error) => {
+            console.error('Storyteller error:', error);
+            
+            // Show user-friendly error message
+            const errorDiv = document.createElement('div');
+            errorDiv.innerHTML = `
+                <div style="background: #ffe6e6; border: 1px solid #ffcccc; border-radius: 5px; padding: 1rem; margin: 1rem 0; color: #cc0000;">
+                    <strong>Oops!</strong> Something went wrong. Our storyteller is taking a quick break. Please try again in a moment.
+                </div>
+            `;
+            
+            document.getElementById('storyteller-chat').appendChild(errorDiv);
+        });
+
+        // Analytics (privacy-compliant)
+        storyteller.on('sessionStarted', (session) => {
+            // Track session start (no personal data)
+            gtag('event', 'storyteller_session_started', {
+                'platform': 'web',
+                'features_enabled': session.capabilities
+            });
+        });
+
+        storyteller.on('storyCompleted', (story) => {
+            // Track story completion (no personal data)
+            gtag('event', 'story_completed', {
+                'story_type': story.type,
+                'completion_time': story.duration
+            });
+        });
+    </script>
+
+    <!-- Add some CSS animations -->
+    <style>
+        @keyframes bounce {
+            0%, 20%, 60%, 100% {
+                transform: translate(-50%, -50%) translateY(0);
+            }
+            40% {
+                transform: translate(-50%, -50%) translateY(-30px);
+            }
+            80% {
+                transform: translate(-50%, -50%) translateY(-15px);
+            }
+        }
+        
+        .voice-indicator {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #ff6b6b;
+            color: white;
+            padding: 1rem;
+            border-radius: 50%;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.1);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+    </style>
+</body>
+</html>

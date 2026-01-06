@@ -1,0 +1,21 @@
+{
+  "name": "@storytailor/asset-worker",
+  "version": "1.0.0",
+  "description": "Asset generation job worker for Storytailor",
+  "main": "dist/lambda.js",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "package": "npm run build && zip -r asset-worker.zip dist/ node_modules/ package.json"
+  },
+  "dependencies": {
+    "@aws-sdk/client-lambda": "^3.470.0",
+    "@supabase/supabase-js": "^2.39.0",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.131",
+    "@types/node": "^20.10.6",
+    "typescript": "^5.3.3"
+  }
+}

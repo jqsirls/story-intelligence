@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>06-parental-consent-process</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5/github-markdown.min.css" />
+</head>
+<body>
+<h1 id="parental-consent-process">Parental Consent Process</h1>
+<h2 id="overview">Overview</h2>
+<p>Getting verifiable parental consent is a key COPPA requirement.
+Here’s how our consent process works from a parent’s perspective.</p>
+<h2 id="when-consent-is-required">When Consent Is Required</h2>
+<p><strong>Consent is required when:</strong> - A child under 13 years
+of age registers for a Storytailor account - A child under 13 attempts
+to use Storytailor services - Any data collection occurs for a child
+under 13</p>
+<p><strong>Consent is NOT required when:</strong> - User is 13 years of
+age or older - User is a parent or guardian registering their own
+account</p>
+<h2 id="consent-request-process">Consent Request Process</h2>
+<h3 id="step-1-child-registration">Step 1: Child Registration</h3>
+<p>When a child under 13 starts to register: 1. They enter their age 2.
+We see they’re under 13 and ask for a parent’s email 3. Without a parent
+email, registration stops 4. With a parent email, we create the account
+but lock it until the parent approves</p>
+<h3 id="step-2-we-reach-out-to-parents">Step 2: We Reach Out to
+Parents</h3>
+<p>Once we have the parent’s email: 1. We create a consent request
+(valid for 7 days) 2. We send the parent an email explaining: - What
+Storytailor is (current web platform at Storytailor.com) - What Story
+Intelligence™ will add in the future (voice, emotion detection) -
+Exactly what data we’ll collect (current and future) - A link to our
+privacy policy - How to give or deny consent</p>
+<h3 id="step-3-parent-review">Step 3: Parent Review</h3>
+<p>Parents can take their time to: - Read our privacy policy -
+Understand what data we collect now (Storytailor 3.0) - Understand what
+additional data Story Intelligence™ will collect in the future - Learn
+about their rights (access, delete, export data) - Decide whether to
+approve</p>
+<h2 id="consent-verification-process">Consent Verification Process</h2>
+<h3 id="option-1-email-link-verification">Option 1: Email Link
+Verification</h3>
+<p><strong>How It Works:</strong> 1. Parent clicks verification link in
+email 2. Parent is directed to consent verification page 3. Parent
+reviews consent information 4. Parent confirms consent 5. Consent status
+is updated to “verified” 6. Parent receives confirmation email</p>
+<h3 id="option-2-api-verification">Option 2: API Verification</h3>
+<p><strong>How It Works:</strong> 1. Parent uses consent request ID from
+email 2. Parent submits consent verification through API 3. System
+validates consent request ID 4. Consent status is updated to “verified”
+5. Parent receives confirmation</p>
+<h3 id="consent-verification-requirements">Consent Verification
+Requirements</h3>
+<p><strong>Parent Must:</strong> - Have access to the email address
+provided - Confirm understanding of data collection practices - Confirm
+understanding of parental rights - Explicitly provide consent</p>
+<p><strong>System Validates:</strong> - Consent request ID is valid -
+Consent request has not expired - Parent email matches consent
+request</p>
+<h2 id="consent-status">Consent Status</h2>
+<h3 id="status-values">Status Values</h3>
+<p><strong>none:</strong> - No consent request has been created - Child
+cannot use Storytailor services - No data collection occurs</p>
+<p><strong>pending:</strong> - Consent request created, awaiting parent
+verification - Child cannot use Storytailor services - No data
+collection occurs - Request expires after 7 days</p>
+<p><strong>verified:</strong> - Parent has verified consent - Child can
+use Storytailor services - Data collection permitted - Consent remains
+valid until revoked</p>
+<p><strong>revoked:</strong> - Parent has revoked consent - Child cannot
+use Storytailor services - Data collection stopped - Existing data can
+be deleted upon request</p>
+<h3 id="checking-consent-status">Checking Consent Status</h3>
+<p>Parents can check consent status at any time: - Via email request to
+privacy@storytailor.com - Via API endpoint (with authentication) -
+Status includes: current status, consent date, expiration
+information</p>
+<h2 id="consent-revocation-process">Consent Revocation Process</h2>
+<h3 id="how-parents-revoke-consent">How Parents Revoke Consent</h3>
+<p><strong>Via Email:</strong> 1. Parent sends email to
+privacy@storytailor.com 2. Parent includes: name, relationship to child,
+child’s user ID or email 3. Parent requests consent revocation 4. System
+verifies parent identity 5. Consent is revoked immediately 6. Data
+collection stops immediately 7. Parent receives confirmation</p>
+<p><strong>Via API:</strong> 1. Parent uses authenticated API endpoint
+2. Parent submits revocation request 3. System validates parent
+authentication 4. Consent is revoked immediately 5. Data collection
+stops immediately 6. Parent receives confirmation</p>
+<h3 id="what-happens-when-consent-is-revoked">What Happens When Consent
+Is Revoked</h3>
+<p><strong>Immediate Effects:</strong> - Consent status changes to
+“revoked” - All data collection stops immediately - Child cannot use
+Storytailor services - Revocation is logged and timestamped</p>
+<p><strong>Data Handling:</strong> - Existing data can be deleted upon
+parent request - Parent can request immediate deletion of all child data
+- Audit logs are anonymized (retained for legal compliance) - Parent
+receives confirmation of revocation and data deletion (if requested)</p>
+<h2 id="consent-expiration">Consent Expiration</h2>
+<h3 id="automatic-expiration">Automatic Expiration</h3>
+<p><strong>Consent Requests:</strong> - Consent requests expire after 7
+days if not verified - Expired requests cannot be verified - New consent
+request must be created</p>
+<p><strong>Consent Status:</strong> - Verified consent does not expire
+automatically - Consent remains valid until revoked by parent - Consent
+can be revoked at any time</p>
+<h3 id="handling-expired-requests">Handling Expired Requests</h3>
+<p><strong>If Consent Request Expires:</strong> - Parent receives
+notification of expiration - New consent request can be created - Child
+cannot use services until consent is verified</p>
+<h2 id="consent-records-and-audit-trail">Consent Records and Audit
+Trail</h2>
+<h3 id="what-is-recorded">What Is Recorded</h3>
+<p><strong>Consent Request:</strong> - Request creation date and time -
+Parent email address - Child age - Consent request ID - Request
+status</p>
+<p><strong>Consent Verification:</strong> - Verification date and time -
+Verification method (email link or API) - Consent status change -
+Verification confirmation</p>
+<p><strong>Consent Revocation:</strong> - Revocation date and time -
+Revocation method - Revocation reason (if provided) - Data deletion
+status (if requested)</p>
+<h3 id="audit-trail">Audit Trail</h3>
+<p><strong>All Consent Actions Are Logged:</strong> - Consent request
+creation - Consent verification - Consent status checks - Consent
+revocation - Consent expiration</p>
+<p><strong>Audit Log Retention:</strong> - Audit logs retained for 7
+years (legal requirement) - Logs anonymized after 1 year for privacy -
+Logs used for compliance verification</p>
+<h2 id="parental-rights-related-to-consent">Parental Rights Related to
+Consent</h2>
+<h3 id="right-to-review-consent">Right to Review Consent</h3>
+<p>Parents can: - Review current consent status - Review consent history
+- Review consent request details - Review consent verification date</p>
+<h3 id="right-to-revoke-consent">Right to Revoke Consent</h3>
+<p>Parents can: - Revoke consent at any time - Request immediate data
+deletion - Receive confirmation of revocation - Request new consent if
+desired</p>
+<h3 id="right-to-understand-consent">Right to Understand Consent</h3>
+<p>Parents receive: - Clear explanation of what data will be collected -
+Clear explanation of how data will be used - Link to privacy policy -
+Information about parental rights</p>
+<h2 id="contact-information">Contact Information</h2>
+<p><strong>Privacy Inquiries:</strong> privacy@storytailor.com<br />
+<strong>Consent Questions:</strong> privacy@storytailor.com<br />
+<strong>Mailing Address:</strong><br />
+Storytailor Inc.<br />
+7131 w 135th, #1074<br />
+Overland Park, KS 66223</p>
+<p><strong>Response Time:</strong> All privacy inquiries responded to
+within 30 days.</p>
+<hr />
+<p><strong>Storytailor Inc.</strong><br />
+7131 w 135th, #1074<br />
+Overland Park, KS 66223</p>
+</body>
+</html>

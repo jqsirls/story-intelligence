@@ -1,0 +1,24 @@
+{
+  "id": "sdks/web",
+  "title": "Web SDK",
+  "description": "Integrate Storytailor into your website with JavaScript.",
+  "source": "@site/docs/sdks/web.md",
+  "sourceDirName": "sdks",
+  "slug": "/sdks/web",
+  "permalink": "/docs/sdks/web",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/storytailor-inc/Storytailor-agent/tree/main/docs-site/docs/sdks/web.md",
+  "tags": [],
+  "version": "current",
+  "frontMatter": {},
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Pricing Overview",
+    "permalink": "/docs/pricing/overview"
+  },
+  "next": {
+    "title": "White-Label Overview",
+    "permalink": "/docs/white-label/overview"
+  }
+}

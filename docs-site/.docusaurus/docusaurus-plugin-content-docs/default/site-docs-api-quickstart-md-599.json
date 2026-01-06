@@ -1,0 +1,24 @@
+{
+  "id": "api/quickstart",
+  "title": "API Quickstart",
+  "description": "Get started with the Storytailor API in 5 minutes.",
+  "source": "@site/docs/api/quickstart.md",
+  "sourceDirName": "api",
+  "slug": "/api/quickstart",
+  "permalink": "/docs/api/quickstart",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/storytailor-inc/Storytailor-agent/tree/main/docs-site/docs/api/quickstart.md",
+  "tags": [],
+  "version": "current",
+  "frontMatter": {},
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Authentication",
+    "permalink": "/docs/api/authentication"
+  },
+  "next": {
+    "title": "API Reference",
+    "permalink": "/docs/api/reference"
+  }
+}

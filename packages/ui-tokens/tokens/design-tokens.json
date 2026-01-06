@@ -1,0 +1,260 @@
+{
+  "brand": {
+    "storytailor": {
+      "primary": {
+        "value": "#6366F1",
+        "type": "color",
+        "description": "Primary Storytailor brand color - warm, trustworthy indigo"
+      },
+      "secondary": {
+        "value": "#EC4899",
+        "type": "color", 
+        "description": "Secondary brand color - playful, creative pink"
+      },
+      "accent": {
+        "value": "#F59E0B",
+        "type": "color",
+        "description": "Accent color - warm, energetic amber"
+      }
+    },
+    "story-intelligence": {
+      "gradient": {
+        "primary": {
+          "value": "linear-gradient(135deg, #6366F1 0%, #EC4899 100%)",
+          "type": "gradient",
+          "description": "Story Intelligence™ brand gradient"
+        },
+        "subtle": {
+          "value": "linear-gradient(135deg, #EEF2FF 0%, #FDF2F8 100%)",
+          "type": "gradient",
+          "description": "Subtle SI background gradient"
+        }
+      }
+    }
+  },
+  "color": {
+    "neutral": {
+      "50": { "value": "#FAFAFA", "type": "color" },
+      "100": { "value": "#F5F5F5", "type": "color" },
+      "200": { "value": "#E5E5E5", "type": "color" },
+      "300": { "value": "#D4D4D4", "type": "color" },
+      "400": { "value": "#A3A3A3", "type": "color" },
+      "500": { "value": "#737373", "type": "color" },
+      "600": { "value": "#525252", "type": "color" },
+      "700": { "value": "#404040", "type": "color" },
+      "800": { "value": "#262626", "type": "color" },
+      "900": { "value": "#171717", "type": "color" }
+    },
+    "semantic": {
+      "success": {
+        "value": "#10B981",
+        "type": "color",
+        "description": "Success state - gentle, encouraging green"
+      },
+      "warning": {
+        "value": "#F59E0B", 
+        "type": "color",
+        "description": "Warning state - warm, non-alarming amber"
+      },
+      "error": {
+        "value": "#EF4444",
+        "type": "color",
+        "description": "Error state - clear but not harsh red"
+      },
+      "info": {
+        "value": "#3B82F6",
+        "type": "color",
+        "description": "Information state - friendly, trustworthy blue"
+      }
+    },
+    "age-specific": {
+      "toddler": {
+        "primary": { "value": "#FFB8B8", "type": "color", "description": "Soft, safe colors for ages 3-4" },
+        "secondary": { "value": "#BFDBFE", "type": "color" },
+        "background": { "value": "#FFFBEB", "type": "color" }
+      },
+      "preschool": {
+        "primary": { "value": "#FEA2A2", "type": "color", "description": "Slightly more vibrant for ages 5-6" },
+        "secondary": { "value": "#93C5FD", "type": "color" },
+        "background": { "value": "#FEF7FF", "type": "color" }
+      },
+      "elementary": {
+        "primary": { "value": "#EC4899", "type": "color", "description": "Full brand colors for ages 7+" },
+        "secondary": { "value": "#6366F1", "type": "color" },
+        "background": { "value": "#FFFFFF", "type": "color" }
+      }
+    }
+  },
+  "typography": {
+    "font-family": {
+      "primary": {
+        "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+        "type": "fontFamily",
+        "description": "Primary font stack for UI and content"
+      },
+      "story": {
+        "value": "Georgia, 'Times New Roman', serif",
+        "type": "fontFamily", 
+        "description": "Story content font - warm, readable serif"
+      },
+      "display": {
+        "value": "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+        "type": "fontFamily",
+        "description": "Display font for headings and brands"
+      }
+    },
+    "font-size": {
+      "xs": { "value": "12px", "type": "fontSize" },
+      "sm": { "value": "14px", "type": "fontSize" },
+      "base": { "value": "16px", "type": "fontSize" },
+      "lg": { "value": "18px", "type": "fontSize" },
+      "xl": { "value": "20px", "type": "fontSize" },
+      "2xl": { "value": "24px", "type": "fontSize" },
+      "3xl": { "value": "30px", "type": "fontSize" },
+      "4xl": { "value": "36px", "type": "fontSize" },
+      "5xl": { "value": "48px", "type": "fontSize" }
+    },
+    "line-height": {
+      "tight": { "value": "1.25", "type": "lineHeight" },
+      "normal": { "value": "1.5", "type": "lineHeight" },
+      "relaxed": { "value": "1.75", "type": "lineHeight" }
+    },
+    "age-adaptive": {
+      "toddler": {
+        "size": { "value": "20px", "type": "fontSize", "description": "Larger text for ages 3-4" },
+        "weight": { "value": "600", "type": "fontWeight", "description": "Bolder for readability" },
+        "line-height": { "value": "1.8", "type": "lineHeight", "description": "Extra spacing" }
+      },
+      "preschool": {
+        "size": { "value": "18px", "type": "fontSize", "description": "Medium text for ages 5-6" },
+        "weight": { "value": "500", "type": "fontWeight" },
+        "line-height": { "value": "1.6", "type": "lineHeight" }
+      },
+      "elementary": {
+        "size": { "value": "16px", "type": "fontSize", "description": "Standard text for ages 7+" },
+        "weight": { "value": "400", "type": "fontWeight" },
+        "line-height": { "value": "1.5", "type": "lineHeight" }
+      }
+    }
+  },
+  "spacing": {
+    "0": { "value": "0px", "type": "spacing" },
+    "1": { "value": "4px", "type": "spacing" },
+    "2": { "value": "8px", "type": "spacing" },
+    "3": { "value": "12px", "type": "spacing" },
+    "4": { "value": "16px", "type": "spacing" },
+    "5": { "value": "20px", "type": "spacing" },
+    "6": { "value": "24px", "type": "spacing" },
+    "8": { "value": "32px", "type": "spacing" },
+    "10": { "value": "40px", "type": "spacing" },
+    "12": { "value": "48px", "type": "spacing" },
+    "16": { "value": "64px", "type": "spacing" },
+    "20": { "value": "80px", "type": "spacing" },
+    "24": { "value": "96px", "type": "spacing" }
+  },
+  "border-radius": {
+    "none": { "value": "0px", "type": "borderRadius" },
+    "sm": { "value": "4px", "type": "borderRadius" },
+    "base": { "value": "8px", "type": "borderRadius" },
+    "lg": { "value": "12px", "type": "borderRadius" },
+    "xl": { "value": "16px", "type": "borderRadius" },
+    "2xl": { "value": "24px", "type": "borderRadius" },
+    "full": { "value": "9999px", "type": "borderRadius" },
+    "child-friendly": {
+      "value": "16px",
+      "type": "borderRadius",
+      "description": "Rounded corners that feel safe and friendly for children"
+    }
+  },
+  "elevation": {
+    "none": {
+      "value": "none",
+      "type": "boxShadow"
+    },
+    "sm": {
+      "value": "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
+      "type": "boxShadow"
+    },
+    "base": {
+      "value": "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+      "type": "boxShadow"
+    },
+    "lg": {
+      "value": "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+      "type": "boxShadow"
+    },
+    "xl": {
+      "value": "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+      "type": "boxShadow"
+    },
+    "magical": {
+      "value": "0 20px 40px -12px rgba(99, 102, 241, 0.25), 0 8px 16px -4px rgba(236, 72, 153, 0.1)",
+      "type": "boxShadow",
+      "description": "Special shadow with brand colors for magical moments"
+    }
+  },
+  "animation": {
+    "duration": {
+      "fast": { "value": "150ms", "type": "time" },
+      "normal": { "value": "300ms", "type": "time" },
+      "slow": { "value": "500ms", "type": "time" }
+    },
+    "easing": {
+      "ease-in": { "value": "cubic-bezier(0.4, 0, 1, 1)", "type": "cubicBezier" },
+      "ease-out": { "value": "cubic-bezier(0, 0, 0.2, 1)", "type": "cubicBezier" },
+      "ease-in-out": { "value": "cubic-bezier(0.4, 0, 0.2, 1)", "type": "cubicBezier" },
+      "magical": { "value": "cubic-bezier(0.34, 1.56, 0.64, 1)", "type": "cubicBezier", "description": "Bouncy, delightful easing for magical interactions" }
+    }
+  },
+  "component": {
+    "button": {
+      "primary": {
+        "background": { "value": "{brand.storytailor.primary.value}", "type": "color" },
+        "text": { "value": "#FFFFFF", "type": "color" },
+        "border-radius": { "value": "{border-radius.base.value}", "type": "borderRadius" },
+        "padding": { "value": "{spacing.3.value} {spacing.6.value}", "type": "spacing" }
+      },
+      "magical": {
+        "background": { "value": "{brand.story-intelligence.gradient.primary.value}", "type": "gradient" },
+        "text": { "value": "#FFFFFF", "type": "color" },
+        "border-radius": { "value": "{border-radius.xl.value}", "type": "borderRadius" },
+        "elevation": { "value": "{elevation.magical.value}", "type": "boxShadow" }
+      }
+    },
+    "story-card": {
+      "background": { "value": "#FFFFFF", "type": "color" },
+      "border-radius": { "value": "{border-radius.child-friendly.value}", "type": "borderRadius" },
+      "elevation": { "value": "{elevation.base.value}", "type": "boxShadow" },
+      "padding": { "value": "{spacing.6.value}", "type": "spacing" }
+    }
+  },
+  "messaging": {
+    "brand": {
+      "storytailor": {
+        "tagline": {
+          "value": "Award-Caliber Stories Created Together",
+          "type": "string",
+          "description": "Primary Storytailor® tagline"
+        },
+        "powered-by": {
+          "value": "Powered by Story Intelligence™",
+          "type": "string", 
+          "description": "Technology attribution"
+        }
+      },
+      "story-intelligence": {
+        "category": {
+          "value": "The Revolutionary Technology That Creates Award-Caliber Personal Stories",
+          "type": "string",
+          "description": "SI category definition"
+        },
+        "vs-ai": {
+          "value": "SI Powered (not AI-powered)",
+          "type": "string",
+          "description": "Brand differentiation messaging"
+        }
+      }
+    }
+  }
+}
+

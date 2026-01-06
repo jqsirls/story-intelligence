@@ -1,0 +1,2 @@
+-- Auth Agent Tables Migration
+-- Creating authentication and user management tables

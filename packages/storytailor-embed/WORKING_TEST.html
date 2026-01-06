@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Storytailor Widget - WORKING TEST</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: sans-serif;
+            background: #f5f7fa;
+        }
+        .test-container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            margin: 0 0 10px 0;
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+        }
+        #storytailor-widget {
+            width: 100%;
+            height: 700px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            margin-top: 20px;
+        }
+        .log {
+            background: #f9fafb;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            border-left: 3px solid #3b82f6;
+        }
+        .error {
+            background: #fef2f2;
+            border-left-color: #ef4444;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🧪 Storytailor Widget - Test Page</h1>
+        <div class="status" id="status">Loading...</div>
+        <div id="console-output"></div>
+        
+        <div id="storytailor-widget"></div>
+    </div>
+
+    <!-- Load Widget -->
+    <script src="https://d1roaoxii58pco.cloudfront.net/storytailor-embed.min.js"></script>
+    
+    <script>
+        const statusDiv = document.getElementById('status');
+        const consoleDiv = document.getElementById('console-output');
+        
+        function log(message, isError = false) {
+            console.log(message);
+            const div = document.createElement('div');
+            div.className = isError ? 'log error' : 'log';
+            div.textContent = message;
+            consoleDiv.appendChild(div);
+        }
+        
+        log('1️⃣ Script tag executed');
+        log('2️⃣ StorytalorEmbed type: ' + typeof StorytalorEmbed);
+        
+        if (typeof StorytalorEmbed === 'undefined') {
+            statusDiv.textContent = '❌ StorytalorEmbed not loaded';
+            statusDiv.style.background = '#fef2f2';
+            statusDiv.style.borderLeftColor = '#ef4444';
+            log('ERROR: StorytalorEmbed is undefined', true);
+        } else {
+            log('3️⃣ StorytalorEmbed.init type: ' + typeof StorytalorEmbed.init);
+        }
+        
+        window.addEventListener('load', function() {
+            log('4️⃣ Window load event fired');
+            statusDiv.textContent = '🔄 Initializing widget...';
+            
+            try {
+                log('5️⃣ Calling StorytalorEmbed.init()...');
+                
+                const config = {
+                    anonymousMode: true,
+                    baseUrl: 'https://p6zhldb6jyuy5bgygjhf35zqru0liddz.lambda-url.us-east-1.on.aws',
+                    container: '#storytailor-widget',
+                    character: {
+                        name: 'Frankie'
+                    },
+                    modality: {
+                        mode: 'video-audio-text',
+                        autoDetect: false
+                    },
+                    features: {
+                        voice: true,
+                        stories: true,
+                        reader: true
+                    },
+                    theme: 'magical',
+                    autoStart: true,
+                    debug: true
+                };
+                
+                log('6️⃣ Config: ' + JSON.stringify(config, null, 2).substring(0, 200));
+                
+                StorytalorEmbed.init(config).then(function(widget) {
+                    log('7️⃣ ✅ Widget initialized successfully!');
+                    statusDiv.textContent = '✅ Widget initialized successfully!';
+                    statusDiv.style.background = '#f0fdf4';
+                    statusDiv.style.borderLeftColor = '#22c55e';
+                    
+                    log('8️⃣ Widget object: ' + typeof widget);
+                    
+                    // Listen for events
+                    if (widget && widget.on) {
+                        widget.on('init.complete', () => log('EVENT: init.complete'));
+                        widget.on('session.started', () => log('EVENT: session.started'));
+                        widget.on('error', (e) => log('EVENT: error - ' + e, true));
+                    }
+                    
+                }).catch(function(error) {
+                    log('❌ Init promise rejected: ' + error.message, true);
+                    statusDiv.textContent = '❌ Error: ' + error.message;
+                    statusDiv.style.background = '#fef2f2';
+                    statusDiv.style.borderLeftColor = '#ef4444';
+                    
+                    document.getElementById('storytailor-widget').innerHTML = 
+                        '<div style="padding: 40px; text-align: center;">' +
+                        '<h2 style="color: #ef4444;">Widget Error</h2>' +
+                        '<p>' + error.message + '</p>' +
+                        '<p style="font-size: 12px; color: #6b7280;">Check console for details</p>' +
+                        '</div>';
+                });
+                
+            } catch (error) {
+                log('❌ Try/catch error: ' + error.message, true);
+                statusDiv.textContent = '❌ JavaScript Error: ' + error.message;
+                statusDiv.style.background = '#fef2f2';
+                statusDiv.style.borderLeftColor = '#ef4444';
+                
+                document.getElementById('storytailor-widget').innerHTML = 
+                    '<div style="padding: 40px; text-align: center; background: #fef2f2;">' +
+                    '<h2 style="color: #ef4444;">JavaScript Error</h2>' +
+                    '<p><strong>' + error.message + '</strong></p>' +
+                    '<pre style="text-align: left; background: white; padding: 15px; border-radius: 8px; overflow: auto;">' + 
+                    error.stack + 
+                    '</pre>' +
+                    '</div>';
+            }
+        });
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,32 @@
+{
+  "name": "@alexa-multi-agent/commerce-agent",
+  "version": "1.0.0",
+  "description": "Commerce and subscription management agent",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@alexa-multi-agent/shared-types": "*",
+    "@supabase/supabase-js": "^2.38.0",
+    "redis": "^4.6.0",
+    "@grpc/grpc-js": "^1.9.0",
+    "@grpc/proto-loader": "^0.7.0",
+    "stripe": "^14.0.0",
+    "zod": "^3.22.0",
+    "winston": "^3.10.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "jest": "^29.5.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.0.0",
+    "eslint": "^8.0.0"
+  }
+}

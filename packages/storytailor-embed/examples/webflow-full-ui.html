@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Storytailor Embed - Webflow Full UI Example</title>
+    <style>
+        /* This example shows the full widget with built-in UI controls */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .container {
+            max-width: 1200px;
+            width: 100%;
+            padding: 2rem;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 2rem;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin: 0 0 0.5rem 0;
+        }
+        
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        
+        .widget-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            height: 700px;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .widget-container {
+                height: 600px;
+                border-radius: 15px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌟 Welcome to Storytailor</h1>
+            <p>Create magical stories with AI</p>
+        </div>
+        
+        <!-- 
+            WEBFLOW INTEGRATION INSTRUCTIONS:
+            
+            1. In Webflow, add an "Embed" element to your page
+            2. Copy this entire <div> and <script> section below
+            3. Paste into the Embed element
+            4. Replace 'your-api-key-here' with your actual API key
+            5. Publish your site
+        -->
+        
+        <div class="widget-container">
+            <!-- Storytailor Widget will render here -->
+            <div id="storytailor-widget" style="width: 100%; height: 100%;"></div>
+        </div>
+    </div>
+
+    <!-- Load Storytailor Embed from CDN -->
+    <script src="https://cdn.storytailor.com/embed/v1/storytailor-embed.js"></script>
+    
+    <script>
+        // Initialize Storytailor with full UI (tabs, buttons, etc.)
+        StorytalorEmbed.init({
+            // Required: Your API key from storytailor.com/dashboard
+            apiKey: 'your-api-key-here',
+            
+            // Required: Container element
+            container: '#storytailor-widget',
+            
+            // Theme: 'child-friendly' | 'magical' | 'educational' | 'custom'
+            theme: 'magical',
+            
+            // Features to enable
+            features: {
+                voice: true,          // Enable voice input/output
+                stories: true,        // Show story grid
+                reader: true,         // Enable story reader
+                smartHome: false,     // Smart home controls (optional)
+                offline: true         // Offline support
+            },
+            
+            // Branding (optional)
+            branding: {
+                name: 'Your Brand Name',
+                colors: {
+                    primary: '#667eea',
+                    accent: '#764ba2'
+                }
+            },
+            
+            // Behavior
+            autoStart: true,
+            welcomeMessage: "Hi! I'm your AI storyteller. What kind of story would you like to create today?",
+            language: 'en',
+            
+            // Privacy & Safety
+            coppaMode: true,          // Enable COPPA compliance
+            parentalControls: true,   // Enable parental controls
+            dataRetention: 'minimal'  // 'minimal' | 'standard' | 'extended'
+        });
+        
+        // Optional: Listen to events
+        StorytalorEmbed.on('story.created', (story) => {
+            console.log('New story created:', story.title);
+            // You can trigger custom analytics or actions here
+        });
+        
+        StorytalorEmbed.on('voice.recording.start', () => {
+            console.log('User started voice recording');
+        });
+    </script>
+</body>
+</html>
+

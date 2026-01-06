@@ -1,0 +1,384 @@
+syntax = "proto3";
+
+package storytailor.agents;
+
+// Common message types
+message RequestContext {
+  string user_id = 1;
+  string session_id = 2;
+  string correlation_id = 3;
+  string jwt = 4;
+  map<string, string> metadata = 5;
+}
+
+message AgentResponse {
+  bool success = 1;
+  string data = 2; // JSON serialized data
+  AgentError error = 3;
+  int64 processing_time_ms = 4;
+}
+
+message AgentError {
+  string code = 1;
+  string message = 2;
+  string details = 3; // JSON serialized details
+  string correlation_id = 4;
+}
+
+// Auth Agent Service
+service AuthAgent {
+  rpc EnsureAuthenticated(EnsureAuthenticatedRequest) returns (AuthResult);
+  rpc LinkAccount(LinkAccountRequest) returns (LinkAccountResponse);
+  rpc VerifyOTP(VerifyOTPRequest) returns (AuthResult);
+  rpc ResetPassword(ResetPasswordRequest) returns (AgentResponse);
+  rpc MapAlexaUser(MapAlexaUserRequest) returns (AgentResponse);
+}
+
+message EnsureAuthenticatedRequest {
+  RequestContext context = 1;
+  string alexa_person_id = 2;
+}
+
+message AuthResult {
+  bool success = 1;
+  string user_id = 2;
+  string jwt = 3;
+  string refresh_token = 4;
+  string error = 5;
+}
+
+message LinkAccountRequest {
+  RequestContext context = 1;
+  string customer_email = 2;
+  string alexa_person_id = 3;
+}
+
+message LinkAccountResponse {
+  string voice_code = 1;
+  string temp_jwt = 2;
+  string expires_at = 3;
+}
+
+message VerifyOTPRequest {
+  RequestContext context = 1;
+  string email = 2;
+  string code = 3;
+}
+
+message ResetPasswordRequest {
+  RequestContext context = 1;
+  string email = 2;
+}
+
+message MapAlexaUserRequest {
+  RequestContext context = 1;
+  string alexa_person_id = 2;
+  string supabase_user_id = 3;
+}
+
+// Router Service
+service Router {
+  rpc ClassifyIntent(ClassifyIntentRequest) returns (IntentResult);
+  rpc Delegate(DelegateRequest) returns (AgentResponse);
+  rpc AssembleResponse(AssembleResponseRequest) returns (CustomerResponse);
+  rpc CacheMemoryState(CacheMemoryStateRequest) returns (AgentResponse);
+}
+
+message ClassifyIntentRequest {
+  RequestContext context = 1;
+  string input = 2;
+  string conversation_history = 3; // JSON serialized
+}
+
+message IntentResult {
+  string name = 1;
+  float confidence = 2;
+  string parameters = 3; // JSON serialized
+  string context = 4; // JSON serialized
+}
+
+message DelegateRequest {
+  RequestContext context = 1;
+  IntentResult intent = 2;
+  string additional_context = 3; // JSON serialized
+}
+
+message AssembleResponseRequest {
+  RequestContext context = 1;
+  repeated AgentResponse responses = 2;
+}
+
+message CustomerResponse {
+  string text = 1;
+  string audio_url = 2;
+  string visual_content = 3; // JSON serialized APL cards, etc.
+  string next_action = 4;
+}
+
+message CacheMemoryStateRequest {
+  RequestContext context = 1;
+  string user_id = 2;
+  string memory_state = 3; // JSON serialized
+}
+
+// Content Agent Service
+service ContentAgent {
+  rpc InitializeCharacter(InitializeCharacterRequest) returns (CharacterResult);
+  rpc UpdateCharacterTrait(UpdateCharacterTraitRequest) returns (CharacterResult);
+  rpc FinalizeCharacter(FinalizeCharacterRequest) returns (CharacterResult);
+  rpc CreateStoryDraft(CreateStoryDraftRequest) returns (StoryDraftResult);
+  rpc ContinueStoryBeat(ContinueStoryBeatRequest) returns (StoryBeatResult);
+  rpc EditStoryViaVoice(EditStoryViaVoiceRequest) returns (StoryUpdateResult);
+  rpc FinalizeStory(FinalizeStoryRequest) returns (StoryResult);
+  rpc ClassifyStoryIntent(ClassifyStoryIntentRequest) returns (StoryTypeResult);
+}
+
+message InitializeCharacterRequest {
+  RequestContext context = 1;
+  string name = 2;
+}
+
+message CharacterResult {
+  string character_id = 1;
+  string character_data = 2; // JSON serialized Character
+}
+
+message UpdateCharacterTraitRequest {
+  RequestContext context = 1;
+  string character_id = 2;
+  string trait = 3;
+  string value = 4; // JSON serialized value
+}
+
+message FinalizeCharacterRequest {
+  RequestContext context = 1;
+  string character_id = 2;
+  bool confirmed = 3;
+}
+
+message CreateStoryDraftRequest {
+  RequestContext context = 1;
+  string character_data = 2; // JSON serialized Character
+  string story_type = 3;
+}
+
+message StoryDraftResult {
+  string story_draft_id = 1;
+  string story_draft_data = 2; // JSON serialized StoryDraft
+}
+
+message ContinueStoryBeatRequest {
+  RequestContext context = 1;
+  string story_id = 2;
+  string user_choice = 3;
+}
+
+message StoryBeatResult {
+  string story_beat_data = 2; // JSON serialized StoryBeat
+}
+
+message EditStoryViaVoiceRequest {
+  RequestContext context = 1;
+  string story_id = 2;
+  string voice_command = 3;
+}
+
+message StoryUpdateResult {
+  string story_update_data = 1; // JSON serialized StoryUpdate
+}
+
+message FinalizeStoryRequest {
+  RequestContext context = 1;
+  string story_id = 2;
+  bool confirmed = 3;
+}
+
+message StoryResult {
+  string story_id = 1;
+  string story_data = 2; // JSON serialized Story
+}
+
+message ClassifyStoryIntentRequest {
+  RequestContext context = 1;
+  string user_input = 2;
+}
+
+message StoryTypeResult {
+  string story_type = 1;
+  float confidence = 2;
+}
+
+// Library Agent Service
+service LibraryAgent {
+  rpc CreateLibrary(CreateLibraryRequest) returns (LibraryResult);
+  rpc CreateSubLibrary(CreateSubLibraryRequest) returns (LibraryResult);
+  rpc TransferLibrary(TransferLibraryRequest) returns (AgentResponse);
+  rpc ManageRoles(ManageRolesRequest) returns (AgentResponse);
+  rpc ListStories(ListStoriesRequest) returns (StoriesResult);
+  rpc GetStory(GetStoryRequest) returns (StoryResult);
+  rpc SaveStory(SaveStoryRequest) returns (StoryResult);
+}
+
+message CreateLibraryRequest {
+  RequestContext context = 1;
+  string name = 2;
+}
+
+message LibraryResult {
+  string library_id = 1;
+  string library_data = 2; // JSON serialized Library
+}
+
+message CreateSubLibraryRequest {
+  RequestContext context = 1;
+  string parent_id = 2;
+  string name = 3;
+  int32 child_age = 4;
+}
+
+message TransferLibraryRequest {
+  RequestContext context = 1;
+  string library_id = 2;
+  string to_user_id = 3;
+  string role = 4;
+}
+
+message ManageRolesRequest {
+  RequestContext context = 1;
+  string library_id = 2;
+  string user_id = 3;
+  string role = 4;
+}
+
+message ListStoriesRequest {
+  RequestContext context = 1;
+  string library_id = 2;
+}
+
+message StoriesResult {
+  repeated string story_data = 1; // JSON serialized Story[]
+}
+
+message GetStoryRequest {
+  RequestContext context = 1;
+  string story_id = 2;
+}
+
+message SaveStoryRequest {
+  RequestContext context = 1;
+  string story_data = 2; // JSON serialized Story
+}
+
+// Emotion Agent Service
+service EmotionAgent {
+  rpc RecordCheckin(RecordCheckinRequest) returns (AgentResponse);
+  rpc DetectLaughter(DetectLaughterRequest) returns (EmotionResult);
+  rpc UpdateMood(UpdateMoodRequest) returns (AgentResponse);
+  rpc DetectPatterns(DetectPatternsRequest) returns (EmotionPatternsResult);
+  rpc DeriveSentiment(DeriveSentimentRequest) returns (SentimentResult);
+}
+
+message RecordCheckinRequest {
+  RequestContext context = 1;
+  string mood = 2;
+  float confidence = 3;
+}
+
+message DetectLaughterRequest {
+  RequestContext context = 1;
+  bytes audio_data = 2;
+}
+
+message EmotionResult {
+  bool detected = 1;
+  string mood = 2;
+  float confidence = 3;
+  string timestamp = 4;
+}
+
+message UpdateMoodRequest {
+  RequestContext context = 1;
+  string library_id = 2;
+  string mood = 3;
+  string context_data = 4; // JSON serialized
+}
+
+message DetectPatternsRequest {
+  RequestContext context = 1;
+  string time_range = 2; // JSON serialized DateRange
+}
+
+message EmotionPatternsResult {
+  repeated string pattern_data = 1; // JSON serialized EmotionPattern[]
+}
+
+message DeriveSentimentRequest {
+  RequestContext context = 1;
+  string transcript = 2;
+}
+
+message SentimentResult {
+  string sentiment = 1;
+  float confidence = 2;
+  repeated string emotions = 3;
+}
+
+// Commerce Agent Service
+service CommerceAgent {
+  rpc StartCheckout(StartCheckoutRequest) returns (CheckoutResult);
+  rpc ApplyCoupon(ApplyCouponRequest) returns (DiscountResult);
+  rpc ChangePlan(ChangePlanRequest) returns (SubscriptionResult);
+  rpc ProvisionOrgSeats(ProvisionOrgSeatsRequest) returns (AgentResponse);
+  rpc ProcessInviteDiscount(ProcessInviteDiscountRequest) returns (DiscountResult);
+  rpc HandleWebhook(HandleWebhookRequest) returns (AgentResponse);
+}
+
+message StartCheckoutRequest {
+  RequestContext context = 1;
+  string plan_id = 2;
+}
+
+message CheckoutResult {
+  string session_id = 1;
+  string url = 2;
+  string expires_at = 3;
+}
+
+message ApplyCouponRequest {
+  RequestContext context = 1;
+  string coupon_code = 2;
+}
+
+message DiscountResult {
+  bool applied = 1;
+  float discount_amount = 2;
+  float discount_percentage = 3;
+  string coupon_code = 4;
+}
+
+message ChangePlanRequest {
+  RequestContext context = 1;
+  string new_plan_id = 2;
+}
+
+message SubscriptionResult {
+  bool success = 1;
+  string subscription_data = 2; // JSON serialized Subscription
+  string error = 3;
+}
+
+message ProvisionOrgSeatsRequest {
+  RequestContext context = 1;
+  string org_id = 2;
+  int32 seat_count = 3;
+}
+
+message ProcessInviteDiscountRequest {
+  RequestContext context = 1;
+  string invite_code = 2;
+}
+
+message HandleWebhookRequest {
+  RequestContext context = 1;
+  string stripe_event_data = 2; // JSON serialized StripeEvent
+}

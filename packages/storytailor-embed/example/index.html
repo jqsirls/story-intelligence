@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Storytailor Embed - Live Demo</title>
+    <style>
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 2rem;
+            text-align: center;
+            color: white;
+        }
+        
+        .header h1 {
+            margin: 0 0 0.5rem 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+        
+        .header p {
+            margin: 0;
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        
+        .demo-container {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 400px 1fr;
+            gap: 2rem;
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        
+        .demo-info {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        .demo-widget {
+            height: 600px;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+        
+        .demo-controls {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        .control-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .control-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .control-group select,
+        .control-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+        
+        .control-group button {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 0.5rem;
+            transition: transform 0.2s;
+        }
+        
+        .control-group button:hover {
+            transform: translateY(-2px);
+        }
+        
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .feature-list li {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .feature-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .feature-icon {
+            font-size: 1.2rem;
+        }
+        
+        .code-example {
+            background: #f8f9fa;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 1rem;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.875rem;
+            overflow-x: auto;
+            margin-top: 1rem;
+        }
+        
+        @media (max-width: 1200px) {
+            .demo-container {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            
+            .demo-widget {
+                height: 500px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .header {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .demo-container {
+                padding: 1rem;
+            }
+            
+            .demo-info,
+            .demo-controls {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🌟 Storytailor Embed</h1>
+        <p>Beautiful, responsive chat/voice interface for any website</p>
+    </div>
+
+    <div class="demo-container">
+        <div class="demo-info">
+            <h2>✨ Features</h2>
+            <ul class="feature-list">
+                <li>
+                    <span class="feature-icon">💬</span>
+                    Interactive chat interface
+                </li>
+                <li>
+                    <span class="feature-icon">🎤</span>
+                    Voice input & output
+                </li>
+                <li>
+                    <span class="feature-icon">📖</span>
+                    Story reader with word highlighting
+                </li>
+                <li>
+                    <span class="feature-icon">🎨</span>
+                    Multiple themes (child-friendly, magical, educational)
+                </li>
+                <li>
+                    <span class="feature-icon">📱</span>
+                    Fully responsive design
+                </li>
+                <li>
+                    <span class="feature-icon">🌙</span>
+                    Dark mode support
+                </li>
+                <li>
+                    <span class="feature-icon">♿</span>
+                    Accessibility compliant
+                </li>
+                <li>
+                    <span class="feature-icon">🔒</span>
+                    Privacy-first design
+                </li>
+            </ul>
+            
+            <h3>🚀 Quick Integration</h3>
+            <div class="code-example">
+&lt;!-- Add to any website --&gt;
+&lt;div id="storytailor-widget"&gt;&lt;/div&gt;
+
+&lt;script src="https://cdn.storytailor.com/embed/v1/storytailor-embed.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+StorytalorEmbed.init({
+    apiKey: 'your-api-key',
+    container: '#storytailor-widget',
+    theme: 'magical'
+});
+&lt;/script&gt;
+            </div>
+            
+            <h3>🌐 Platform Support</h3>
+            <ul class="feature-list">
+                <li>
+                    <span class="feature-icon">🎯</span>
+                    Webflow, Framer, Wix
+                </li>
+                <li>
+                    <span class="feature-icon">⚛️</span>
+                    React, Vue, Angular
+                </li>
+                <li>
+                    <span class="feature-icon">📦</span>
+                    WordPress, Shopify
+                </li>
+                <li>
+                    <span class="feature-icon">🔗</span>
+                    iframe embed
+                </li>
+            </ul>
+        </div>
+
+        <div class="demo-widget" id="storytailor-demo">
+            <!-- Storytailor widget will be rendered here -->
+        </div>
+
+        <div class="demo-controls">
+            <h2>🎛️ Live Controls</h2>
+            
+            <div class="control-group">
+                <label for="theme-select">Theme</label>
+                <select id="theme-select">
+                    <option value="child-friendly">Child Friendly</option>
+                    <option value="magical" selected>Magical</option>
+                    <option value="educational">Educational</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="voice-toggle">
+                    <input type="checkbox" id="voice-toggle" checked> Voice Enabled
+                </label>
+            </div>
+            
+            <div class="control-group">
+                <label for="dark-mode-toggle">
+                    <input type="checkbox" id="dark-mode-toggle"> Dark Mode
+                </label>
+            </div>
+            
+            <div class="control-group">
+                <button onclick="sendTestMessage()">📤 Send Test Message</button>
+                <button onclick="showTestStories()">📚 Show Stories</button>
+                <button onclick="clearChat()">🗑️ Clear Chat</button>
+            </div>
+            
+            <h3>📊 Demo Stats</h3>
+            <div id="demo-stats">
+                <p><strong>Messages:</strong> <span id="message-count">0</span></p>
+                <p><strong>Voice Uses:</strong> <span id="voice-count">0</span></p>
+                <p><strong>Stories Created:</strong> <span id="story-count">0</span></p>
+            </div>
+            
+            <h3>🔗 Integration Code</h3>
+            <div class="code-example" id="integration-code">
+                <!-- Will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Storytailor Embed -->
+    <script src="../dist/storytailor-embed.js"></script>
+    <script>
+        let storytailor;
+        let messageCount = 0;
+        let voiceCount = 0;
+        let storyCount = 0;
+        
+        // Initialize Storytailor
+        async function initStorytailor() {
+            const config = {
+                apiKey: 'demo-api-key', // Demo key for testing
+                container: '#storytailor-demo',
+                theme: 'magical',
+                features: {
+                    voice: true,
+                    stories: true,
+                    reader: true,
+                    offline: true
+                },
+                branding: {
+                    name: 'Demo Storyteller',
+                    colors: {
+                        primary: '#667eea',
+                        accent: '#764ba2'
+                    }
+                },
+                autoStart: true,
+                welcomeMessage: "Hi! I'm your demo AI storyteller! 🌟 Try asking me to create a story!",
+                debug: true
+            };
+            
+            storytailor = await StorytalorEmbed.init(config);
+            
+            // Event listeners
+            storytailor.on('message.sent', () => {
+                messageCount++;
+                updateStats();
+            });
+            
+            storytailor.on('voice.recording.start', () => {
+                voiceCount++;
+                updateStats();
+            });
+            
+            storytailor.on('story.created', () => {
+                storyCount++;
+                updateStats();
+            });
+            
+            storytailor.on('init.complete', () => {
+                console.log('🌟 Storytailor Demo initialized!');
+            });
+            
+            storytailor.on('error', (error) => {
+                console.error('Demo error:', error);
+            });
+            
+            updateIntegrationCode(config);
+        }
+        
+        // Control handlers
+        document.getElementById('theme-select').addEventListener('change', (e) => {
+            storytailor.updateConfig({ theme: e.target.value });
+            updateIntegrationCode();
+        });
+        
+        document.getElementById('voice-toggle').addEventListener('change', (e) => {
+            storytailor.updateConfig({ 
+                features: { voice: e.target.checked } 
+            });
+            updateIntegrationCode();
+        });
+        
+        document.getElementById('dark-mode-toggle').addEventListener('change', (e) => {
+            if (e.target.checked) {
+                storytailor.toggleDarkMode();
+            }
+        });
+        
+        function sendTestMessage() {
+            const messages = [
+                "Create a story about a brave little dragon",
+                "Tell me a bedtime story",
+                "I want an adventure story with pirates",
+                "Create a story about friendship",
+                "Tell me about a magical forest"
+            ];
+            
+            const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+            storytailor.sendMessage(randomMessage);
+        }
+        
+        function showTestStories() {
+            storytailor.showStories();
+        }
+        
+        function clearChat() {
+            // This would need to be implemented in the actual widget
+            console.log('Clear chat requested');
+        }
+        
+        function updateStats() {
+            document.getElementById('message-count').textContent = messageCount;
+            document.getElementById('voice-count').textContent = voiceCount;
+            document.getElementById('story-count').textContent = storyCount;
+        }
+        
+        function updateIntegrationCode(config) {
+            const theme = document.getElementById('theme-select').value;
+            const voiceEnabled = document.getElementById('voice-toggle').checked;
+            
+            const code = `&lt;div id="storytailor-widget"&gt;&lt;/div&gt;
+
+&lt;script src="https://cdn.storytailor.com/embed/v1/storytailor-embed.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+StorytalorEmbed.init({
+    apiKey: 'your-api-key',
+    container: '#storytailor-widget',
+    theme: '${theme}',
+    features: {
+        voice: ${voiceEnabled},
+        stories: true,
+        reader: true
+    }
+});
+&lt;/script&gt;`;
+            
+            document.getElementById('integration-code').innerHTML = code;
+        }
+        
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            initStorytailor();
+        });
+        
+        // Demo mode - simulate responses since we don't have a real API
+        if (typeof window !== 'undefined') {
+            window.STORYTAILOR_DEMO_MODE = true;
+        }
+    </script>
+</body>
+</html>

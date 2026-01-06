@@ -1,0 +1,24 @@
+{
+  "id": "partners/overview",
+  "title": "Partner Program Overview",
+  "description": "Embed Storytailor on your site and earn recurring revenue",
+  "source": "@site/docs/partners/overview.md",
+  "sourceDirName": "partners",
+  "slug": "/partners/overview",
+  "permalink": "/docs/partners/overview",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/storytailor-inc/Storytailor-agent/tree/main/docs-site/docs/partners/overview.md",
+  "tags": [],
+  "version": "current",
+  "frontMatter": {},
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Pricing Strategy (Internal - Sales Team)",
+    "permalink": "/docs/internal/sales/pricing-strategy"
+  },
+  "next": {
+    "title": "Story Intelligence™ API Pricing",
+    "permalink": "/docs/pricing/api-platform"
+  }
+}

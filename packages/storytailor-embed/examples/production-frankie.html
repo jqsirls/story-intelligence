@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frankie Three-Modality Widget - Production</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .demo-container {
+            max-width: 800px;
+            width: 100%;
+            padding: 2rem;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 2rem;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin: 0 0 0.5rem 0;
+        }
+        
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        
+        .widget-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            height: 700px;
+        }
+        
+        .info-panel {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 1.5rem;
+            border-radius: 15px;
+            margin-top: 1.5rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        .feature-list {
+            list-style: none;
+            padding: 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 0.5rem;
+        }
+        
+        .feature-list li {
+            padding: 0.5rem;
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+        
+        @media (max-width: 768px) {
+            .widget-container {
+                height: 600px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="demo-container">
+        <div class="header">
+            <h1>🌟 Storytailor with Frankie</h1>
+            <p>Three-Modality Therapeutic Storytelling</p>
+        </div>
+        
+        <!-- Widget Container -->
+        <div class="widget-container">
+            <div id="storytailor-widget" style="width: 100%; height: 100%;"></div>
+        </div>
+        
+        <!-- Info Panel -->
+        <div class="info-panel">
+            <h3>✨ Three Modalities Available:</h3>
+            <ul class="feature-list">
+                <li>📹📝🔊 Full Experience - Watch, read, listen</li>
+                <li>🔊 Audio-Only - Perfect for bedtime</li>
+                <li>📹 Video-Only - Just watch Frankie</li>
+            </ul>
+            
+            <h3 style="margin-top: 1.5rem;">🎯 Smart Features:</h3>
+            <ul class="feature-list">
+                <li>✅ Frankie's character integration</li>
+                <li>✅ Personalized greetings</li>
+                <li>✅ Story continuity</li>
+                <li>✅ Emotion detection (3-tier)</li>
+                <li>✅ Word-level text sync</li>
+                <li>✅ Beat illustrations</li>
+                <li>✅ Voice input/output</li>
+                <li>✅ Auto-mode selection</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Load Frankie Widget from CloudFront -->
+    <script src="https://d1roaoxii58pco.cloudfront.net/storytailor-embed.min.js"></script>
+    
+    <script>
+        // Initialize Frankie Widget with all features
+        window.addEventListener('load', function() {
+            console.log('🌟 Initializing Frankie Three-Modality Widget...');
+            
+            StorytalorEmbed.init({
+                // API Connection
+                apiKey: 'sk_widget_3f6e3d1f718a795548b6a02476b01b966314befc72069f43929b5f22f7945530',
+                baseUrl: 'https://api.storytailor.dev',
+                container: '#storytailor-widget',
+                
+                // Frankie Character
+                character: {
+                    name: 'Frankie',
+                    avatarUrl: 'https://storytailor-audio.s3.us-east-1.amazonaws.com/characters/frankie-official-avatar.png',
+                    voiceId: 'kQJQj1e9P2YDvAdvp2BW',
+                    personality: 'warm, empathetic, whimsical'
+                },
+                
+                // Modality System
+                modality: {
+                    mode: 'video-audio-text',  // Start with full experience
+                    autoDetect: true,           // Enable smart defaults
+                    allowSwitch: true           // Let users switch
+                },
+                
+                // Experience Settings
+                theme: 'magical',
+                features: {
+                    voice: true,
+                    stories: true,
+                    reader: true,
+                    smartHome: true,
+                    offline: true,
+                    emotionTracking: true,
+                    storyContinuity: true
+                },
+                
+                // Child Safety
+                coppaMode: true,
+                parentalControls: true,
+                ageRange: [3, 9],
+                dataRetention: 'minimal',
+                
+                // Behavior
+                autoStart: true,
+                language: 'en',
+                debug: true
+                
+            }).then(function(widget) {
+                console.log('✅ Widget initialized successfully!');
+                console.log('Current modality:', widget.getCurrentModality ? widget.getCurrentModality() : 'video-audio-text');
+                
+                // Event listeners
+                widget.on('modality.changed', function(event) {
+                    console.log('🔄 Modality switched to:', event.mode);
+                    console.log('Features:', event.features);
+                });
+                
+                widget.on('emotion.detected', function(event) {
+                    console.log('💙 Emotion detected:', event.emotion, 'Tier:', event.tier);
+                });
+                
+                widget.on('therapeutic.alert', function(event) {
+                    console.log('🚨 Therapeutic alert (Tier 3):', event);
+                    // Parent notification would trigger here
+                });
+                
+                widget.on('story.created', function(story) {
+                    console.log('📖 Story created:', story);
+                });
+                
+                widget.on('session.started', function(session) {
+                    console.log('🎬 Session started:', session.sessionId);
+                });
+                
+            }).catch(function(error) {
+                console.error('❌ Widget initialization failed:', error);
+                document.getElementById('storytailor-widget').innerHTML = `
+                    <div style="padding: 2rem; text-align: center;">
+                        <h2>😕 Oops!</h2>
+                        <p>Having trouble loading Frankie right now.</p>
+                        <p style="color: #ef4444; font-size: 0.9rem;">${error.message}</p>
+                    </div>
+                `;
+            });
+        });
+    </script>
+</body>
+</html>
+

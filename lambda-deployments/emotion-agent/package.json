@@ -1,0 +1,32 @@
+{
+  "name": "@alexa-multi-agent/emotion-agent",
+  "version": "1.0.0",
+  "description": "Emotion tracking and pattern detection agent",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "jest",
+    "lint": "eslint -c ../../.eslintrc.js --resolve-plugins-relative-to ../../ --ext .ts src",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@alexa-multi-agent/shared-types": "file:../shared-types",
+    "@grpc/grpc-js": "^1.9.0",
+    "@grpc/proto-loader": "^0.7.0",
+    "@supabase/supabase-js": "^2.87.1",
+    "openai": "^4.104.0",
+    "redis": "^4.7.1",
+    "winston": "^3.19.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "eslint": "^8.0.0",
+    "jest": "^29.5.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.0.0"
+  }
+}

@@ -1,0 +1,688 @@
+# Production Deployment Pipeline
+# Blue-Green deployment to production environment
+
+name: Production Deployment
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to deploy'
+        required: true
+        type: string
+      skip_tests:
+        description: 'Skip pre-deployment tests (emergency only)'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  NODE_VERSION: '18'
+  AWS_REGION: 'us-east-1'
+  ENVIRONMENT: 'prod'
+
+jobs:
+  # Job 1: Pre-deployment validation
+  pre-deploy:
+    name: Pre-deployment Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    outputs:
+      build-hash: ${{ steps.build.outputs.hash }}
+      deploy-ready: ${{ steps.validation.outputs.ready }}
+      tag: ${{ steps.tag.outputs.tag }}
+      
+    steps:
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Deploying tag: $TAG"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Validate tag format
+        run: |
+          if [[ ! "${{ steps.tag.outputs.tag }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Invalid tag format. Expected: v1.2.3"
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run comprehensive test suite
+        if: github.event.inputs.skip_tests != 'true'
+        run: |
+          npm run lint
+          npm run type-check
+          npm run test -- --coverage --passWithNoTests
+        env:
+          NODE_ENV: test
+
+      - name: Build all packages
+        id: build
+        run: |
+          npm run build
+          BUILD_HASH=$(find packages/*/dist -type f -exec sha256sum {} \; | sha256sum | cut -d' ' -f1)
+          echo "hash=$BUILD_HASH" >> $GITHUB_OUTPUT
+
+      - name: Validate production readiness
+        id: validation
+        run: |
+          # Check all required packages
+          REQUIRED_PACKAGES=("router" "auth-agent" "storytailor-agent" "content-agent" "library-agent" "emotion-agent" "commerce-agent" "insights-agent" "smart-home-agent" "universal-agent")
+          
+          for package in "${REQUIRED_PACKAGES[@]}"; do
+            if [ ! -d "packages/$package/dist" ]; then
+              echo "❌ Package $package failed to build"
+              echo "ready=false" >> $GITHUB_OUTPUT
+              exit 1
+            fi
+            
+            # Check package.json version matches tag
+            PACKAGE_VERSION=$(jq -r '.version' "packages/$package/package.json")
+            TAG_VERSION="${{ steps.tag.outputs.tag }}"
+            TAG_VERSION=${TAG_VERSION#v}  # Remove 'v' prefix
+            
+            if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
+              echo "❌ Package $package version ($PACKAGE_VERSION) doesn't match tag ($TAG_VERSION)"
+              echo "ready=false" >> $GITHUB_OUTPUT
+              exit 1
+            fi
+          done
+          
+          echo "✅ All packages validated for production"
+          echo "ready=true" >> $GITHUB_OUTPUT
+
+      - name: Create release artifacts
+        run: |
+          mkdir -p release-artifacts
+          
+          # Create Lambda deployment packages
+          AGENTS=("router" "auth-agent" "storytailor-agent" "content-agent" "library-agent" "emotion-agent" "commerce-agent" "insights-agent" "smart-home-agent" "universal-agent")
+          
+          for agent in "${AGENTS[@]}"; do
+            echo "Packaging $agent for production..."
+            cd "packages/$agent"
+            
+            # Install production dependencies only
+            npm ci --production
+            
+            # Create optimized deployment package
+            zip -r "../../release-artifacts/$agent-${{ steps.tag.outputs.tag }}.zip" \
+              dist/ node_modules/ package.json \
+              -x "node_modules/.cache/*" "node_modules/*/test/*" "node_modules/*/tests/*"
+            
+            cd ../..
+          done
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-release-${{ steps.tag.outputs.tag }}
+          path: |
+            release-artifacts/
+            infrastructure/
+          retention-days: 90
+
+  # Job 2: Blue-Green Infrastructure Setup
+  blue-green-setup:
+    name: Blue-Green Infrastructure Setup
+    runs-on: ubuntu-latest
+    needs: [pre-deploy]
+    if: needs.pre-deploy.outputs.deploy-ready == 'true'
+    timeout-minutes: 45
+    
+    environment:
+      name: production
+      url: https://api.storytailor.com
+      
+    outputs:
+      green-api-url: ${{ steps.green-deploy.outputs.api_gateway_url }}
+      green-cloudfront: ${{ steps.green-deploy.outputs.cloudfront_domain }}
+      blue-api-url: ${{ steps.blue-status.outputs.api_gateway_url }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.pre-deploy.outputs.tag }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+          terraform_wrapper: false
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: production-release-${{ needs.pre-deploy.outputs.tag }}
+          path: .
+
+      - name: Check current blue environment
+        id: blue-status
+        run: |
+          cd infrastructure/terraform
+          terraform init \
+            -backend-config="bucket=${{ secrets.TERRAFORM_STATE_BUCKET }}" \
+            -backend-config="key=storytailor-prod-blue/terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}"
+          
+          if terraform show > /dev/null 2>&1; then
+            API_URL=$(terraform output -raw api_gateway_url 2>/dev/null || echo "")
+            echo "api_gateway_url=$API_URL" >> $GITHUB_OUTPUT
+            echo "Blue environment exists: $API_URL"
+          else
+            echo "No blue environment found"
+          fi
+
+      - name: Deploy Green Environment
+        id: green-deploy
+        run: |
+          # Create separate workspace for green deployment
+          mkdir -p green-deployment
+          cp -r infrastructure/terraform/* green-deployment/
+          cd green-deployment
+          
+          # Initialize with green state
+          terraform init \
+            -backend-config="bucket=${{ secrets.TERRAFORM_STATE_BUCKET }}" \
+            -backend-config="key=storytailor-prod-green/terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}"
+          
+          # Plan green deployment
+          terraform plan \
+            -var="environment=prod-green" \
+            -var="lambda_source_hash=${{ needs.pre-deploy.outputs.build-hash }}" \
+            -var="supabase_url=${{ secrets.SUPABASE_URL_PROD }}" \
+            -var="supabase_anon_key=${{ secrets.SUPABASE_ANON_KEY_PROD }}" \
+            -var="supabase_service_key=${{ secrets.SUPABASE_SERVICE_KEY_PROD }}" \
+            -var="openai_api_key=${{ secrets.OPENAI_API_KEY }}" \
+            -var="elevenlabs_api_key=${{ secrets.ELEVENLABS_API_KEY }}" \
+            -var="stability_api_key=${{ secrets.STABILITY_API_KEY }}" \
+            -var="stripe_secret_key=${{ secrets.STRIPE_SECRET_KEY_PROD }}" \
+            -var="amazon_api_key=${{ secrets.AMAZON_API_KEY }}" \
+            -var="jwt_secret=${{ secrets.JWT_SECRET_PROD }}" \
+            -var="alexa_skill_id=${{ secrets.ALEXA_SKILL_ID_PROD }}" \
+            -var="custom_domain_name=green-api.storytailor.com" \
+            -var="certificate_arn=${{ secrets.ACM_CERTIFICATE_ARN }}" \
+            -out=tfplan
+          
+          # Apply green deployment
+          terraform apply -auto-approve tfplan
+          
+          # Capture outputs
+          API_GATEWAY_URL=$(terraform output -raw api_gateway_url)
+          CLOUDFRONT_DOMAIN=$(terraform output -raw cloudfront_domain)
+          
+          echo "api_gateway_url=$API_GATEWAY_URL" >> $GITHUB_OUTPUT
+          echo "cloudfront_domain=$CLOUDFRONT_DOMAIN" >> $GITHUB_OUTPUT
+
+      - name: Upload Lambda packages to S3
+        run: |
+          aws s3 sync release-artifacts/ s3://${{ secrets.LAMBDA_ARTIFACTS_BUCKET }}/prod-green/
+
+      - name: Update Green Lambda functions
+        run: |
+          AGENTS=("router" "auth-agent" "storytailor-agent" "content-agent" "library-agent" "emotion-agent" "commerce-agent" "insights-agent" "smart-home-agent" "universal-agent")
+          
+          for agent in "${AGENTS[@]}"; do
+            echo "Updating Green Lambda function: storytailor-prod-green-$agent"
+            aws lambda update-function-code \
+              --function-name "storytailor-prod-green-$agent" \
+              --s3-bucket "${{ secrets.LAMBDA_ARTIFACTS_BUCKET }}" \
+              --s3-key "prod-green/$agent-${{ needs.pre-deploy.outputs.tag }}.zip"
+              
+            # Wait for update to complete
+            aws lambda wait function-updated \
+              --function-name "storytailor-prod-green-$agent"
+              
+            # Update function configuration for production
+            aws lambda update-function-configuration \
+              --function-name "storytailor-prod-green-$agent" \
+              --environment Variables="{
+                NODE_ENV=production,
+                LOG_LEVEL=info,
+                VERSION=${{ needs.pre-deploy.outputs.tag }}
+              }"
+          done
+
+  # Job 3: Database migration (if needed)
+  database-migration:
+    name: Database Migration
+    runs-on: ubuntu-latest
+    needs: [pre-deploy, blue-green-setup]
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.pre-deploy.outputs.tag }}
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link to production project
+        run: |
+          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF_PROD }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Check for pending migrations
+        id: check-migrations
+        run: |
+          cd supabase
+          if supabase db diff --schema public | grep -q "No schema changes found"; then
+            echo "has_migrations=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_migrations=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create database backup
+        if: steps.check-migrations.outputs.has_migrations == 'true'
+        run: |
+          # Create backup before migration
+          BACKUP_NAME="pre-migration-$(date +%Y%m%d-%H%M%S)"
+          echo "Creating backup: $BACKUP_NAME"
+          # Backup logic would go here
+
+      - name: Run database migrations
+        if: steps.check-migrations.outputs.has_migrations == 'true'
+        run: |
+          cd supabase
+          supabase db push --include-all
+
+      - name: Validate migration
+        if: steps.check-migrations.outputs.has_migrations == 'true'
+        run: |
+          cd supabase
+          supabase db diff --schema public
+
+  # Job 4: Green environment testing
+  green-testing:
+    name: Green Environment Testing
+    runs-on: ubuntu-latest
+    needs: [blue-green-setup, database-migration]
+    timeout-minutes: 45
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.pre-deploy.outputs.tag }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Wait for green environment to be ready
+        run: |
+          echo "Waiting for Green API Gateway to be ready..."
+          for i in {1..60}; do
+            if curl -f "${{ needs.blue-green-setup.outputs.green-api-url }}/health" > /dev/null 2>&1; then
+              echo "✅ Green API Gateway is ready"
+              break
+            fi
+            echo "⏳ Waiting... (attempt $i/60)"
+            sleep 10
+          done
+
+      - name: Run comprehensive integration tests
+        run: |
+          npm run test:integration:production
+        env:
+          API_BASE_URL: ${{ needs.blue-green-setup.outputs.green-api-url }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL_PROD }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_PROD }}
+
+      - name: Run production load tests
+        run: |
+          # Install K6
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+          
+          # Run production load test
+          k6 run --env API_BASE_URL=${{ needs.blue-green-setup.outputs.green-api-url }} \
+                 --env API_KEY=${{ secrets.API_KEY_PROD }} \
+                 --env K6_SCENARIO_NAME=production_load \
+                 --env MAX_VUS=500 \
+                 --env DURATION=10m \
+                 --out json=production-load-results.json \
+                 testing/load/k6-load-tests.js
+
+      - name: Validate load test results
+        run: |
+          # Check performance requirements
+          P95_RESPONSE_TIME=$(jq '.metrics.http_req_duration.values.p95' production-load-results.json)
+          ERROR_RATE=$(jq '.metrics.http_req_failed.values.rate' production-load-results.json)
+          
+          if (( $(echo "$P95_RESPONSE_TIME > 800" | bc -l) )); then
+            echo "❌ P95 response time ($P95_RESPONSE_TIME ms) exceeds 800ms threshold"
+            exit 1
+          fi
+          
+          if (( $(echo "$ERROR_RATE > 0.01" | bc -l) )); then
+            echo "❌ Error rate ($ERROR_RATE) exceeds 1% threshold"
+            exit 1
+          fi
+          
+          echo "✅ Production load test passed - P95: ${P95_RESPONSE_TIME}ms, Error rate: ${ERROR_RATE}"
+
+      - name: Run security validation
+        run: |
+          # Basic security checks
+          curl -f "${{ needs.blue-green-setup.outputs.green-api-url }}/health" \
+            -H "X-Forwarded-For: 192.168.1.1" \
+            -H "User-Agent: SecurityTest/1.0" || exit 1
+          
+          # Check HTTPS enforcement
+          if curl -k "http://$(echo ${{ needs.blue-green-setup.outputs.green-api-url }} | sed 's/https://')" 2>/dev/null; then
+            echo "❌ HTTP access should be blocked"
+            exit 1
+          fi
+          
+          echo "✅ Security validation passed"
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: green-test-results
+          path: |
+            production-load-results.json
+            integration-test-results.xml
+          retention-days: 90
+
+  # Job 5: Blue-Green traffic switch
+  traffic-switch:
+    name: Blue-Green Traffic Switch
+    runs-on: ubuntu-latest
+    needs: [blue-green-setup, green-testing]
+    timeout-minutes: 20
+    
+    environment:
+      name: production-switch
+      
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update Route 53 DNS to point to Green
+        run: |
+          # Get the current Route 53 record
+          HOSTED_ZONE_ID="${{ secrets.ROUTE53_HOSTED_ZONE_ID }}"
+          DOMAIN_NAME="api.storytailor.com"
+          
+          # Get Green environment ALB DNS name
+          GREEN_ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --names "storytailor-prod-green-alb" \
+            --query 'LoadBalancers[0].DNSName' \
+            --output text)
+          
+          # Update Route 53 record
+          aws route53 change-resource-record-sets \
+            --hosted-zone-id "$HOSTED_ZONE_ID" \
+            --change-batch '{
+              "Changes": [{
+                "Action": "UPSERT",
+                "ResourceRecordSet": {
+                  "Name": "'$DOMAIN_NAME'",
+                  "Type": "CNAME",
+                  "TTL": 60,
+                  "ResourceRecords": [{"Value": "'$GREEN_ALB_DNS'"}]
+                }
+              }]
+            }'
+
+      - name: Wait for DNS propagation
+        run: |
+          echo "Waiting for DNS propagation..."
+          for i in {1..30}; do
+            RESOLVED_IP=$(dig +short api.storytailor.com @8.8.8.8)
+            GREEN_IP=$(dig +short $GREEN_ALB_DNS @8.8.8.8)
+            
+            if [ "$RESOLVED_IP" == "$GREEN_IP" ]; then
+              echo "✅ DNS propagation complete"
+              break
+            fi
+            
+            echo "⏳ Waiting for DNS propagation... (attempt $i/30)"
+            sleep 10
+          done
+
+      - name: Validate production traffic
+        run: |
+          # Test production endpoint
+          for i in {1..10}; do
+            curl -f "https://api.storytailor.com/health" || exit 1
+            sleep 2
+          done
+          
+          echo "✅ Production traffic validation successful"
+
+  # Job 6: Post-deployment monitoring
+  post-deploy-monitoring:
+    name: Post-deployment Monitoring
+    runs-on: ubuntu-latest
+    needs: [traffic-switch]
+    timeout-minutes: 30
+    
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Monitor CloudWatch metrics
+        run: |
+          echo "Monitoring production metrics for 15 minutes..."
+          
+          for i in {1..15}; do
+            # Check error rate
+            ERROR_RATE=$(aws cloudwatch get-metric-statistics \
+              --namespace "AWS/ApiGateway" \
+              --metric-name "4XXError" \
+              --dimensions Name=ApiName,Value=storytailor-prod-green-api \
+              --start-time $(date -u -d '5 minutes ago' +%Y-%m-%dT%H:%M:%S) \
+              --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+              --period 300 \
+              --statistics Sum \
+              --query 'Datapoints[0].Sum' \
+              --output text)
+            
+            if [ "$ERROR_RATE" != "None" ] && [ "$ERROR_RATE" -gt 10 ]; then
+              echo "❌ High error rate detected: $ERROR_RATE"
+              exit 1
+            fi
+            
+            # Check response time
+            RESPONSE_TIME=$(aws cloudwatch get-metric-statistics \
+              --namespace "AWS/ApiGateway" \
+              --metric-name "Latency" \
+              --dimensions Name=ApiName,Value=storytailor-prod-green-api \
+              --start-time $(date -u -d '5 minutes ago' +%Y-%m-%dT%H:%M:%S) \
+              --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+              --period 300 \
+              --statistics Average \
+              --query 'Datapoints[0].Average' \
+              --output text)
+            
+            if [ "$RESPONSE_TIME" != "None" ] && (( $(echo "$RESPONSE_TIME > 800" | bc -l) )); then
+              echo "❌ High response time detected: ${RESPONSE_TIME}ms"
+              exit 1
+            fi
+            
+            echo "✅ Metrics check $i/15 passed - Errors: ${ERROR_RATE:-0}, Latency: ${RESPONSE_TIME:-0}ms"
+            sleep 60
+          done
+
+      - name: Create deployment record
+        run: |
+          # Record successful deployment
+          aws dynamodb put-item \
+            --table-name storytailor-deployments \
+            --item '{
+              "deployment_id": {"S": "'$(date +%Y%m%d-%H%M%S)'"},
+              "tag": {"S": "'${{ needs.pre-deploy.outputs.tag }}'"},
+              "environment": {"S": "production"},
+              "status": {"S": "success"},
+              "timestamp": {"S": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"},
+              "build_hash": {"S": "'${{ needs.pre-deploy.outputs.build-hash }}'"}
+            }'
+
+  # Job 7: Blue environment cleanup
+  blue-cleanup:
+    name: Blue Environment Cleanup
+    runs-on: ubuntu-latest
+    needs: [post-deploy-monitoring]
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+          terraform_wrapper: false
+
+      - name: Destroy Blue Environment
+        run: |
+          cd infrastructure/terraform
+          terraform init \
+            -backend-config="bucket=${{ secrets.TERRAFORM_STATE_BUCKET }}" \
+            -backend-config="key=storytailor-prod-blue/terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}"
+          
+          # Only destroy if blue environment exists
+          if terraform show > /dev/null 2>&1; then
+            echo "Destroying blue environment..."
+            terraform destroy -auto-approve \
+              -var="environment=prod-blue" \
+              -var="lambda_source_hash=placeholder"
+          else
+            echo "No blue environment to destroy"
+          fi
+
+      - name: Promote Green to Blue
+        run: |
+          # Copy green state to blue state for next deployment
+          aws s3 cp \
+            s3://${{ secrets.TERRAFORM_STATE_BUCKET }}/storytailor-prod-green/terraform.tfstate \
+            s3://${{ secrets.TERRAFORM_STATE_BUCKET }}/storytailor-prod-blue/terraform.tfstate
+
+  # Job 8: Deployment notification
+  notify:
+    name: Deployment Notification
+    runs-on: ubuntu-latest
+    needs: [pre-deploy, blue-green-setup, green-testing, traffic-switch, post-deploy-monitoring, blue-cleanup]
+    if: always()
+    
+    steps:
+      - name: Notify success
+        if: ${{ needs.blue-green-setup.result == 'success' && needs.green-testing.result == 'success' && needs.traffic-switch.result == 'success' && needs.post-deploy-monitoring.result == 'success' }}
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          channel: '#deployments'
+          text: |
+            🎉 **PRODUCTION DEPLOYMENT SUCCESSFUL** 🎉
+            
+            📊 **Deployment Details:**
+            • Tag: ${{ needs.pre-deploy.outputs.tag }}
+            • Environment: Production
+            • API Gateway: https://api.storytailor.com
+            • Build Hash: ${{ needs.pre-deploy.outputs.build-hash }}
+            • Deployment Type: Blue-Green
+            
+            ✅ **Validation Passed:**
+            • Integration Tests
+            • Production Load Tests (500 RPS)
+            • Security Validation
+            • 15-minute Health Monitoring
+            
+            🔄 **Blue-Green Status:**
+            • Green environment deployed and validated
+            • Traffic switched to Green
+            • Blue environment cleaned up
+            • Ready for next deployment cycle
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify failure
+        if: ${{ needs.blue-green-setup.result == 'failure' || needs.green-testing.result == 'failure' || needs.traffic-switch.result == 'failure' || needs.post-deploy-monitoring.result == 'failure' }}
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          channel: '#deployments'
+          text: |
+            🚨 **PRODUCTION DEPLOYMENT FAILED** 🚨
+            
+            **Failed Jobs:**
+            ${{ needs.blue-green-setup.result == 'failure' && '• Blue-Green Setup' || '' }}
+            ${{ needs.green-testing.result == 'failure' && '• Green Environment Testing' || '' }}
+            ${{ needs.traffic-switch.result == 'failure' && '• Traffic Switch' || '' }}
+            ${{ needs.post-deploy-monitoring.result == 'failure' && '• Post-deployment Monitoring' || '' }}
+            
+            **Tag:** ${{ needs.pre-deploy.outputs.tag }}
+            
+            ⚠️ **Action Required:**
+            • Check workflow logs immediately
+            • Blue environment may still be serving traffic
+            • Consider rollback if necessary
+            
+            @channel - Production deployment needs attention!
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

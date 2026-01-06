@@ -1,0 +1,24 @@
+{
+  "id": "pricing/api-platform",
+  "title": "Story Intelligence™ API Pricing",
+  "description": "OpenAI for Stories - Pay only for what you use",
+  "source": "@site/docs/pricing/api-platform.md",
+  "sourceDirName": "pricing",
+  "slug": "/pricing/api-platform",
+  "permalink": "/docs/pricing/api-platform",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/storytailor-inc/Storytailor-agent/tree/main/docs-site/docs/pricing/api-platform.md",
+  "tags": [],
+  "version": "current",
+  "frontMatter": {},
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Partner Program Overview",
+    "permalink": "/docs/partners/overview"
+  },
+  "next": {
+    "title": "Pricing Overview",
+    "permalink": "/docs/pricing/overview"
+  }
+}

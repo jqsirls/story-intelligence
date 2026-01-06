@@ -1,0 +1,44 @@
+# Python dependencies for testing suite
+
+# Core testing framework
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+pytest-xdist>=3.3.0
+
+# HTTP testing
+requests>=2.31.0
+httpx>=0.24.0
+aiohttp>=3.8.0
+
+# Security testing
+python-owasp-zap-v2.4>=0.0.21
+
+# Data validation and parsing
+pydantic>=2.0.0
+jsonschema>=4.17.0
+
+# Utilities
+python-dotenv>=1.0.0
+click>=8.1.0
+colorama>=0.4.6
+tabulate>=0.9.0
+
+# AWS SDK for performance testing
+boto3>=1.28.0
+botocore>=1.31.0
+
+# Database testing
+psycopg2-binary>=2.9.0
+asyncpg>=0.28.0
+
+# Load testing utilities
+locust>=2.15.0
+
+# Compliance testing
+cryptography>=41.0.0
+jwt>=1.3.1
+
+# Reporting
+jinja2>=3.1.0
+markdown>=3.4.0

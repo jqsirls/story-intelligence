@@ -1,0 +1,280 @@
+# Smoke Tests Pipeline
+# Runs smoke tests against deployed environments
+
+name: Smoke Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to test'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      api_url:
+        description: 'API URL to test (optional, will use default for environment)'
+        required: false
+        type: string
+  schedule:
+    # Run smoke tests every 15 minutes in production
+    - cron: '*/15 * * * *'
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine environment and URL
+        id: config
+        run: |
+          if [ "${{ github.event_name }}" == "schedule" ]; then
+            ENVIRONMENT="production"
+            API_URL="https://api.storytailor.com"
+          elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            ENVIRONMENT="${{ github.event.inputs.environment }}"
+            if [ -n "${{ github.event.inputs.api_url }}" ]; then
+              API_URL="${{ github.event.inputs.api_url }}"
+            elif [ "$ENVIRONMENT" == "production" ]; then
+              API_URL="https://api.storytailor.com"
+            else
+              API_URL="https://staging-api.storytailor.com"
+            fi
+          fi
+          
+          echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+          echo "api_url=$API_URL" >> $GITHUB_OUTPUT
+          echo "Testing environment: $ENVIRONMENT at $API_URL"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          npm install axios chalk
+
+      - name: Create smoke test script
+        run: |
+          cat > smoke-tests.js << 'EOF'
+          const axios = require('axios');
+          const chalk = require('chalk');
+          
+          const API_URL = process.env.API_URL;
+          const ENVIRONMENT = process.env.ENVIRONMENT;
+          
+          console.log(chalk.blue(`🔍 Running smoke tests for ${ENVIRONMENT} environment`));
+          console.log(chalk.blue(`📍 API URL: ${API_URL}`));
+          
+          const tests = [
+            {
+              name: 'Health Check',
+              url: `${API_URL}/health`,
+              method: 'GET',
+              expectedStatus: 200,
+              timeout: 5000
+            },
+            {
+              name: 'Router Health',
+              url: `${API_URL}/v1/router/health`,
+              method: 'GET',
+              expectedStatus: 200,
+              timeout: 5000
+            },
+            {
+              name: 'Universal Agent Health',
+              url: `${API_URL}/v1/universal/health`,
+              method: 'GET',
+              expectedStatus: 200,
+              timeout: 5000
+            },
+            {
+              name: 'API Gateway CORS',
+              url: `${API_URL}/health`,
+              method: 'OPTIONS',
+              expectedStatus: 200,
+              timeout: 5000,
+              headers: {
+                'Origin': 'https://storytailor.com',
+                'Access-Control-Request-Method': 'GET'
+              }
+            },
+            {
+              name: 'Rate Limiting Check',
+              url: `${API_URL}/v1/router/health`,
+              method: 'GET',
+              expectedStatus: [200, 429], // Accept both success and rate limit
+              timeout: 5000,
+              repeat: 5
+            }
+          ];
+          
+          async function runTest(test) {
+            const startTime = Date.now();
+            
+            try {
+              const config = {
+                method: test.method,
+                url: test.url,
+                timeout: test.timeout,
+                headers: test.headers || {},
+                validateStatus: (status) => {
+                  if (Array.isArray(test.expectedStatus)) {
+                    return test.expectedStatus.includes(status);
+                  }
+                  return status === test.expectedStatus;
+                }
+              };
+              
+              if (test.repeat) {
+                // Run test multiple times for rate limiting check
+                for (let i = 0; i < test.repeat; i++) {
+                  await axios(config);
+                  if (i < test.repeat - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                  }
+                }
+              } else {
+                await axios(config);
+              }
+              
+              const duration = Date.now() - startTime;
+              console.log(chalk.green(`✅ ${test.name} - ${duration}ms`));
+              return { success: true, duration, test: test.name };
+              
+            } catch (error) {
+              const duration = Date.now() - startTime;
+              console.log(chalk.red(`❌ ${test.name} - ${duration}ms`));
+              console.log(chalk.red(`   Error: ${error.message}`));
+              
+              if (error.response) {
+                console.log(chalk.red(`   Status: ${error.response.status}`));
+                console.log(chalk.red(`   Data: ${JSON.stringify(error.response.data)}`));
+              }
+              
+              return { success: false, duration, test: test.name, error: error.message };
+            }
+          }
+          
+          async function runAllTests() {
+            console.log(chalk.yellow(`\n🚀 Starting smoke tests...\n`));
+            
+            const results = [];
+            let passed = 0;
+            let failed = 0;
+            
+            for (const test of tests) {
+              const result = await runTest(test);
+              results.push(result);
+              
+              if (result.success) {
+                passed++;
+              } else {
+                failed++;
+              }
+            }
+            
+            console.log(chalk.yellow(`\n📊 Test Results:`));
+            console.log(chalk.green(`✅ Passed: ${passed}`));
+            console.log(chalk.red(`❌ Failed: ${failed}`));
+            console.log(chalk.blue(`📈 Total: ${results.length}`));
+            
+            const avgDuration = results.reduce((sum, r) => sum + r.duration, 0) / results.length;
+            console.log(chalk.blue(`⏱️  Average Duration: ${avgDuration.toFixed(0)}ms`));
+            
+            // Export results for GitHub Actions
+            const summary = {
+              environment: ENVIRONMENT,
+              api_url: API_URL,
+              timestamp: new Date().toISOString(),
+              total: results.length,
+              passed,
+              failed,
+              average_duration: avgDuration,
+              results
+            };
+            
+            require('fs').writeFileSync('smoke-test-results.json', JSON.stringify(summary, null, 2));
+            
+            if (failed > 0) {
+              console.log(chalk.red(`\n💥 ${failed} test(s) failed!`));
+              process.exit(1);
+            } else {
+              console.log(chalk.green(`\n🎉 All tests passed!`));
+            }
+          }
+          
+          runAllTests().catch(error => {
+            console.error(chalk.red('Fatal error:'), error);
+            process.exit(1);
+          });
+          EOF
+
+      - name: Run smoke tests
+        run: node smoke-tests.js
+        env:
+          API_URL: ${{ steps.config.outputs.api_url }}
+          ENVIRONMENT: ${{ steps.config.outputs.environment }}
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-test-results-${{ steps.config.outputs.environment }}
+          path: smoke-test-results.json
+          retention-days: 30
+
+      - name: Create test summary
+        if: always()
+        run: |
+          if [ -f smoke-test-results.json ]; then
+            echo "## Smoke Test Results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Environment:** ${{ steps.config.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+            echo "**API URL:** ${{ steps.config.outputs.api_url }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Timestamp:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            PASSED=$(jq -r '.passed' smoke-test-results.json)
+            FAILED=$(jq -r '.failed' smoke-test-results.json)
+            TOTAL=$(jq -r '.total' smoke-test-results.json)
+            AVG_DURATION=$(jq -r '.average_duration' smoke-test-results.json)
+            
+            echo "**Results:**" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ Passed: $PASSED" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ Failed: $FAILED" >> $GITHUB_STEP_SUMMARY
+            echo "- 📈 Total: $TOTAL" >> $GITHUB_STEP_SUMMARY
+            echo "- ⏱️ Average Duration: ${AVG_DURATION}ms" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            echo "**Individual Test Results:**" >> $GITHUB_STEP_SUMMARY
+            jq -r '.results[] | "- " + (if .success then "✅" else "❌" end) + " " + .test + " (" + (.duration | tostring) + "ms)"' smoke-test-results.json >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Notify on failure
+        if: failure() && steps.config.outputs.environment == 'production'
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          channel: '#alerts'
+          text: |
+            🚨 **Production Smoke Tests Failed** 🚨
+            
+            **Environment:** ${{ steps.config.outputs.environment }}
+            **API URL:** ${{ steps.config.outputs.api_url }}
+            **Time:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+            
+            Please investigate immediately!
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

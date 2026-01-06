@@ -1,0 +1,27 @@
+{
+  "name": "@storytailor/api-contract",
+  "version": "1.0.0",
+  "description": "OpenAPI specifications and type definitions for Storytailor platform APIs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc && npm run build:openapi",
+    "build:openapi": "swagger-codegen generate -i src/schemas/storytailor-api.yaml -l typescript-node -o dist/generated",
+    "validate": "swagger-codegen validate -i src/schemas/storytailor-api.yaml",
+    "type-check": "tsc --noEmit"
+  },
+  "files": [
+    "dist",
+    "src/schemas",
+    "README.md"
+  ],
+  "dependencies": {
+    "@alexa-multi-agent/shared-types": "workspace:*",
+    "zod": "^3.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "swagger-codegen-cli": "^3.0.0"
+  }
+}

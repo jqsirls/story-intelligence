@@ -1,0 +1,41 @@
+{
+  "aws_account_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "326181217496"
+  },
+  "aws_region": {
+    "sensitive": false,
+    "type": "string",
+    "value": "us-east-1"
+  },
+  "s3_assets_bucket": {
+    "sensitive": false,
+    "type": "string",
+    "value": "storytailor-staging-assets-6d120153"
+  },
+  "ssm_parameters": {
+    "sensitive": false,
+    "type": [
+      "object",
+      {
+        "elevenlabs_api_key": "string",
+        "jwt_secret": "string",
+        "openai_api_key": "string",
+        "stripe_secret_key": "string",
+        "supabase_anon_key": "string",
+        "supabase_service_key": "string",
+        "supabase_url": "string"
+      }
+    ],
+    "value": {
+      "elevenlabs_api_key": "/storytailor-staging/elevenlabs/api_key",
+      "jwt_secret": "/storytailor-staging/jwt/secret",
+      "openai_api_key": "/storytailor-staging/openai/api_key",
+      "stripe_secret_key": "/storytailor-staging/stripe/secret_key",
+      "supabase_anon_key": "/storytailor-staging/supabase/anon_key",
+      "supabase_service_key": "/storytailor-staging/supabase/service_key",
+      "supabase_url": "/storytailor-staging/supabase/url"
+    }
+  }
+}

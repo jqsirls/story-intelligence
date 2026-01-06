@@ -1,0 +1,723 @@
+openapi: 3.1.0
+info:
+  title: Storytailor API - ChatGPT Custom GPT Actions
+  description: |
+    Simplified OpenAPI schema optimized for ChatGPT Custom GPT Actions.
+    This schema includes key endpoints for exploring Storytailor's REST API.
+    
+    **Important Notes:**
+    - This is for exploratory testing and partner demonstrations
+    - Not for production use or automated testing
+    - ChatGPT Custom GPT is NOT COPPA-compliant for direct child use
+    - Parents should NOT allow children to use this Custom GPT directly
+    
+    **Rate Limits:**
+    - Free tier: 10 requests/hour
+    - Family tier: 100 requests/hour
+    - Professional tier: 1000 requests/hour
+    
+    **Full API Documentation:**
+    - Complete OpenAPI spec: `api/openapi-specification.yaml`
+    - REST API docs: `docs/platform/sdks/rest-api.md`
+  version: 1.0.0
+  contact:
+    name: Storytailor API Support
+    email: api@storytailor.ai
+
+servers:
+  - url: https://p6zhldb6jyuy5bgygjhf35zqru0liddz.lambda-url.us-east-1.on.aws/v1
+    description: Production environment
+  - url: https://sxjwfwffz7.execute-api.us-east-1.amazonaws.com/staging
+    description: Staging environment (for internal testing)
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Stories
+    description: Story creation and management
+  - name: Characters
+    description: Character creation and management
+  - name: Conversations
+    description: Conversational AI interactions
+
+paths:
+  # Health Endpoint
+  /health:
+    get:
+      tags: [Health]
+      summary: API Health Check
+      description: |
+        Check the health status of the Storytailor API and Router.
+        This endpoint does not require authentication.
+        
+        **Rate Limit**: Not rate limited
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: healthy
+                version: "5.1.0"
+                timestamp: "2025-12-17T10:30:00Z"
+                uptime: 3600
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # Story Endpoints
+  /v1/stories:
+    get:
+      tags: [Stories]
+      summary: List Stories
+      description: |
+        Get the user's story library with optional filtering.
+        
+        **Rate Limit**: Based on subscription tier
+        **Authentication**: Required
+      operationId: listStories
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Maximum number of stories to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of stories to skip
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [adventure, bedtime, educational, therapeutic]
+          description: Filter by story type
+      responses:
+        '200':
+          description: Story list retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryListResponse'
+        '401':
+          description: Unauthorized - Invalid or missing API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded - Check subscription tier
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags: [Stories]
+      summary: Create Story
+      description: |
+        Generate a new AI-powered story using Story Intelligence™.
+        This endpoint orchestrates multiple agents for story creation.
+        
+        **Rate Limit**: Based on subscription tier
+        **Authentication**: Required
+        **COPPA**: All stories require parent authentication
+      operationId: createStory
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStoryRequest'
+            example:
+              character:
+                name: "Brave Knight"
+                age: 7
+              storyType: "adventure"
+              preferences:
+                theme: "courage"
+                length: "medium"
+      responses:
+        '201':
+          description: Story created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryResponse'
+        '400':
+          description: Invalid request - Check request body format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Invalid or missing API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded - Check subscription tier
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/stories/{storyId}:
+    get:
+      tags: [Stories]
+      summary: Get Story Details
+      description: |
+        Get detailed information about a specific story including content and audio.
+        
+        **Rate Limit**: Based on subscription tier
+        **Authentication**: Required
+      operationId: getStory
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: storyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Unique identifier for the story
+      responses:
+        '200':
+          description: Story details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryResponse'
+        '404':
+          description: Story not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Invalid or missing API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # Character Endpoints
+  /v1/characters:
+    get:
+      tags: [Characters]
+      summary: List Characters
+      description: |
+        Get the user's character collection.
+        
+        **Rate Limit**: Based on subscription tier
+        **Authentication**: Required
+      operationId: listCharacters
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+          description: Maximum number of characters to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of characters to skip
+      responses:
+        '200':
+          description: Character list retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CharacterListResponse'
+        '401':
+          description: Unauthorized - Invalid or missing API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags: [Characters]
+      summary: Create Character
+      description: |
+        Create a new character with AI-generated assets.
+        Involves multiple agents for character creation.
+        
+        **Rate Limit**: Based on subscription tier
+        **Authentication**: Required
+      operationId: createCharacter
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCharacterRequest'
+            example:
+              name: "Brave Knight"
+              age: 7
+              species: "human"
+              preferences:
+                personality: "brave"
+                interests: ["adventure", "exploration"]
+      responses:
+        '201':
+          description: Character created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CharacterResponse'
+        '400':
+          description: Invalid request - Check request body format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Invalid or missing API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/characters/{characterId}:
+    get:
+      tags: [Characters]
+      summary: Get Character Details
+      description: |
+        Get detailed information about a specific character including assets.
+        
+        **Rate Limit**: Based on subscription tier
+        **Authentication**: Required
+      operationId: getCharacter
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: characterId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Unique identifier for the character
+      responses:
+        '200':
+          description: Character details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CharacterResponse'
+        '404':
+          description: Character not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Invalid or missing API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # Conversation Endpoints
+  /v1/conversation/start:
+    post:
+      tags: [Conversations]
+      summary: Start Conversation
+      description: |
+        Begin a new conversational session for storytelling.
+        Initializes emotion detection, personality settings, and conversation state.
+        
+        **Rate Limit**: Based on subscription tier
+        **Authentication**: Required
+      operationId: startConversation
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartConversationRequest'
+            example:
+              platform: "web"
+              language: "en"
+              voiceEnabled: true
+              smartHomeEnabled: false
+      responses:
+        '201':
+          description: Conversation started successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationResponse'
+        '400':
+          description: Invalid request - Check request body format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Invalid or missing API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/conversation/message:
+    post:
+      tags: [Conversations]
+      summary: Send Message
+      description: |
+        Send a message in an active conversation.
+        Router analyzes intent and delegates to appropriate agent.
+        
+        **Rate Limit**: Based on subscription tier
+        **Authentication**: Required
+      operationId: sendMessage
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageRequest'
+            example:
+              sessionId: "session-123"
+              message:
+                type: "text"
+                content: "Create an adventure story"
+      responses:
+        '200':
+          description: Message processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: Invalid request - Check request body format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Invalid or missing API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        API key authentication. Use your Storytailor API key.
+        
+        **Format**: `Bearer <api_key>` or `X-API-Key: <api_key>`
+        
+        **Getting API Key**:
+        - Parents: Settings → API Keys in Storytailor account
+        - Partners: Partner dashboard → API Keys
+        - Internal: Contact platform team
+
+  schemas:
+    # Common Schemas
+    ErrorResponse:
+      type: object
+      required: [success, error]
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: "Invalid API key"
+        code:
+          type: string
+          example: "UNAUTHORIZED"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-12-17T10:30:00Z"
+
+    HealthResponse:
+      type: object
+      required: [status, version]
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          example: "healthy"
+        version:
+          type: string
+          example: "5.1.0"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-12-17T10:30:00Z"
+        uptime:
+          type: integer
+          description: Uptime in seconds
+          example: 3600
+
+    # Story Schemas
+    CreateStoryRequest:
+      type: object
+      required: [character, storyType]
+      properties:
+        character:
+          type: object
+          required: [name, age]
+          properties:
+            name:
+              type: string
+              example: "Brave Knight"
+            age:
+              type: integer
+              minimum: 3
+              maximum: 12
+              example: 7
+            species:
+              type: string
+              example: "human"
+        storyType:
+          type: string
+          enum: [adventure, bedtime, educational, therapeutic]
+          example: "adventure"
+        preferences:
+          type: object
+          properties:
+            theme:
+              type: string
+              example: "courage"
+            length:
+              type: string
+              enum: [short, medium, long]
+              example: "medium"
+
+    StoryResponse:
+      type: object
+      required: [id, title, content]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        title:
+          type: string
+          example: "The Brave Knight's Adventure"
+        content:
+          type: string
+          example: "Once upon a time..."
+        storyType:
+          type: string
+          example: "adventure"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-12-17T10:30:00Z"
+        audioUrl:
+          type: string
+          format: uri
+          nullable: true
+          example: "https://example.com/audio/story.mp3"
+
+    StoryListResponse:
+      type: object
+      required: [stories, total]
+      properties:
+        stories:
+          type: array
+          items:
+            $ref: '#/components/schemas/StoryResponse'
+        total:
+          type: integer
+          example: 42
+        limit:
+          type: integer
+          example: 20
+        offset:
+          type: integer
+          example: 0
+
+    # Character Schemas
+    CreateCharacterRequest:
+      type: object
+      required: [name, age]
+      properties:
+        name:
+          type: string
+          example: "Brave Knight"
+        age:
+          type: integer
+          minimum: 3
+          maximum: 12
+          example: 7
+        species:
+          type: string
+          example: "human"
+        preferences:
+          type: object
+          properties:
+            personality:
+              type: string
+              example: "brave"
+            interests:
+              type: array
+              items:
+                type: string
+              example: ["adventure", "exploration"]
+
+    CharacterResponse:
+      type: object
+      required: [id, name, age]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174001"
+        name:
+          type: string
+          example: "Brave Knight"
+        age:
+          type: integer
+          example: 7
+        species:
+          type: string
+          example: "human"
+        imageUrl:
+          type: string
+          format: uri
+          nullable: true
+          example: "https://example.com/images/character.jpg"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-12-17T10:30:00Z"
+
+    CharacterListResponse:
+      type: object
+      required: [characters, total]
+      properties:
+        characters:
+          type: array
+          items:
+            $ref: '#/components/schemas/CharacterResponse'
+        total:
+          type: integer
+          example: 15
+        limit:
+          type: integer
+          example: 20
+        offset:
+          type: integer
+          example: 0
+
+    # Conversation Schemas
+    StartConversationRequest:
+      type: object
+      required: [platform]
+      properties:
+        platform:
+          type: string
+          enum: [web, mobile, alexa]
+          example: "web"
+        language:
+          type: string
+          default: "en"
+          example: "en"
+        voiceEnabled:
+          type: boolean
+          default: false
+          example: true
+        smartHomeEnabled:
+          type: boolean
+          default: false
+          example: false
+
+    ConversationResponse:
+      type: object
+      required: [sessionId, status]
+      properties:
+        sessionId:
+          type: string
+          example: "session-123"
+        status:
+          type: string
+          enum: [active, ended]
+          example: "active"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-12-17T10:30:00Z"
+
+    MessageRequest:
+      type: object
+      required: [sessionId, message]
+      properties:
+        sessionId:
+          type: string
+          example: "session-123"
+        message:
+          type: object
+          required: [type, content]
+          properties:
+            type:
+              type: string
+              enum: [text, voice]
+              example: "text"
+            content:
+              type: string
+              example: "Create an adventure story"
+
+    MessageResponse:
+      type: object
+      required: [sessionId, response]
+      properties:
+        sessionId:
+          type: string
+          example: "session-123"
+        response:
+          type: object
+          required: [content]
+          properties:
+            content:
+              type: string
+              example: "I'll create an adventure story for you..."
+            audioUrl:
+              type: string
+              format: uri
+              nullable: true
+              example: "https://example.com/audio/response.mp3"

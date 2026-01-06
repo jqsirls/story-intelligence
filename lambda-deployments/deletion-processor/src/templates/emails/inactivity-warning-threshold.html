@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your Storytailor Account - Action Needed</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <h1 style="color: #6366f1;">We Miss You!</h1>
+  <p>Hi there,</p>
+  <p>We noticed you haven't been active on Storytailor for {{daysInactive}} days. Your account will be archived in {{daysUntilDeletion}} days to save on storage costs.</p>
+  <p>Don't worry - you can easily reactivate your account by logging in or clicking the link below:</p>
+  <p style="text-align: center; margin: 30px 0;">
+    <a href="{{APP_URL}}/login?token={{engagementToken}}" style="background-color: #6366f1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">Log In Now</a>
+  </p>
+  <p>If you no longer need your account, you can ignore this email and your account will be archived automatically.</p>
+  <p>Thanks for being part of the Storytailor community!</p>
+  <p style="margin-top: 30px; font-size: 12px; color: #666;">
+    This email was sent because your account has been inactive. 
+    <a href="{{APP_URL}}/account/settings">Update your preferences</a>
+  </p>
+  <img src="{{trackingPixel}}" width="1" height="1" style="display:none;" alt="" />
+</body>
+</html>
+

@@ -1,0 +1,48 @@
+{
+  "name": "@alexa-multi-agent/a2a-adapter",
+  "version": "1.0.0",
+  "description": "A2A (Agent2Agent) Protocol adapter for Storytailor - enables external agent/partner integration",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "commonjs",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:integration": "jest --testPathPattern=integration"
+  },
+  "dependencies": {
+    "@alexa-multi-agent/shared-types": "*",
+    "@alexa-multi-agent/router": "*",
+    "@alexa-multi-agent/universal-agent": "*",
+    "@supabase/supabase-js": "^2.38.4",
+    "axios": "^1.6.0",
+    "jsonwebtoken": "^9.0.2",
+    "jwks-rsa": "^3.1.0",
+    "redis": "^4.6.10",
+    "uuid": "^9.0.1",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/node": "^20.8.0",
+    "@types/uuid": "^9.0.7",
+    "@types/jest": "^29.5.5",
+    "typescript": "^5.2.2",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "supertest": "^6.3.3"
+  },
+  "keywords": [
+    "a2a",
+    "agent2agent",
+    "protocol",
+    "interoperability",
+    "external-agents",
+    "partner-integration"
+  ],
+  "author": "Storytailor Team",
+  "license": "MIT"
+}

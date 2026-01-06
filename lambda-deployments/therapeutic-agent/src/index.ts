@@ -1,0 +1,11 @@
+export { TherapeuticAgent } from './TherapeuticAgent';
+export * from './types';
+export { TherapeuticPathwayManager } from './services/TherapeuticPathwayManager';
+export { TherapeuticStoryElementLibrary } from './services/TherapeuticStoryElementLibrary';
+export { TherapeuticProgressTracker } from './services/TherapeuticProgressTracker';
+export { ParentGuidanceManager } from './services/ParentGuidanceManager';
+export { EmotionalTriggerDetector } from './services/EmotionalTriggerDetector';
+export { CrisisInterventionSystem } from './services/CrisisInterventionSystem';
+export { EmergencyAlertSystem } from './services/EmergencyAlertSystem';
+export { HealthcareProviderIntegration } from './services/HealthcareProviderIntegration';
+export { TherapeuticInsightsDashboard } from './services/TherapeuticInsightsDashboard';

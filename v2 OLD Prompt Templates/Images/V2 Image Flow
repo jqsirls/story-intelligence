@@ -1,0 +1,711 @@
+v2 Prompt builder:
+/***********************************************************************
+	* buildImagePrompts.ts                                            v1.0
+	* --------------------------------------------------------------------
+	* PURPOSE
+	* • Builds exactly **five** illustration prompts from a story:
+	*      1. COVER  – most visually kinetic, plot-shifting moment
+	*      2. SECTION A
+	*      3. SECTION B
+	*      4. SECTION C
+	*      5. SECTION D
+	*
+	* INPUTS (all strings unless noted)
+	* • fullStory          – required (≤6 000 chars used for motif/palette)
+	* • sectionA-D         – required (non-empty text for each spread)
+	* • characterProfile   – optional
+	* • referenceImageUrl  – optional HTTPS image (triggers GPT-Vision pass)
+	* • kbIntegrationKey   – optional (proxy credits)
+	* • openaiApiKey       – optional (direct billing)
+	*
+	* GUARANTEES
+	* • Validates presence of all four section strings. Missing → throws.
+	* • ALWAYS returns exactly five prompts in the fixed order above.
+	* • Returns structure:
+	*      {
+	*        prompts: FivePrompts,
+	*        protagonistDNA, motif, paletteJourney,
+	*        referenceAnalysis, meta{ model, totalTokens }
+	*      }
+	**********************************************************************/
+	
+import OpenAI from "openai";
+
+/* ───────── GLOBAL STYLE (immutable) ───────────────────────────── */
+const GLOBAL_STYLE = `
+GLOBAL STYLE (fixed)
+— Medium & surface: ultra-high-res digital hand-painting; soft-airbrush blends layered with subtle painterly brush strokes; fine canvas tooth only where needed for warmth.
+— Edge handling: paint-defined silhouettes (no ink); crisp edges on focal elements, feathered fall-off on background forms.
+— Lighting & colour: vibrant, optimistic palette; warm key-light versus cool teal/purple shadows; molten rim highlights; volumetric haze with drifting dust motes for depth.
+— Dimensional shading: subtle subsurface bounce; glossy specular accents on eyes, enamel, or metal; avoid heavy impasto or cel-shading.
+— Composition: cinematic lens choice, layered foreground / mid / background planes with atmospheric falloff.
+— Colour discipline: thread protagonist HEX colours through costume, props **and** environment — never solid swatches.
+— STRICT: no text, captions, UI, or watermarks.`.trim();
+
+/* ───────── fallback palette arc (dawn → dusk) ─────────────────── */
+const FALLBACK_PALETTE = [
+	"Bright sunrise warmth with candy-pastel accents.",
+	"Slightly cooler teal highs hinting at rising tension.",
+	"Balanced midday vibrancy, full saturation.",
+	"Golden-hour oranges sliding toward magenta dusk.",
+	"Deep twilight jewel tones with soft bioluminescent highlights."
+];
+
+/* ───────── Buildship node entry ───────────────────────────────── */
+export default async function buildImagePrompts(
+	{
+		fullStory,
+		sectionA,
+		sectionB,
+		sectionC,
+		sectionD,
+		characterProfile = "",
+		referenceImageUrl,
+		kbIntegrationKey,
+		openaiApiKey
+	}: NodeInputs,
+	{ logging }
+) {
+	/* —— Validate inputs firmly ——————————————————————— */
+	const requiredSections = { sectionA, sectionB, sectionC, sectionD };
+	const missing = Object.entries(requiredSections)
+		.filter(([_, v]) => !v?.trim())
+		.map(([k]) => k);
+		
+	if (missing.length)
+		throw new Error(
+			`All four story sections are required. Missing: ${missing.join(", ")}.`
+		);
+		
+	/* —— OpenAI client ——————————————————————————————— */
+	const useCredits = kbIntegrationKey?.endsWith(";;credits");
+	if (!useCredits && !openaiApiKey)
+		throw new Error("Provide openaiApiKey or kbIntegrationKey (credits).");
+		
+	const openai = new OpenAI({
+		baseURL: useCredits ? "https://proxy.buildship.run/llm/openai" : undefined,
+		apiKey : useCredits ? await gcpToken() : openaiApiKey
+	});
+	
+	let totalTokens = 0;
+	
+	/****************  STEP 0 — Vision analysis (optional) ***********/
+	let refDescription = "";
+	if (referenceImageUrl) {
+		try {
+			const vis = await openai.chat.completions.create({
+				model: "gpt-4o",
+				messages: [
+					{
+						role: "system",
+						content:
+							"You are an art analyst. Describe palette, lighting mood, brush texture, " +
+							"and any protagonist visual traits in ≤120 words. Avoid story speculation."
+					},
+					{
+						role: "user",
+						content: [{ type: "image_url", image_url: { url: referenceImageUrl } }]
+					}
+				],
+				max_tokens: 200
+			});
+			refDescription = vis.choices[0].message.content.trim();
+			totalTokens += vis.usage?.total_tokens ?? 0;
+			logging.log("📷 Vision image analysed");
+		} catch (err) {
+			logging.log(`⚠️  Vision analysis failed: ${err}`);
+		}
+	}
+	
+	/****************  STEP 1 — Protagonist DNA **********************/
+	const dna = await openai.chat.completions.create({
+		model: "gpt-4o",
+		messages: [
+			{
+				role: "system",
+				content:
+					"Compress visible protagonist traits into ≤60 words: skin tone, gender expression, " +
+					"species, body type, mobility aids, clothing style, eye & hair colour/texture, " +
+					"accessories, scars, devices. Invent nothing."
+			},
+			{ role: "user", content: characterProfile || "(no explicit profile provided)" }
+		],
+		temperature: 0,
+		max_tokens: 120
+	});
+	const DNA = dna.choices[0].message.content.trim();
+	totalTokens += dna.usage?.total_tokens ?? 0;
+	
+	const DNA_PREFIX =
+		`Use the SAME protagonist: ${DNA}.` +
+		(refDescription ? `  Reference cues: ${refDescription}` : "");
+		
+	/****************  STEP 2 — Motif & Palette journey **************/
+	let motif = "wonder";
+	let paletteJourney: string[] = FALLBACK_PALETTE;
+	
+	try {
+		const mp = await openai.chat.completions.create({
+			model: "gpt-4o",
+			messages: [
+				{
+					role: "system",
+					content:
+						"You are a picture-book art director.\n" +
+						'Return JSON ONLY:\n{ "motif":"<short theme>", ' +
+						'"paletteJourney":[ "<cover>", "<p1>", "<p2>", "<p3>", "<p4>" ] }\n' +
+						"Palette arc should mirror emotional arc."
+				},
+				{ role: "user", content: fullStory.slice(0, 6000) }
+			],
+			temperature: 0.5,
+			max_tokens: 180
+		});
+		totalTokens += mp.usage?.total_tokens ?? 0;
+		const json = JSON.parse(mp.choices[0].message.content);
+		if (typeof json.motif === "string") motif = json.motif.trim();
+		if (Array.isArray(json.paletteJourney) && json.paletteJourney.length >= 5)
+			paletteJourney = json.paletteJourney.slice(0, 5).map(String);
+	} catch (err) {
+		logging.log(`⚠️  Motif/Palette generation fallback: ${err}`);
+	}
+	
+	/****************  STEP 3 — Scene blurbs *************************/
+	const COVER_DIRECTIVE = `
+Identify the single most visually kinetic, plot-shifting moment in the story.
+Depict the protagonist mid-action at peak emotion (wonder, fear, triumph, etc.).
+Return ONE paragraph ≤120 words describing action, camera angle, depth, lighting, and atmosphere.
+Do NOT mention medium, palette, brush style, text, UI, or watermarks.`.trim();
+
+	const SECTION_SYS = `
+You are a film story artist describing keyframes.
+Return ONE paragraph ≤120 words that shows decisive action & emotion,
+specifies cinematic camera angle/lens or depth-of-field, layers foreground/mid/background,
+and notes atmosphere.  Do NOT mention medium, palette, UI, or watermarks.`.trim();
+
+	async function scene(label: string, text: string, isCover = false) {
+		const { choices, usage } = await openai.chat.completions.create({
+			model: "gpt-4o",
+			messages: [
+				{ role: "system", content: isCover ? COVER_DIRECTIVE : SECTION_SYS },
+				{
+					role: "user",
+					content: isCover ? fullStory.slice(0, 1_200) : `Book section ${label}:\n${text}`
+				}
+			],
+			temperature: 0.85,
+			max_tokens: 320
+		});
+		totalTokens += usage?.total_tokens ?? 0;
+		return choices[0].message.content.trim();
+	}
+	
+	/* helper to assemble final prompt */
+	const buildPrompt = (sceneText: string, idx: number, isCover = false) =>
+		[
+			DNA_PREFIX,
+			isCover ? sceneText : `Illustration ${idx} of 4.\n${sceneText}`,
+			`Subtle motif: weave a small symbol of “${motif}” into the scene.`,
+			`Palette note: ${paletteJourney[idx] || FALLBACK_PALETTE[idx]}`,
+			GLOBAL_STYLE
+		].join("\n\n");
+		
+	/****************  STEP 4 — assemble array ***********************/
+	const prompts: FivePrompts = [
+		{
+			page: "cover",
+			text: buildPrompt(await scene("cover", "", true), 0, true)
+		},
+		{
+			page: "sectionA",
+			text: buildPrompt(await scene("sectionA", sectionA), 1)
+		},
+		{
+			page: "sectionB",
+			text: buildPrompt(await scene("sectionB", sectionB), 2)
+		},
+		{
+			page: "sectionC",
+			text: buildPrompt(await scene("sectionC", sectionC), 3)
+		},
+		{
+			page: "sectionD",
+			text: buildPrompt(await scene("sectionD", sectionD), 4)
+		}
+	];
+	
+	logging.log(
+		`📝 Prompts built | motif: ${motif} | tokens: ${totalTokens}`
+	);
+	
+	return {
+		prompts,
+		protagonistDNA: DNA,
+		motif,
+		paletteJourney,
+		referenceAnalysis: refDescription,
+		meta: { model: "gpt-4o", totalTokens }
+	};
+}
+
+/* ───────── helper: GCP token for credits mode ─────────────────── */
+async function gcpToken() {
+	const r = await fetch(
+		"http://metadata/computeMetadata/v1/instance/service-accounts/default/token",
+		{ headers: { "Metadata-Flavor": "Google" } }
+	);
+	if (!r.ok) throw new Error(`GCP token fetch failed ${r.statusText}`);
+	return (await r.json()).access_token as string;
+}
+
+/* ───────── types ──────────────────────────────────────────────── */
+type PromptOut = { page: string; text: string };
+type FivePrompts = [
+	{ page: "cover";    text: string },
+	{ page: "sectionA"; text: string },
+	{ page: "sectionB"; text: string },
+	{ page: "sectionC"; text: string },
+	{ page: "sectionD"; text: string }
+];
+
+type NodeInputs = {
+	fullStory: string;
+	sectionA: string;
+	sectionB: string;
+	sectionC: string;
+	sectionD: string;
+	characterProfile?: string;
+	referenceImageUrl?: string;
+	kbIntegrationKey?: string;
+	openaiApiKey?: string;
+};
+
+---
+
+V2 Image Creator (that takes in prompt for cover and beats):
+
+import OpenAI, { toFile } from "openai";
+import * as fs from "fs";
+import * as path from "path";
+import * as os from "os";
+
+/* ---------- helpers -------------------------------------------------- */
+
+const getAccessToken = async () => {
+	const response = await fetch(
+		"http://metadata/computeMetadata/v1/instance/service-accounts/default/token",
+		{ headers: { "Metadata-Flavor": "Google" } },
+	);
+	if (!response.ok) {
+		throw new Error(`Failed to obtain access token: ${response.statusText}`);
+	}
+	const data = await response.json();
+	return data.access_token;
+};
+
+type SafetyRating = "G" | "PG" | "PG-13" | "R";
+
+const ratingAboveTarget = (
+	rating: SafetyRating,
+	target: "G" | "PG",
+): boolean => {
+	const order: SafetyRating[] = ["G", "PG", "PG-13", "R"];
+	const idxRating = order.indexOf(rating);
+	const idxTarget = order.indexOf(target);
+	if (idxRating === -1 || idxTarget === -1) return true;
+	return idxRating > idxTarget;
+};
+
+const downloadImageAsOpenAIFile = async (url: string) => {
+	if (typeof url !== "string") return null;
+	
+	const trimmed = url.trim();
+	if (!trimmed) return null;
+	
+	if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+		throw new Error(`Invalid reference image URL: "${trimmed}"`);
+	}
+	
+	const res = await fetch(trimmed);
+	if (!res.ok) {
+		throw new Error(
+			`Failed to fetch reference image "${trimmed}": ${res.status} ${res.statusText}`,
+		);
+	}
+	
+	const contentType = res.headers.get("content-type") || "image/png";
+	const arrayBuffer = await res.arrayBuffer();
+	const buffer = Buffer.from(arrayBuffer);
+	
+	// Pick a reasonable file extension based on content type
+	const lower = contentType.toLowerCase();
+	let ext = ".png";
+	if (lower.includes("jpeg") || lower.includes("jpg")) ext = ".jpg";
+	else if (lower.includes("webp")) ext = ".webp";
+	
+	const tmpName = `st-ref-${Date.now()}-${Math.random()
+		.toString(36)
+		.slice(2)}${ext}`;
+	const tmpPath = path.join(os.tmpdir(), tmpName);
+	
+	await fs.promises.writeFile(tmpPath, buffer);
+	
+	return await toFile(fs.createReadStream(tmpPath), null, {
+		type: contentType,
+	});
+};
+
+const reviewImageWithVision = async ({
+	openai,
+	model,
+	candidateB64,
+	targetRating,
+	characterName,
+	logging,
+}: {
+	openai: OpenAI;
+	model: string;
+	candidateB64: string;
+	targetRating: "G" | "PG";
+	characterName?: string;
+	logging?: any;
+}) => {
+	const nameInstruction = characterName
+		? `The main child character in this story is named "${characterName}". When appropriate, refer to them by this name in the alt_text.`
+		: `If the image clearly focuses on a child character, describe them in general terms without inventing a name.`;
+		
+	const input = [
+		{
+			role: "user" as const,
+			content: [
+				{
+					type: "input_text" as const,
+					text: `
+You review illustrations for children's stories.
+
+${nameInstruction}
+
+Tasks:
+1) Rate the overall content rating of this image.
+2) Explain briefly why you chose that rating.
+3) Decide if the image is acceptable for a ${targetRating} children's context.
+4) If it is not acceptable, propose minimal prompt adjustments that only remove or soften unsafe content.
+5) Write concise alt text for the image for online accessibility.
+
+Rating rules:
+- G: Very safe. No kissing, romance, gore, blood, self-harm, drugs, alcohol, cigarettes, or strong fear.
+- PG: Mild action or tension is ok, no explicit injuries or blood. Still no kissing, romantic or sexual content, nudity, drugs, alcohol, cigarettes, or self-harm.
+- PG-13: More intense action, visible injuries, mild blood, or clearly frightening themes.
+- R: Any sexual content, kissing framed romantically, nudity, graphic violence, gore, heavy horror, drugs, alcohol, cigarettes, or self-harm.
+
+Alt text guidelines:
+- 1 to 2 sentences.
+- Around 20 to 60 words.
+- Describe the main subject, important actions, setting, mood, and style if relevant.
+- Assume the audience is a parent or caregiver of a child.
+- Do NOT start with phrases like "image of" or "picture of". Just describe the scene itself.
+
+"suggested_fix_prompt" instructions:
+- This is not a full new prompt. It is an adjustment block that will be appended to the existing scene description.
+- Focus only on:
+	- Removing or softening unsafe, scary, or graphic elements.
+	- Making things less frightening, less realistic, or more playful.
+- Do not change:
+	- Characters' identities, skin tones, disabilities, or cultural markers.
+	
+Return STRICT JSON:
+{
+	"rating": "G" | "PG" | "PG-13" | "R",
+	"is_child_safe": boolean,
+	"reasons": string[],
+	"alt_text": string,
+	"suggested_fix_prompt": string
+}
+				`.trim(),
+				},
+				{
+					type: "input_image" as const,
+					image_url: `data:image/png;base64,${candidateB64}`,
+				},
+			],
+		},
+	];
+	
+	const res = await openai.responses.create({
+		model,
+		input,
+		temperature: 0,
+		text: {
+			format: { type: "json_object" },
+		},
+	});
+	
+	const raw =
+		(res as any).output_text ??
+		res.output?.[0]?.content?.[0]?.text;
+		
+	if (!raw) {
+		throw new Error("Empty safety review output");
+	}
+	
+	let parsed: any;
+	try {
+		parsed = JSON.parse(raw);
+	} catch (err: any) {
+		logging?.error?.(
+			`Failed to parse safety review JSON: ${err?.message ?? err}`,
+		);
+		throw err;
+	}
+	
+	return parsed as {
+		rating: SafetyRating;
+		is_child_safe: boolean;
+		reasons: string[];
+		alt_text: string;
+		suggested_fix_prompt: string;
+	};
+};
+
+/* ---------- main ----------------------------------------------------- */
+
+export default async function generateOrEditImage(
+	{
+		model,
+		prompt,
+		referenceImageUrls = [],   // URLs instead of BuildShip files
+		size,
+		quality,
+		n = 1,
+		storagePath,
+		fileNamePrefix = "openai-image-",
+		enableSafetyCheck = true,
+		targetRating = "G",
+		maxSafetyRetries = 1,
+		visionModel,
+		characterName,
+	}: NodeInputs,
+	{ auth, getBuildShipFile, logging }: NodeScriptOptions,
+) {
+	/* --- normalise target folder -------------------------------------- */
+	storagePath = decodeURIComponent(storagePath || "").replace(/^\/+/, "");
+	if (storagePath && !storagePath.endsWith("/")) storagePath += "/";
+	
+	const bucketRoot = process.env.BUCKET_FOLDER_PATH ?? "";
+	const fullStoragePath = path.join(bucketRoot, storagePath);
+	fs.mkdirSync(fullStoragePath, { recursive: true });
+	
+	/* --- OpenAI client ------------------------------------------------- */
+	const hasCredits = auth?.kbIntegrationKey?.split(";;")[1] === "credits";
+	const openai = new OpenAI({
+		baseURL: hasCredits ? "https://proxy.buildship.run/llm/openai" : undefined,
+		apiKey: hasCredits ? await getAccessToken() : auth.getKey(),
+	});
+	
+	/* --- model guard --------------------------------------------------- */
+	const ALLOWED_MODELS = ["gpt-image-1"];
+	if (!ALLOWED_MODELS.includes(model)) {
+		throw new Error(
+			`Unsupported image model "${model}". Allowed: ${ALLOWED_MODELS.join(", ")}`,
+		);
+	}
+	
+	const imageModel = model;
+	const VISION_MODEL = visionModel || "gpt-5.1";
+	
+	/* --- prepare reference images from URLs --------------------------- */
+	
+	const refUrlsArray: string[] = Array.isArray(referenceImageUrls)
+		? referenceImageUrls
+		: referenceImageUrls
+		? [referenceImageUrls as any]
+		: [];
+		
+	const cleanedUrls = refUrlsArray
+		.filter((u) => typeof u === "string")
+		.map((u) => u.trim())
+		.filter(Boolean);
+		
+	// Limit references to something sane (e.g. 5)
+	const limitedUrls = cleanedUrls.slice(0, 5);
+	
+	let referenceFiles: File[] = [];
+	if (limitedUrls.length) {
+		try {
+			referenceFiles = (
+				await Promise.all(
+					limitedUrls.map((url) => downloadImageAsOpenAIFile(url)),
+				)
+			).filter(Boolean) as File[];
+		} catch (err: any) {
+			logging?.error?.(
+				`Failed to download one or more reference images: ${
+					err?.message ?? err
+				}`,
+			);
+			// If refs fail, we fall back to pure text generation
+			referenceFiles = [];
+		}
+	}
+	
+	/* --- build base prompt with pose + content rules ------------------ */
+	
+	const basePrompt = `
+Scene:
+${prompt}
+
+Pose and framing directives (mandatory):
+• The character must be in a distinctly different pose than in any reference image.
+• Change arm and leg positions clearly so the body language is obviously new.
+• Use a different camera angle or framing (for example, wide shot, low angle, side view, top-down, or over-the-shoulder).
+• Avoid re-using the same straight-on, centered pose or composition seen in reference images.
+• If the pose feels too similar to any reference, choose a more dynamic, story-specific alternative that matches this scene.
+`.trim();
+
+	const maxAttempts = enableSafetyCheck
+		? Math.max(1, Math.floor(maxSafetyRetries) + 1)
+		: 1;
+		
+	let acceptedB64s: string[] | null = null;
+	let acceptedReviews: any[] | null = null;
+	let lastReview: any | null = null;
+	
+	for (let attempt = 0; attempt < maxAttempts; attempt++) {
+		let currentPrompt = basePrompt;
+		
+		if (attempt > 0 && lastReview?.suggested_fix_prompt) {
+			currentPrompt += `
+			
+Adjustments for retry:
+${lastReview.suggested_fix_prompt}`;
+		}
+		
+		const payload: any = {
+			model: imageModel,
+			prompt: currentPrompt,
+			n,
+			quality,
+			size,
+		};
+		
+		let response;
+		if (referenceFiles.length) {
+			response = await openai.images.edit({
+				...payload,
+				image: referenceFiles.length === 1 ? referenceFiles[0] : referenceFiles,
+			});
+		} else {
+			response = await openai.images.generate(payload);
+		}
+		
+		if (!response.data?.length) {
+			throw new Error("No image data received in response");
+		}
+		
+		const candidateB64s: string[] = [];
+		for (const img of response.data) {
+			if (!img.b64_json) {
+				logging?.warn?.(`No base64 data for image in attempt ${attempt}`);
+				continue;
+			}
+			candidateB64s.push(img.b64_json);
+		}
+		
+		if (!candidateB64s.length) {
+			throw new Error("No image data received in response");
+		}
+		
+		if (!enableSafetyCheck) {
+			acceptedB64s = candidateB64s;
+			break;
+		}
+		
+		const attemptReviews: any[] = [];
+		let allAccepted = true;
+		
+		for (let i = 0; i < candidateB64s.length; i++) {
+			const b64 = candidateB64s[i];
+			
+			let review: any | null = null;
+			try {
+				review = await reviewImageWithVision({
+					openai,
+					model: VISION_MODEL,
+					candidateB64: b64,
+					targetRating: targetRating as "G" | "PG",
+					characterName,
+					logging,
+				});
+			} catch (err: any) {
+				logging?.error?.(
+					`Safety review failed for image ${i} attempt ${attempt}: ${
+						err?.message ?? err
+					}`,
+				);
+			}
+			
+			attemptReviews.push(review);
+			
+			const rating: SafetyRating = review?.rating ?? "R";
+			const isChildSafe: boolean = review?.is_child_safe === true;
+			const ratingTooHigh = ratingAboveTarget(
+				rating,
+				targetRating as "G" | "PG",
+			);
+			
+			const candidateAccepted = !!(review && isChildSafe && !ratingTooHigh);
+			
+			if (!candidateAccepted) {
+				allAccepted = false;
+				if (review) lastReview = review;
+			}
+		}
+		
+		if (allAccepted) {
+			acceptedB64s = candidateB64s;
+			acceptedReviews = attemptReviews;
+			break;
+		}
+		
+		if (attempt === maxAttempts - 1) {
+			throw new Error(
+				"Failed to generate an image that passes Storytailor safety checks",
+			);
+		}
+	}
+	
+	if (!acceptedB64s) {
+		throw new Error("Image generation failed unexpectedly");
+	}
+	
+	const results = await Promise.all(
+		acceptedB64s.map(async (b64, idx) => {
+			const base64File = await getBuildShipFile({
+				type: "base64",
+				file: b64,
+				metadata: { mimetype: "image/png" },
+			});
+			const bufferFile = await base64File.convertTo("file-buffer")();
+			
+			const filename = `${fileNamePrefix}${Date.now()}-${idx}.png`;
+			const filePath = path.join(fullStoragePath, filename);
+			
+			fs.mkdirSync(path.dirname(filePath), { recursive: true });
+			
+			const localFile = await bufferFile.convertTo("local-file")(filePath);
+			const publicUrl = await localFile.getPublicUrl();
+			
+			return {
+				url: publicUrl,
+				path: filePath,
+				filename,
+				review: acceptedReviews?.[idx] ?? null, // rating, reasons, alt_text, suggested_fix_prompt
+			};
+		}),
+	);
+	
+	const valid = results.filter(Boolean);
+	return n === 1 ? valid[0] : valid;
+}
+
+///Note we still need to ensure the ability to extract hue colors etc are connected

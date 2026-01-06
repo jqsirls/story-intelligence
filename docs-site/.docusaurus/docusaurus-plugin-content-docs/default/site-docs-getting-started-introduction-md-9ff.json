@@ -1,0 +1,24 @@
+{
+  "id": "getting-started/introduction",
+  "title": "Welcome to Storytailor",
+  "description": "Powered by Story Intelligence™",
+  "source": "@site/docs/getting-started/introduction.md",
+  "sourceDirName": "getting-started",
+  "slug": "/getting-started/introduction",
+  "permalink": "/docs/getting-started/introduction",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/storytailor-inc/Storytailor-agent/tree/main/docs-site/docs/getting-started/introduction.md",
+  "tags": [],
+  "version": "current",
+  "frontMatter": {},
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Basic Integration Examples",
+    "permalink": "/docs/examples/basic-integration"
+  },
+  "next": {
+    "title": "Pricing Strategy (Internal - Sales Team)",
+    "permalink": "/docs/internal/sales/pricing-strategy"
+  }
+}

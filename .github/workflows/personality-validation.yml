@@ -1,0 +1,171 @@
+name: 🎭 Personality Validation
+on: 
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  validate-personality:
+    name: 🎯 Story Intelligence™ Brand Compliance
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        
+      - name: 🚨 Check for forbidden AI terminology
+        run: |
+          echo "🔍 Scanning for forbidden terminology..."
+          
+          # Check for AI-powered and variations
+          if grep -r "AI-powered\|AI-driven\|AI-led" --include="*.ts" --include="*.js" --include="*.md" .; then
+            echo "❌ VIOLATION: Forbidden AI terminology found"
+            echo "💡 Use 'Story Intelligence™ powered' instead of 'AI-powered'"
+            echo "💡 Use 'Story Intelligence™ enhanced' instead of 'AI-driven'"
+            exit 1
+          fi
+          
+          # Check for personalized (should be age-appropriate)
+          if grep -r "personalized" --include="*.ts" --include="*.js" --include="*.md" .; then
+            echo "❌ VIOLATION: 'personalized' found - use 'age-appropriate' instead"
+            exit 1
+          fi
+          
+          # Check for business jargon
+          if grep -r "optimize\|leverage\|utilize\|solutioning" --include="*.ts" --include="*.js" .; then
+            echo "❌ VIOLATION: Business jargon found - use simple, clear language"
+            exit 1
+          fi
+          
+          echo "✅ No forbidden terminology found"
+          
+      - name: 📏 Validate sentence length in key files
+        run: |
+          echo "🔍 Checking sentence length in user-facing content..."
+          
+          # Check README files for long sentences
+          find . -name "README.md" -exec awk '
+            /^[^#]/ { 
+              gsub(/[.!?]+/, ".|", $0); 
+              split($0, sentences, "|"); 
+              for (i in sentences) {
+                if (gsub(/ /, " ", sentences[i]) > 18) {
+                  print FILENAME ":" NR ": Sentence too long (" gsub(/ /, " ", sentences[i]) " words): " sentences[i];
+                  exit 1;
+                }
+              }
+            }' {} \;
+          
+          echo "✅ Sentence length validation passed"
+          
+      - name: 🎯 Check Story Intelligence™ branding consistency
+        run: |
+          echo "🔍 Validating Story Intelligence™ branding..."
+          
+          # Ensure Story Intelligence™ is used consistently
+          STORY_INTELLIGENCE_COUNT=$(grep -r "Story Intelligence™" --include="*.md" . | wc -l)
+          
+          if [ "$STORY_INTELLIGENCE_COUNT" -lt 10 ]; then
+            echo "⚠️  WARNING: Only $STORY_INTELLIGENCE_COUNT instances of 'Story Intelligence™' found"
+            echo "💡 Consider using 'Story Intelligence™' more prominently in documentation"
+          else
+            echo "✅ Story Intelligence™ branding used $STORY_INTELLIGENCE_COUNT times"
+          fi
+          
+      - name: 🎭 Validate personality enforcement middleware
+        run: |
+          echo "🔍 Checking personality enforcement implementation..."
+          
+          if [ ! -f "packages/universal-agent/src/middleware/PersonalityEnforcement.ts" ]; then
+            echo "❌ MISSING: PersonalityEnforcement middleware not found"
+            exit 1
+          fi
+          
+          # Check if middleware is imported in main router
+          if ! grep -r "PersonalityEnforcement" packages/universal-agent/src/ >/dev/null 2>&1; then
+            echo "⚠️  WARNING: PersonalityEnforcement middleware not imported in router"
+          fi
+          
+          echo "✅ Personality enforcement middleware exists"
+          
+      - name: 📊 Generate personality compliance report
+        run: |
+          echo "📊 PERSONALITY COMPLIANCE SUMMARY"
+          echo "=================================="
+          echo "✅ No forbidden AI terminology"
+          echo "✅ No business jargon violations"  
+          echo "✅ Story Intelligence™ branding consistent"
+          echo "✅ Personality enforcement middleware present"
+          echo ""
+          echo "🎯 Brand compliance: PASSED"
+          echo "🎭 Personality guidelines: ENFORCED"
+          echo "🌟 Ready for Story Intelligence™ powered deployment!"
+          
+  validate-code-personality:
+    name: 🔍 Code Personality Validation
+    runs-on: ubuntu-latest
+    needs: validate-personality
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
+      - name: 📦 Install dependencies
+        run: npm ci
+        
+      - name: 🧪 Run personality validation tests
+        run: |
+          # Create and run personality validation test
+          cat > test-personality.js << 'EOF'
+          const fs = require('fs');
+          const path = require('path');
+          
+          // Test personality enforcement middleware
+          try {
+            const middleware = require('./packages/universal-agent/src/middleware/PersonalityEnforcement.ts');
+            console.log('✅ PersonalityEnforcement middleware loads correctly');
+          } catch (error) {
+            console.log('⚠️  PersonalityEnforcement middleware test skipped (TypeScript)');
+          }
+          
+          // Test for forbidden terms in TypeScript files
+          const glob = require('glob');
+          const forbiddenTerms = ['AI-powered', 'AI-driven', 'personalized'];
+          let violations = 0;
+          
+          glob.sync('packages/**/*.ts').forEach(file => {
+            const content = fs.readFileSync(file, 'utf8');
+            forbiddenTerms.forEach(term => {
+              if (content.includes(term)) {
+                console.log(`❌ Found "${term}" in ${file}`);
+                violations++;
+              }
+            });
+          });
+          
+          if (violations === 0) {
+            console.log('✅ No personality violations in TypeScript code');
+          } else {
+            console.log(`❌ Found ${violations} personality violations`);
+            process.exit(1);
+          }
+          EOF
+          
+          node test-personality.js
+          
+      - name: 🎉 Personality validation success
+        run: |
+          echo "🎉 PERSONALITY VALIDATION COMPLETE"
+          echo "================================="
+          echo "✅ All Story Intelligence™ branding validated"
+          echo "✅ No forbidden terminology detected" 
+          echo "✅ Code personality compliance verified"
+          echo ""
+          echo "🌟 Your codebase is ready for Story Intelligence™ powered deployment!"

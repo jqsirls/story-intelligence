@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CTA Button Rotator Example</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: transform 0.2s, opacity 0.3s;
+            margin: 20px 0;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 30px;
+            border-left: 4px solid #2196f3;
+        }
+        
+        .info code {
+            background: rgba(0,0,0,0.05);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Monaco', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CTA Button Text Rotator Demo</h1>
+        
+        <p>This button will automatically change its text every 4 seconds:</p>
+        
+        <!-- Example button matching your description -->
+        <a class="btn" 
+           href="https://api2.cursor.sh/updates/download/golden/darwin-arm64/cursor/2.2" 
+           data-cursor-element-id="cursor-el-2254">
+            Download for macOS ⤓
+        </a>
+        
+        <div class="info">
+            <h3>How to Use:</h3>
+            <ol>
+                <li>Add the script to your HTML page:</li>
+                <li><code>&lt;script src="cta-button-rotator.js"&gt;&lt;/script&gt;</code></li>
+                <li>Or paste the script inline before the closing <code>&lt;/body&gt;</code> tag</li>
+                <li>The script will automatically find and rotate the button text</li>
+            </ol>
+            
+            <h3>Customization:</h3>
+            <p>Edit the <code>CTA_TEXTS</code> array in <code>cta-button-rotator.js</code> to change the rotation messages.</p>
+        </div>
+    </div>
+
+    <!-- Load the CTA rotator script -->
+    <script src="cta-button-rotator.js"></script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+

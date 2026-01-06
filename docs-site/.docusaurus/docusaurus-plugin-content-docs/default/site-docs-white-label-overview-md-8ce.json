@@ -1,0 +1,20 @@
+{
+  "id": "white-label/overview",
+  "title": "White-Label Overview",
+  "description": "Your brand, our technology",
+  "source": "@site/docs/white-label/overview.md",
+  "sourceDirName": "white-label",
+  "slug": "/white-label/overview",
+  "permalink": "/docs/white-label/overview",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/storytailor-inc/Storytailor-agent/tree/main/docs-site/docs/white-label/overview.md",
+  "tags": [],
+  "version": "current",
+  "frontMatter": {},
+  "sidebar": "tutorialSidebar",
+  "previous": {
+    "title": "Web SDK",
+    "permalink": "/docs/sdks/web"
+  }
+}

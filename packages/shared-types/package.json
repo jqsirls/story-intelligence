@@ -1,0 +1,30 @@
+{
+  "name": "@alexa-multi-agent/shared-types",
+  "version": "1.0.0",
+  "description": "Shared TypeScript types and gRPC schemas for Alexa Multi-Agent System",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "build:with-proto": "tsc && npm run build:proto",
+    "build:skip-proto": "tsc",
+    "build:proto": "grpc_tools_node_protoc --js_out=import_style=commonjs,binary:./dist --grpc_out=grpc_js:./dist --ts_out=grpc_js:./dist -I ./src/schemas ./src/schemas/*.proto",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src/**/*.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.38.0",
+    "@grpc/grpc-js": "^1.9.0",
+    "@grpc/proto-loader": "^0.7.0",
+    "zod": "^3.22.0",
+    "@alexa-multi-agent/event-system": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "grpc-tools": "^1.12.4",
+    "grpc_tools_node_protoc_ts": "^5.3.3",
+    "eslint": "^8.0.0"
+  }
+}

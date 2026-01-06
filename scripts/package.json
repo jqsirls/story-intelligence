@@ -1,0 +1,17 @@
+{
+  "name": "scripts",
+  "version": "1.0.0",
+  "description": "**Last Updated**: December 26, 2025   **Purpose**: Index of all active scripts with usage instructions",
+  "main": "add-test-mode-column-direct.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@types/node": "^25.0.3",
+    "pg": "^8.16.3"
+  }
+}

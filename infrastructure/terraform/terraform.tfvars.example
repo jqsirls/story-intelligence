@@ -1,0 +1,30 @@
+# Example Terraform Variables
+# Copy this file to terraform.tfvars and fill in your actual values
+
+# Basic Configuration
+environment = "staging"
+aws_region  = "us-east-1"
+
+# Supabase Configuration
+supabase_url         = "https://your-project.supabase.co"
+supabase_anon_key    = "your-anon-key"
+supabase_service_key = "your-service-key"
+
+# API Keys (these will be stored in AWS SSM)
+openai_api_key     = "sk-your-openai-key"
+elevenlabs_api_key = "your-elevenlabs-key"
+stability_api_key  = "sk-your-stability-key"
+stripe_secret_key  = "sk_test_your-stripe-key"
+amazon_api_key     = "your-amazon-api-key"
+jwt_secret         = "your-jwt-secret-key"
+alexa_skill_id     = "amzn1.ask.skill.your-skill-id"
+
+# Monitoring (optional)
+datadog_api_key       = "your-datadog-api-key"
+datadog_app_key       = "your-datadog-app-key"
+pagerduty_service_key = "your-pagerduty-key"
+slack_webhook_url     = "https://hooks.slack.com/your-webhook"
+
+# Alert Configuration
+alert_email_addresses = ["admin@yourdomain.com"]
+compliance_email_addresses = ["compliance@yourdomain.com"]

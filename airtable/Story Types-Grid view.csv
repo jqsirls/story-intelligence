@@ -1,0 +1,15 @@
+﻿typeId,typeName,typeDescription,hueBaseHex,hueBaseBri,hueStyle,hueJoltPct,hueJoltMs,hueTtIn,hueTtScene,hueRotateEveryMs,huePerBulbMs,hueBreathePct,hueBreathePeriodMs,hueMotion,huePauseStyle,hueTempoMs,hueLeadMs
+recrt7JbFltfYdE6o,Mental Health,Help your child articulate and handle big emotions.,#3db8c8,120,calm,1.05,900,60,160,0,0,0.12,10000,balanced,sway,3200,300
+recPM2SmNrgtJhcjv,Child-Loss,Support parents and caregivers processing the grief of losing a child through guided storytelling and memory connection.,#ff90c2,60,calm,1.05,900,60,160,0,0,0.12,10000,balanced,sway,3200,300
+recM9mIckUbei4KFc,Inner-Child,Reconnect with your own childhood experiences and emotions through reflective and healing narratives.,#eea00ff,200,calm,1.05,900,60,160,0,0,0.12,10000,balanced,sway,3200,300
+recDgWoAWHODydHFv,New Birth,Celebrate the arrival of a new baby with stories that mark the beginning of a new family chapter.,#90e0ff,120,calm,1.05,900,60,160,0,0,0.12,10000,balanced,sway,3200,300
+recrW41nQHLqNNKKS,Educational,Make learning fun with stories that support curriculum.,#1e90ff,180,pulse,1.15,500,36,90,4000,100,0.15,8000,balanced,sway,3200,300
+rec29TBjHAZctU7a6,Milestones,"Celebrate and support important firsts—like losing a tooth, first day of school, or using the potty.",#00c78c,180,pulse,1.15,500,36,90,4000,100,0.15,8000,balanced,sway,3200,300
+recGncXlegmqxlAo3,Language Learning,Create a story that subtly introduces a new language.,#ffd700,200,pulse,1.15,500,36,90,4000,100,0.15,8000,balanced,sway,3200,300
+recRwB5xOtn8Pa3N3,Financial Literacy,Simplify the basics of money management and saving through child-friendly stories.,#4bb543,180,pulse,1.15,500,36,90,4000,100,0.15,8000,balanced,sway,3200,300
+recod6oyhu63fvtaZ,Music,Introduce musical concepts and appreciation through stories that incorporate songs and rhythms.,#8a2be2,200,pulse,1.15,500,36,90,4000,100,0.15,8000,balanced,sway,3200,300
+recIgrQaTZVrT59un,Bedtime,Ease into sleep with soothing stories for sweet dreams.,#6d5cff,60,bold,1.25,600,28,110,3500,120,0.15,8000,balanced,sway,3200,300
+rectYq4a4Rf2IwE8F,Adventure,Ignite curiosity with tales full of discovery and wonder.,#ff8a00,254,bold,1.25,600,28,110,3500,120,0.15,8000,balanced,sway,3200,300
+recNXUPrqGueN344O,Medical Bravery,Turn medical challenges into brave adventures for resilience.,#ff3e41,220,bold,1.25,600,28,110,3500,120,0.15,8000,balanced,sway,3200,300
+recslrlxmnD4RuR6k,Birthday,Celebrate another year with the gift of a story.,#ff69b4,220,bold,1.25,600,28,110,3500,120,0.15,8000,balanced,sway,3200,300
+recsEVQnsX2RiWMa2,Tech Readiness,"Introduce digital habits, online safety, and healthy screen use through age-appropriate storytelling.",#14e1ff,254,bold,1.25,600,28,110,3500,120,0.15,8000,balanced,sway,3200,300

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>07-security-measures</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5/github-markdown.min.css" />
+</head>
+<body>
+<h1 id="security-measures">Security Measures</h1>
+<h2 id="overview">Overview</h2>
+<p>Both Storytailor (our web platform) and Story Intelligence™ (our
+future AI engine) use the same comprehensive security measures to
+protect children’s data and ensure COPPA compliance. This document
+describes our security practices and data protection measures that apply
+to both products.</p>
+<h2 id="encryption">Encryption</h2>
+<h3 id="encryption-at-rest">Encryption at Rest</h3>
+<p><strong>Database Encryption:</strong> - All data stored in encrypted
+databases - Database-level encryption enabled - Encryption keys managed
+securely - Data cannot be read without proper decryption keys</p>
+<p><strong>Storage Encryption:</strong> - All file storage encrypted -
+Asset storage (stories, images, audio) encrypted - Encryption keys
+managed through secure key management</p>
+<p><strong>Configuration and Secrets:</strong> - All configuration
+secrets encrypted - API keys and credentials encrypted - Secure key
+management system used</p>
+<h3 id="encryption-in-transit">Encryption in Transit</h3>
+<p><strong>API Communications:</strong> - All API endpoints require
+HTTPS/TLS - TLS 1.3 used for all API communications - No unencrypted
+data transmission allowed - Certificate validation enforced</p>
+<p><strong>Database Connections:</strong> - All database connections use
+SSL/TLS - Encrypted connections required - Certificate validation
+enforced</p>
+<p><strong>Email Delivery:</strong> - All email communications use TLS
+encryption - Encrypted email delivery to parents - Secure email
+transmission protocols</p>
+<h2 id="access-control">Access Control</h2>
+<h3 id="row-level-security-rls">Row Level Security (RLS)</h3>
+<p><strong>Database-Level Security:</strong> - All database tables
+protected by Row Level Security (RLS) policies - Users can only access
+their own data - Parents can only access their own child’s data -
+Service access restricted to system operations only</p>
+<p><strong>RLS Policy Enforcement:</strong> - Policies enforced at
+database level - Cannot be bypassed by application code - Automatic
+enforcement on all queries - User-based access control</p>
+<h3 id="authentication">Authentication</h3>
+<p><strong>API Authentication:</strong> - All API endpoints require
+authentication - JWT Bearer tokens used for authentication - Token
+validation on every request - Token expiration and refresh
+mechanisms</p>
+<p><strong>Token Security:</strong> - Tokens signed with secure keys -
+Token expiration enforced - Token refresh required periodically -
+Invalid tokens rejected immediately</p>
+<h3 id="authorization">Authorization</h3>
+<p><strong>User Authorization:</strong> - User-based access control -
+Users can only access their own data - Parent-child relationship
+verification - Service role access restricted to system operations</p>
+<p><strong>Parent Authorization:</strong> - Parents must verify identity
+to access child data - Parent-child relationship validated - Parent
+email verification required - Authorization checked on every request</p>
+<h2 id="data-access-controls">Data Access Controls</h2>
+<h3 id="user-data-access">User Data Access</h3>
+<p><strong>Self-Access:</strong> - Users can access their own data -
+Access limited to user’s own stories, characters, and preferences -
+Cannot access other users’ data</p>
+<p><strong>Parent Access:</strong> - Parents can access their own
+child’s data - Parent-child relationship verified - Access limited to
+parent’s own children - Cannot access other children’s data</p>
+<h3 id="service-access">Service Access</h3>
+<p><strong>System Operations:</strong> - Service role access only for
+system operations - Limited to necessary operations - All service access
+logged - Regular review of service access</p>
+<p><strong>Administrative Access:</strong> - Administrative access
+restricted - Multi-factor authentication required - All administrative
+actions logged - Regular access reviews</p>
+<h2 id="audit-logging">Audit Logging</h2>
+<h3 id="logged-events">Logged Events</h3>
+<p><strong>Authentication Events:</strong> - User login attempts -
+Authentication successes and failures - Token generation and validation
+- Session creation and termination</p>
+<p><strong>Consent Events:</strong> - Consent request creation - Consent
+verification - Consent revocation - Consent status checks</p>
+<p><strong>Data Access Events:</strong> - Parent data access requests -
+Data export requests - Data deletion requests - Data modification
+events</p>
+<p><strong>Safety Events:</strong> - Safety incident detection - Parent
+notifications sent - Crisis intervention triggered - Safety monitoring
+events</p>
+<p><strong>Security Events:</strong> - API errors and security
+violations - Unauthorized access attempts - Authentication failures -
+Security policy violations</p>
+<h3 id="audit-log-features">Audit Log Features</h3>
+<p><strong>Log Contents:</strong> - User ID (anonymized for children) -
+Action type - Resource type and ID - Timestamp - IP address (anonymized
+for children) - User agent - Additional context</p>
+<p><strong>Log Retention:</strong> - Audit logs retained for 7 years
+(legal requirement) - Logs anonymized after 1 year for privacy - Logs
+used for compliance verification - Logs used for security monitoring</p>
+<p><strong>Log Security:</strong> - Audit logs encrypted - Log access
+restricted - Log integrity protected - Log tampering detection</p>
+<h2 id="security-monitoring">Security Monitoring</h2>
+<h3 id="continuous-monitoring">Continuous Monitoring</h3>
+<p><strong>Security Monitoring:</strong> - Real-time security event
+monitoring - Automated alerting for security incidents - Regular
+security reviews - Incident response procedures</p>
+<p><strong>Threat Detection:</strong> - Unauthorized access attempt
+detection - Anomaly detection - Security violation detection - Automated
+response to threats</p>
+<h3 id="regular-security-reviews">Regular Security Reviews</h3>
+<p><strong>Access Reviews:</strong> - Regular review of user access -
+Regular review of service access - Regular review of administrative
+access - Access revocation when no longer needed</p>
+<p><strong>Security Assessments:</strong> - Regular security assessments
+- Vulnerability scanning - Penetration testing (as needed) - Security
+policy reviews</p>
+<h2 id="incident-response">Incident Response</h2>
+<h3 id="security-incident-response">Security Incident Response</h3>
+<p><strong>Incident Detection:</strong> - Automated security incident
+detection - Manual incident reporting - Security monitoring alerts -
+User-reported incidents</p>
+<p><strong>Incident Response Process:</strong> 1. Incident detection and
+reporting 2. Incident assessment and classification 3. Containment of
+incident 4. Investigation and analysis 5. Remediation and recovery 6.
+Post-incident review and improvement</p>
+<p><strong>Notification Requirements:</strong> - Parents notified of
+security incidents affecting their child - Authorities notified if
+required by law - Incident documentation and reporting - Post-incident
+security improvements</p>
+<h2 id="data-protection-for-children">Data Protection for Children</h2>
+<h3 id="enhanced-protections">Enhanced Protections</h3>
+<p><strong>COPPA-Protected Users:</strong> - Enhanced security measures
+for children under 13 - Stricter access controls - Enhanced audit
+logging - Additional privacy protections</p>
+<p><strong>Data Minimization:</strong> - Only necessary data collected -
+Shorter retention periods - Faster data deletion - Enhanced
+anonymization</p>
+<p><strong>Content Protection:</strong> - Safety incident content hashed
+(not stored as raw text) - Only incident summaries stored - Enhanced
+privacy protections - Content moderation and filtering</p>
+<h2 id="infrastructure-security">Infrastructure Security</h2>
+<h3 id="cloud-infrastructure">Cloud Infrastructure</h3>
+<p><strong>Infrastructure Security:</strong> - Secure cloud
+infrastructure - Network security controls - Firewall rules and access
+controls - DDoS protection</p>
+<p><strong>Service Security:</strong> - Secure service configuration -
+Regular security updates - Vulnerability patching - Security best
+practices</p>
+<h3 id="third-party-security">Third-Party Security</h3>
+<p><strong>Service Provider Security:</strong> - All third-party
+services meet security requirements - Data Processing Agreements (DPAs)
+in place - Security certifications verified - Regular security
+reviews</p>
+<p><strong>Data Sharing:</strong> - Minimal data sharing with third
+parties - Only necessary data shared - Secure data transmission -
+Third-party security verified</p>
+<h2 id="compliance-and-certification">Compliance and Certification</h2>
+<h3 id="security-compliance">Security Compliance</h3>
+<p><strong>Compliance Standards:</strong> - COPPA compliance - GDPR
+compliance - Industry security best practices - Regular compliance
+audits</p>
+<p><strong>Security Certifications:</strong> - Third-party services
+maintain security certifications - Regular security assessments -
+Compliance verification - Ongoing security improvements</p>
+<h2 id="contact-information">Contact Information</h2>
+<p><strong>Security Inquiries:</strong> privacy@storytailor.com<br />
+<strong>Security Incidents:</strong> safety@storytailor.com<br />
+<strong>Technical Contact:</strong> tech@storytailor.com<br />
+<strong>Mailing Address:</strong><br />
+Storytailor Inc.<br />
+7131 w 135th, #1074<br />
+Overland Park, KS 66223</p>
+<p><strong>Response Time:</strong> Security incidents responded to
+immediately. All security inquiries responded to within 30 days.</p>
+<hr />
+<p><strong>Storytailor Inc.</strong><br />
+7131 w 135th, #1074<br />
+Overland Park, KS 66223</p>
+</body>
+</html>

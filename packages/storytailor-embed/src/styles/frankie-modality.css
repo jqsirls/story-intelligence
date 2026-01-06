@@ -1,0 +1,254 @@
+/**
+ * Frankie Avatar & Modality Styles
+ * Styles for Frankie's character integration and three-modality system
+ */
+
+/* Frankie Avatar Styles */
+.st-frankie-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.st-avatar-frankie {
+  background: linear-gradient(135deg, #4dd4ac 0%, #00d4ff 100%);
+}
+
+.st-avatar-img {
+  display: block;
+}
+
+/* Modality Switcher */
+.st-modality-switcher {
+  display: flex;
+  gap: 0.25rem;
+  margin-right: 0.5rem;
+  padding: 0.25rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+.st-mode-btn {
+  background: transparent;
+  border: none;
+  padding: 0.5rem;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  opacity: 0.6;
+}
+
+.st-mode-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.st-mode-btn.active {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Modality-Specific Layouts */
+[data-modality="video-audio-text"] .st-embed-content {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 1rem;
+}
+
+[data-modality="audio-only"] .st-embed-content {
+  display: flex;
+  flex-direction: column;
+}
+
+[data-modality="video-only"] .st-embed-content {
+  position: relative;
+}
+
+/* Video+Audio+Text Mode */
+.st-full-mode {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.st-full-mode-video {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 280px;
+  height: 280px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  z-index: 10;
+}
+
+.st-full-mode-video video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.st-full-mode-text {
+  flex: 1;
+  overflow-y: auto;
+  padding: 2rem;
+}
+
+.st-full-mode-illustrations {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  width: 200px;
+  height: 200px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transition: opacity 0.5s ease;
+  z-index: 9;
+}
+
+.st-beat-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Audio-Only Mode */
+.st-audio-mode {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 2rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.st-audio-avatar {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  overflow: hidden;
+  margin-bottom: 2rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.st-audio-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.st-audio-title {
+  color: white;
+  font-family: var(--st-font-display);
+  font-size: 2rem;
+  margin-bottom: 2rem;
+  text-align: center;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.st-audio-controls {
+  width: 100%;
+  max-width: 400px;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 1.5rem;
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.st-audio-chat {
+  width: 100%;
+  max-width: 400px;
+  margin-top: 1rem;
+}
+
+.st-audio-chat input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 25px;
+  background: rgba(255, 255, 255, 0.95);
+  font-size: 1rem;
+}
+
+/* Video-Only Mode */
+.st-video-mode {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+
+.st-video-container {
+  width: 100%;
+  height: 100%;
+}
+
+.st-video-container video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.st-video-overlay {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 50px;
+  backdrop-filter: blur(10px);
+}
+
+.st-video-overlay button {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.st-video-overlay button:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.1);
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  [data-modality="video-audio-text"] .st-embed-content {
+    grid-template-columns: 1fr;
+  }
+  
+  .st-full-mode-video {
+    position: static;
+    width: 100%;
+    height: 200px;
+    margin-bottom: 1rem;
+  }
+  
+  .st-full-mode-illustrations {
+    position: static;
+    width: 100%;
+    height: 150px;
+    margin-top: 1rem;
+  }
+  
+  .st-modality-switcher {
+    flex-wrap: wrap;
+  }
+}
+

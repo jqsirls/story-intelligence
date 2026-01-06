@@ -1,0 +1,29 @@
+{
+  "name": "@alexa-multi-agent/content-agent",
+  "version": "1.0.0",
+  "description": "Content Agent for Storytailor Multi-Agent System",
+  "main": "dist/lambda.js",
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "build:simple": "tsc && cp src/lambda-simple.ts dist/lambda-simple.js",
+    "deploy:container": "aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin 326181217496.dkr.ecr.us-east-2.amazonaws.com && docker build -t storytailor-content-agent . && docker tag storytailor-content-agent:latest 326181217496.dkr.ecr.us-east-2.amazonaws.com/storytailor-content-agent:latest && docker push 326181217496.dkr.ecr.us-east-2.amazonaws.com/storytailor-content-agent:latest && aws lambda update-function-code --function-name storytailor-content-agent-production --image-uri 326181217496.dkr.ecr.us-east-2.amazonaws.com/storytailor-content-agent:latest",
+    "deploy:simple": "npm run build:simple && chmod +x ../../deploy-content-agent-simple.sh && ../../deploy-content-agent-simple.sh",
+    "deploy:zip": "npm run build && zip -r content-agent.zip dist/ node_modules/ package.json && aws lambda update-function-code --function-name storytailor-content-agent-production --zip-file fileb://content-agent.zip"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/client-sqs": "^3.0.0",
+    "@alexa-multi-agent/shared-types": "file:../../packages/shared-types",
+    "@supabase/supabase-js": "^2.39.0",
+    "jimp": "^0.22.10",
+    "openai": "^6.3.0",
+    "qrcode": "^1.5.4",
+    "redis": "^4.0.0",
+    "winston": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

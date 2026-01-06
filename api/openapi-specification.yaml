@@ -1,0 +1,1383 @@
+openapi: 3.1.0
+info:
+  title: Storytailor Multi-Agent API
+  description: |
+    Complete API specification for the Storytailor Multi-Agent System.
+    This specification covers all 18 agents and their endpoints with 100% accuracy.
+    
+    ## Architecture
+    - Hub-and-spoke model with Router orchestration
+    - 18 specialized agents (15 standalone + 3 embedded)
+    - EventBridge for inter-agent communication
+    - Redis for state management
+    
+    ## Story Intelligence™
+    Our revolutionary AI-powered storytelling platform creates personalized, 
+    award-caliber narratives for children and families.
+  version: 5.1.0
+  contact:
+    name: Storytailor API Support
+    email: api@storytailor.ai
+  license:
+    name: Proprietary
+    url: https://storytailor.ai/terms
+
+servers:
+  - url: https://sxjwfwffz7.execute-api.us-east-1.amazonaws.com/staging
+    description: Staging environment
+  - url: https://api.storytailor.ai/v1
+    description: Production environment (coming soon)
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Authentication
+    description: User authentication and authorization
+  - name: Stories
+    description: Story creation and management
+  - name: Characters
+    description: Character creation and management
+  - name: Conversations
+    description: Conversational AI interactions
+  - name: Knowledge
+    description: Story Intelligence™ knowledge base
+  - name: Commerce
+    description: Subscription and payment management
+  - name: Analytics
+    description: Usage analytics and insights
+  - name: Education
+    description: Educational content and features
+  - name: Therapy
+    description: Therapeutic support features
+  - name: Safety
+    description: Child safety and content moderation
+
+paths:
+  # Health Endpoints
+  /health:
+    get:
+      tags: [Health]
+      summary: Main API health check
+      description: Check the health status of the main API and Router
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # Authentication Endpoints
+  /v1/auth/register:
+    post:
+      tags: [Authentication]
+      summary: Register new user
+      description: |
+        Register a new user account with COPPA compliance.
+        Requires parental consent for users under 13.
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/auth/login:
+    post:
+      tags: [Authentication]
+      summary: Login user
+      description: Authenticate user and receive JWT tokens
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/auth/me:
+    get:
+      tags: [Authentication]
+      summary: Get current user
+      description: Get authenticated user profile
+      operationId: getCurrentUser
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh token
+      description: Refresh JWT access token using refresh token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          description: Invalid refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # Story Endpoints
+  /v1/stories:
+    get:
+      tags: [Stories]
+      summary: List stories
+      description: Get user's story library
+      operationId: listStories
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [adventure, bedtime, educational, therapeutic]
+      responses:
+        '200':
+          description: Story list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags: [Stories]
+      summary: Create story
+      description: |
+        Generate a new AI-powered story using Story Intelligence™.
+        This endpoint orchestrates multiple agents:
+        - Content Agent for story generation
+        - Emotion Agent for emotional tone
+        - Personality Agent for character voice
+        - Child Safety Agent for content screening
+        - Voice Synthesis Agent for audio generation
+      operationId: createStory
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStoryRequest'
+      responses:
+        '201':
+          description: Story created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/stories/{storyId}:
+    get:
+      tags: [Stories]
+      summary: Get story
+      description: Get story details including content and audio
+      operationId: getStory
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: storyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Story details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryResponse'
+        '404':
+          description: Story not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      tags: [Stories]
+      summary: Update story
+      description: Update story metadata or regenerate content
+      operationId: updateStory
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: storyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStoryRequest'
+      responses:
+        '200':
+          description: Story updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryResponse'
+        '404':
+          description: Story not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags: [Stories]
+      summary: Delete story
+      description: Remove story from library
+      operationId: deleteStory
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: storyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Story deleted
+        '404':
+          description: Story not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # Character Endpoints
+  /v1/characters:
+    get:
+      tags: [Characters]
+      summary: List characters
+      description: Get user's character collection
+      operationId: listCharacters
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Character list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CharacterListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags: [Characters]
+      summary: Create character
+      description: |
+        Create a new character with AI-generated assets.
+        Involves multiple agents:
+        - Content Agent for character creation
+        - Accessibility Agent for inclusive design
+        - Personality Agent for voice selection
+      operationId: createCharacter
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCharacterRequest'
+      responses:
+        '201':
+          description: Character created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CharacterResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/characters/{characterId}:
+    get:
+      tags: [Characters]
+      summary: Get character
+      description: Get character details and assets
+      operationId: getCharacter
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: characterId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Character details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CharacterResponse'
+        '404':
+          description: Character not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # Conversation Endpoints
+  /v1/conversation/start:
+    post:
+      tags: [Conversations]
+      summary: Start conversation
+      description: |
+        Begin a new conversational session.
+        Initializes:
+        - Emotion Agent for mood detection
+        - Personality Agent for tone setting
+        - Conversation state management
+      operationId: startConversation
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartConversationRequest'
+      responses:
+        '201':
+          description: Conversation started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/conversation/message:
+    post:
+      tags: [Conversations]
+      summary: Send message
+      description: |
+        Send a message in active conversation.
+        Router analyzes intent and delegates to appropriate agent.
+      operationId: sendMessage
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageRequest'
+      responses:
+        '200':
+          description: Message response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/conversation/end:
+    post:
+      tags: [Conversations]
+      summary: End conversation
+      description: Close active conversation and save state
+      operationId: endConversation
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EndConversationRequest'
+      responses:
+        '200':
+          description: Conversation ended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationSummary'
+        '404':
+          description: Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # Knowledge Base Endpoints
+  /knowledge/query:
+    post:
+      tags: [Knowledge]
+      summary: Query knowledge base
+      description: |
+        Ask questions about Story Intelligence™ and platform features.
+        Powered by the Knowledge Base Agent.
+      operationId: queryKnowledge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KnowledgeQuery'
+      responses:
+        '200':
+          description: Knowledge response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeResponse'
+        '400':
+          description: Invalid query
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /knowledge/health:
+    get:
+      tags: [Knowledge, Health]
+      summary: Knowledge base health
+      description: Check Knowledge Base Agent status
+      operationId: getKnowledgeHealth
+      responses:
+        '200':
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  # Commerce Endpoints
+  /v1/commerce/subscriptions:
+    get:
+      tags: [Commerce]
+      summary: Get subscriptions
+      description: List user's active subscriptions
+      operationId: getSubscriptions
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Subscription list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/commerce/subscribe:
+    post:
+      tags: [Commerce]
+      summary: Create subscription
+      description: |
+        Subscribe to Storytailor premium features.
+        Handled by Commerce Agent with Stripe integration.
+      operationId: createSubscription
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSubscriptionRequest'
+      responses:
+        '201':
+          description: Subscription created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '402':
+          description: Payment required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # Analytics Endpoints
+  /v1/analytics/usage:
+    get:
+      tags: [Analytics]
+      summary: Get usage metrics
+      description: |
+        Retrieve platform usage analytics.
+        Powered by Analytics Intelligence Agent.
+      operationId: getUsageMetrics
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month, quarter, year]
+            default: month
+        - name: metric
+          in: query
+          schema:
+            type: string
+            enum: [stories, characters, sessions, engagement]
+            default: stories
+      responses:
+        '200':
+          description: Usage metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageMetricsResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/analytics/insights:
+    get:
+      tags: [Analytics]
+      summary: Get insights
+      description: |
+        Get AI-powered insights and recommendations.
+        Generated by Insights Agent.
+      operationId: getInsights
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [user_behavior, content_performance, engagement, all]
+            default: all
+      responses:
+        '200':
+          description: Insights report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InsightsResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token obtained from login
+
+  schemas:
+    # Common Schemas
+    ErrorResponse:
+      type: object
+      required: [success, error]
+      properties:
+        success:
+          type: boolean
+          default: false
+        error:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code for client handling
+        details:
+          type: object
+          description: Additional error details
+
+    HealthResponse:
+      type: object
+      required: [status, timestamp, service]
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        timestamp:
+          type: string
+          format: date-time
+        service:
+          type: string
+          description: Service name
+        version:
+          type: string
+          description: Service version
+        multiAgentSystem:
+          type: object
+          properties:
+            status:
+              type: string
+              enum: [operational, partial, down]
+            agents:
+              type: integer
+              description: Number of active agents
+            capabilities:
+              type: array
+              items:
+                type: string
+              description: Available agent capabilities
+
+    # Authentication Schemas
+    RegisterRequest:
+      type: object
+      required: [email, password, age]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        age:
+          type: integer
+          minimum: 4
+          maximum: 99
+        parentEmail:
+          type: string
+          format: email
+          description: Required if age < 13 (COPPA compliance)
+        preferences:
+          type: object
+          properties:
+            language:
+              type: string
+              default: en
+            accessibility:
+              type: array
+              items:
+                type: string
+                enum: [visual_impairment, hearing_impairment, dyslexia, adhd]
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        deviceId:
+          type: string
+          description: Device identifier for trust scoring
+
+    AuthResponse:
+      type: object
+      required: [success, user, tokens]
+      properties:
+        success:
+          type: boolean
+          default: true
+        user:
+          $ref: '#/components/schemas/UserProfile'
+        tokens:
+          $ref: '#/components/schemas/TokenResponse'
+
+    UserProfile:
+      type: object
+      required: [id, email, age, role]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        age:
+          type: integer
+        role:
+          type: string
+          enum: [child, parent, educator]
+        preferences:
+          type: object
+        subscription:
+          type: object
+          properties:
+            tier:
+              type: string
+              enum: [free, premium, family]
+            expiresAt:
+              type: string
+              format: date-time
+
+    TokenResponse:
+      type: object
+      required: [accessToken, refreshToken]
+      properties:
+        accessToken:
+          type: string
+          description: JWT access token
+        refreshToken:
+          type: string
+          description: JWT refresh token
+        expiresIn:
+          type: integer
+          description: Access token expiry in seconds
+
+    RefreshTokenRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+
+    # Story Schemas
+    CreateStoryRequest:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [adventure, bedtime, educational, therapeutic]
+        title:
+          type: string
+          maxLength: 100
+        characterId:
+          type: string
+          format: uuid
+          description: Use existing character
+        theme:
+          type: string
+          description: Story theme or topic
+        duration:
+          type: string
+          enum: [short, medium, long]
+          default: medium
+        options:
+          type: object
+          properties:
+            mood:
+              type: string
+              enum: [happy, calm, exciting, mysterious]
+            educationalFocus:
+              type: string
+              description: For educational stories
+            therapeuticGoal:
+              type: string
+              description: For therapeutic stories
+
+    StoryResponse:
+      type: object
+      required: [id, title, type, content, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        type:
+          type: string
+          enum: [adventure, bedtime, educational, therapeutic]
+        content:
+          type: string
+          description: Story text content
+        characterId:
+          type: string
+          format: uuid
+        audioUrl:
+          type: string
+          format: uri
+          description: Audio narration URL
+        duration:
+          type: integer
+          description: Duration in seconds
+        status:
+          type: string
+          enum: [generating, ready, failed]
+        metadata:
+          type: object
+          properties:
+            readingLevel:
+              type: integer
+            emotionalTone:
+              type: string
+            safetyScore:
+              type: number
+              minimum: 0
+              maximum: 1
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    StoryListResponse:
+      type: object
+      required: [stories, total]
+      properties:
+        stories:
+          type: array
+          items:
+            $ref: '#/components/schemas/StoryResponse'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    UpdateStoryRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 100
+        regenerate:
+          type: boolean
+          description: Regenerate story content
+        options:
+          type: object
+          description: Options for regeneration
+
+    # Character Schemas
+    CreateCharacterRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 50
+        traits:
+          type: array
+          items:
+            type: string
+          maxItems: 5
+          description: Character personality traits
+        appearance:
+          type: string
+          maxLength: 500
+          description: Physical description
+        backstory:
+          type: string
+          maxLength: 1000
+          description: Character background
+        voicePreference:
+          type: string
+          enum: [childlike, friendly, wise, playful]
+
+    CharacterResponse:
+      type: object
+      required: [id, name, traits]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        traits:
+          type: array
+          items:
+            type: string
+        appearance:
+          type: string
+        backstory:
+          type: string
+        assets:
+          type: object
+          properties:
+            imageUrl:
+              type: string
+              format: uri
+            voiceId:
+              type: string
+              description: ElevenLabs voice ID
+        createdAt:
+          type: string
+          format: date-time
+
+    CharacterListResponse:
+      type: object
+      required: [characters, total]
+      properties:
+        characters:
+          type: array
+          items:
+            $ref: '#/components/schemas/CharacterResponse'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    # Conversation Schemas
+    StartConversationRequest:
+      type: object
+      properties:
+        context:
+          type: object
+          description: Initial conversation context
+        mood:
+          type: string
+          enum: [happy, sad, excited, calm, anxious]
+          description: User's current mood
+
+    ConversationResponse:
+      type: object
+      required: [conversationId, status]
+      properties:
+        conversationId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [active, paused, ended]
+        context:
+          type: object
+          description: Current conversation context
+        phase:
+          type: string
+          description: Current conversation phase
+
+    MessageRequest:
+      type: object
+      required: [conversationId, message]
+      properties:
+        conversationId:
+          type: string
+          format: uuid
+        message:
+          type: string
+          maxLength: 1000
+        voiceInput:
+          type: boolean
+          default: false
+          description: Whether input was voice
+
+    MessageResponse:
+      type: object
+      required: [response, intent]
+      properties:
+        response:
+          type: string
+          description: AI response text
+        audioUrl:
+          type: string
+          format: uri
+          description: Audio response URL
+        intent:
+          type: string
+          description: Detected intent
+        emotion:
+          type: string
+          description: Detected emotion
+        suggestions:
+          type: array
+          items:
+            type: string
+          description: Suggested next actions
+
+    EndConversationRequest:
+      type: object
+      required: [conversationId]
+      properties:
+        conversationId:
+          type: string
+          format: uuid
+        feedback:
+          type: object
+          properties:
+            rating:
+              type: integer
+              minimum: 1
+              maximum: 5
+            comment:
+              type: string
+
+    ConversationSummary:
+      type: object
+      required: [conversationId, duration, summary]
+      properties:
+        conversationId:
+          type: string
+          format: uuid
+        duration:
+          type: integer
+          description: Duration in seconds
+        summary:
+          type: string
+          description: AI-generated summary
+        insights:
+          type: object
+          description: Conversation insights
+        recommendations:
+          type: array
+          items:
+            type: string
+
+    # Knowledge Base Schemas
+    KnowledgeQuery:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+          maxLength: 500
+          description: User question
+        context:
+          type: string
+          description: Additional context
+
+    KnowledgeResponse:
+      type: object
+      required: [answer, confidence]
+      properties:
+        answer:
+          type: string
+          description: Knowledge base answer
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        sources:
+          type: array
+          items:
+            type: string
+          description: Information sources
+        relatedQuestions:
+          type: array
+          items:
+            type: string
+          description: Related questions
+
+    # Commerce Schemas
+    SubscriptionListResponse:
+      type: object
+      required: [subscriptions]
+      properties:
+        subscriptions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubscriptionResponse'
+
+    CreateSubscriptionRequest:
+      type: object
+      required: [plan, paymentMethodId]
+      properties:
+        plan:
+          type: string
+          enum: [monthly_premium, yearly_premium, family_monthly, family_yearly]
+        paymentMethodId:
+          type: string
+          description: Stripe payment method ID
+        coupon:
+          type: string
+          description: Discount coupon code
+
+    SubscriptionResponse:
+      type: object
+      required: [id, status, plan]
+      properties:
+        id:
+          type: string
+          description: Stripe subscription ID
+        status:
+          type: string
+          enum: [active, canceled, past_due, trialing]
+        plan:
+          type: string
+        currentPeriodEnd:
+          type: string
+          format: date-time
+        cancelAtPeriodEnd:
+          type: boolean
+
+    # Analytics Schemas
+    UsageMetricsResponse:
+      type: object
+      required: [metrics, period]
+      properties:
+        metrics:
+          type: object
+          properties:
+            total:
+              type: integer
+            daily:
+              type: array
+              items:
+                type: object
+                properties:
+                  date:
+                    type: string
+                    format: date
+                  value:
+                    type: integer
+            trend:
+              type: string
+              enum: [increasing, stable, decreasing]
+        period:
+          type: string
+        comparison:
+          type: object
+          properties:
+            previousPeriod:
+              type: integer
+            percentChange:
+              type: number
+
+    InsightsResponse:
+      type: object
+      required: [insights, generatedAt]
+      properties:
+        insights:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                enum: [recommendation, warning, opportunity, achievement]
+              category:
+                type: string
+              title:
+                type: string
+              description:
+                type: string
+              priority:
+                type: string
+                enum: [high, medium, low]
+              actionable:
+                type: boolean
+        generatedAt:
+          type: string
+          format: date-time
+        nextReview:
+          type: string
+          format: date-time
+
+# Webhooks for async operations
+webhooks:
+  storyGenerated:
+    post:
+      requestBody:
+        description: Story generation completed
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                event:
+                  type: string
+                  enum: [story.generated]
+                storyId:
+                  type: string
+                  format: uuid
+                userId:
+                  type: string
+                  format: uuid
+                timestamp:
+                  type: string
+                  format: date-time
+
+  characterCreated:
+    post:
+      requestBody:
+        description: Character creation completed
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                event:
+                  type: string
+                  enum: [character.created]
+                characterId:
+                  type: string
+                  format: uuid
+                userId:
+                  type: string
+                  format: uuid
+                timestamp:
+                  type: string
+                  format: date-time
+
+  safetyAlert:
+    post:
+      requestBody:
+        description: Child safety concern detected
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                event:
+                  type: string
+                  enum: [safety.alert]
+                severity:
+                  type: string
+                  enum: [low, medium, high, critical]
+                userId:
+                  type: string
+                  format: uuid
+                details:
+                  type: object
+                timestamp:
+                  type: string
+                  format: date-time

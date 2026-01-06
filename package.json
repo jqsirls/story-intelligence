@@ -1,0 +1,59 @@
+{
+  "name": "alexa-multi-agent-system",
+  "version": "1.0.0",
+  "description": "Production-ready backend architecture integrating Storytailor with Amazon's Alexa AI Multi-Agent SDK",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "prepare": "bash scripts/install-git-hooks.sh || true",
+    "install-hooks": "bash scripts/install-git-hooks.sh",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "test:integration": "jest --config jest.integration.config.js --runInBand",
+    "test:integration:production": "jest --config jest.integration.config.js --runInBand --testNamePattern='production'",
+    "test:e2e": "jest --config jest.e2e.config.js --runInBand",
+    "test:coverage": "jest --coverage",
+    "test:watch": "jest --watch",
+    "test:phase4": "npm run test:smoke -w packages/router",
+    "test:load": "k6 run testing/load/k6-load-tests.js",
+    "test:security": "python testing/security/owasp-zap-security-tests.py",
+    "test:compliance": "python testing/compliance/coppa-gdpr-validation-tests.py",
+    "test:smoke": "node .github/scripts/smoke-tests.js",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint -- --fix",
+    "clean": "turbo run clean",
+    "type-check": "turbo run type-check",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:reset": "supabase db reset",
+    "redis:start": "docker-compose up -d redis",
+    "redis:stop": "docker-compose down",
+    "infrastructure:start": "npm run supabase:start && npm run redis:start",
+    "infrastructure:stop": "npm run supabase:stop && npm run redis:stop",
+    "infrastructure:reset": "npm run supabase:reset && npm run redis:stop && npm run redis:start",
+    "proto:build": "cd packages/shared-types && npm run build:proto",
+    "agents:start": "turbo run dev --parallel",
+    "deploy:staging": "gh workflow run staging-deploy.yml",
+    "deploy:production": "gh workflow run production-deploy.yml",
+    "ci:validate": "npm run lint && npm run type-check && npm run validate:openapi && npm run test",
+    "ci:build": "npm run build && npm run test:integration",
+    "ci:deploy": ".github/scripts/deploy-helpers.sh",
+    "validate:openapi": "ts-node scripts/validate-openapi-extensions.ts api/openapi-specification.yaml",
+    "generate:contract": "ts-node scripts/validate-openapi-extensions.ts api/openapi-specification.yaml --generate-contract"
+  },
+  "devDependencies": {
+    "turbo": "^1.10.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "eslint": "^8.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "prettier": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
