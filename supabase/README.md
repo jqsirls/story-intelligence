@@ -206,6 +206,7 @@ FROM users WHERE is_coppa_protected = true;
 1. **RLS Policy Violations**: Check user permissions and COPPA compliance
 2. **Function Execution Errors**: Verify user has proper role assignments
 3. **Data Retention Issues**: Check cleanup job execution and policy configuration
+4. **Local Auth SMS warning**: If you see `WARN: no SMS provider is enabled. Disabling phone login` during `supabase start`, it is local-only. In this repo, phone signups are disabled locally via `supabase/config.toml` (`[auth.sms] enable_signup = false`). If you need phone OTP locally, enable an SMS provider (e.g. Twilio) and provide credentials via local-only env (do not commit).
 
 ### Debug Queries
 ```sql
