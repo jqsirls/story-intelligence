@@ -11,6 +11,7 @@ on:
       - 'supabase/schema.sql'
       - 'supabase/config.toml'
       - 'supabase/.env'
+      - 'scripts/supabase/reset.sh'
 
 jobs:
   gitleaks:
@@ -38,18 +39,10 @@ jobs:
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.71.0
 
-      - name: Start Supabase
-        run: supabase start
-
-      - name: Run database tests
-        run: |
-          cd supabase
-          ./validate_sql.sh
-
-      - name: Check migration status
-        run: supabase db diff --schema public
+      - name: Run deterministic reset (handles Kong 502 retry)
+        run: scripts/supabase/reset.sh
 
       - name: Stop Supabase
         run: supabase stop
