@@ -13,6 +13,7 @@ on:
       - 'supabase/schema.sql'
       - 'supabase/config.toml'
       - 'supabase/.env'
+      - 'scripts/supabase/reset.sh'
 
 env:
   NODE_VERSION: '18'
