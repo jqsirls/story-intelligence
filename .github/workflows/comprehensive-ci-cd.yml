@@ -17,13 +17,6 @@ name: Comprehensive CI/CD Pipeline - 100/100 Quality
 on:
   push:
     branches: [ main, develop, staging ]
-  pull_request:
-    branches: [ main ]
-    paths-ignore:
-      - 'supabase/migrations/**'
-      - 'supabase/schema.sql'
-      - 'supabase/config.toml'
-      - 'supabase/.env'
   schedule:
     - cron: '0 2 * * *' # Nightly regression tests
 
