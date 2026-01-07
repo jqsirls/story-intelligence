@@ -58,7 +58,8 @@ fi
 
 # Extract Supabase vars
 status_json="${RUN_DIR}/status.json"
-npx --yes supabase status --output json > "${status_json}"
+npx --yes supabase status --output json > "${status_json}.raw"
+cat "${status_json}.raw" | redact > "${status_json}"
 guard_leaks "${status_json}"
 
 DB_URL="$(jq -r '.DB_URL // .db_url // .services.db.url // .services.db.URI' "${status_json}")"
