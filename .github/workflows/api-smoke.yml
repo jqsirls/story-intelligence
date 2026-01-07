@@ -8,6 +8,8 @@ on:
       - 'packages/*agent/**'
       - 'scripts/smoke/**'
       - 'docs/api/**'
+  schedule:
+    - cron: '0 8 * * *'
 
 jobs:
   gitleaks:
@@ -48,11 +50,16 @@ jobs:
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
         run: |
           if [[ -z "${STRIPE_SECRET_KEY}" || -z "${STRIPE_WEBHOOK_SECRET}" ]]; then
-            echo "Stripe secrets missing; skipping smoke."
-            exit 0
+            echo "SKIPPED: missing Stripe secrets"
+            if [[ "${{ github.event_name }}" == "schedule" ]]; then
+              exit 1
+            else
+              exit 0
+            fi
           fi
           chmod +x scripts/smoke/e2e.sh
-          scripts/smoke/e2e.sh
+          CI_SMOKE_FAKE_COMMERCE=true MODE=fresh scripts/smoke/e2e.sh
+          CI_SMOKE_FAKE_COMMERCE=true MODE=existing scripts/smoke/e2e.sh
 
       - name: Upload smoke logs
         if: always()

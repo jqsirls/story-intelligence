@@ -9,6 +9,7 @@ mkdir -p "${RUN_DIR}"
 
 PORT="${PORT:-8787}"
 BASE_URL="http://127.0.0.1:${PORT}"
+MODE="${MODE:-fresh}" # fresh or existing
 
 redact() {
   sed -e 's/eyJ[A-Za-z0-9_-]\{10,\}/[REDACTED_JWT]/g' \
@@ -47,9 +48,13 @@ req_log_cmd() {
 }
 
 # --- 1) Reset DB fresh path ---
-log "resetting supabase (fresh)"
-scripts/supabase/reset.sh | redact | tee "${RUN_DIR}/reset_fresh.log"
-guard_leaks "${RUN_DIR}/reset_fresh.log"
+if [[ "${MODE}" == "fresh" ]]; then
+  log "resetting supabase (fresh)"
+  scripts/supabase/reset.sh | redact | tee "${RUN_DIR}/reset.log"
+  guard_leaks "${RUN_DIR}/reset.log"
+else
+  log "existing mode: skipping reset"
+fi
 
 # Extract Supabase vars
 status_json="${RUN_DIR}/status.json"
@@ -68,11 +73,12 @@ if [[ -z "${STRIPE_SECRET_KEY:-}" || -z "${STRIPE_WEBHOOK_SECRET:-}" ]]; then
   log "Stripe secrets not set; skipping smoke (soft skip)"
   exit 0
 fi
+log "Stripe secrets present (values not logged)"
 
 # --- 2) Start API server harness ---
 SERVER_LOG="${RUN_DIR}/server.log"
 log "starting server harness on ${PORT}"
-(cd "${ROOT}" && npx --yes ts-node --transpile-only scripts/smoke/server.ts) > "${SERVER_LOG}" 2>&1 &
+(cd "${ROOT}" && CI_SMOKE_FAKE_COMMERCE="${CI_SMOKE_FAKE_COMMERCE:-true}" npx --yes ts-node --transpile-only scripts/smoke/server.ts) > "${SERVER_LOG}" 2>&1 &
 SERVER_PID=$!
 
 tries=0
@@ -97,13 +103,17 @@ call_api() {
     auth_header+=("-H" "Authorization: Bearer ${ACCESS_TOKEN}")
   fi
   req_log_cmd "$method" "${BASE_URL}${path}" "${auth_header[@]}" -H "Content-Type: application/json"
-  curl -s -D "${RUN_DIR}/headers.tmp" -o "${RUN_DIR}/resp.tmp" -X "$method" \
+  curl -s -w "%{http_code}" -D "${RUN_DIR}/headers.tmp" -o "${RUN_DIR}/resp.tmp" -X "$method" \
     "${auth_header[@]}" \
     -H "Content-Type: application/json" \
     -d "${data:-{}}" \
-    "${BASE_URL}${path}"
-  mv "${RUN_DIR}/resp.tmp" "${RUN_DIR}/$(echo "${path}" | tr '/?' '__').json"
-  guard_leaks "${RUN_DIR}/$(echo "${path}" | tr '/?' '__').json"
+    "${BASE_URL}${path}" > "${RUN_DIR}/status.tmp"
+  local status
+  status=$(cat "${RUN_DIR}/status.tmp")
+  local out_json="${RUN_DIR}/$(echo "${path}" | tr '/?' '__').json"
+  mv "${RUN_DIR}/resp.tmp" "${out_json}"
+  echo "status=${status}" > "${out_json}.status"
+  guard_leaks "${out_json}"
 }
 
 # --- 3) Register + login ---
@@ -182,27 +192,52 @@ SUB_Q="SELECT count(*) FROM public.subscriptions WHERE stripe_subscription_id='s
 docker exec -i "${DB_CONTAINER}" psql -U postgres -d postgres -P pager=off -c "${SUB_Q}" | redact | tee "${RUN_DIR}/proof_subscription.txt"
 guard_leaks "${RUN_DIR}/proof_subscription.txt"
 
+# --- 6a) Checkout (deterministic fake commerce) ---
+log "checkout (fake commerce mode) via /api/v1/checkout"
+CHECKOUT_BODY='{"planId":"pro_individual"}'
+call_api POST "/api/v1/checkout" "${CHECKOUT_BODY}"
+SUB_FAKE_Q="SELECT count(*) FROM public.subscriptions WHERE stripe_subscription_id='sub_smoke_fake_checkout';"
+docker exec -i "${DB_CONTAINER}" psql -U postgres -d postgres -P pager=off -c "${SUB_FAKE_Q}" | redact | tee "${RUN_DIR}/proof_subscription_checkout.txt"
+guard_leaks "${RUN_DIR}/proof_subscription_checkout.txt"
+
 # --- 6) Existing DB path (reapply migrations, rerun story+update) ---
-log "existing-db path: migration up"
-npx --yes supabase migration up --local | redact | tee "${RUN_DIR}/migration_up.log"
-guard_leaks "${RUN_DIR}/migration_up.log"
+if [[ "${MODE}" == "fresh" ]]; then
+  log "existing-db path: migration up + rerun smoke"
+  npx --yes supabase migration up --local | redact | tee "${RUN_DIR}/migration_up.log"
+  guard_leaks "${RUN_DIR}/migration_up.log"
 
-STORY_TITLE2="Smoke Story Existing ${RUN_ID}"
-STORY_BODY2=$(jq -n --arg title "$STORY_TITLE2" '{title:$title}')
-call_api POST "/api/v1/stories" "${STORY_BODY2}"
+  STORY_TITLE2="Smoke Story Existing ${RUN_ID}"
+  STORY_BODY2=$(jq -n --arg title "$STORY_TITLE2" '{title:$title}')
+  call_api POST "/api/v1/stories" "${STORY_BODY2}"
 
-STORY_Q2="SELECT count(*) FROM public.stories WHERE user_id='${USER_ID}' AND title='${STORY_TITLE2}';"
-docker exec -i "${DB_CONTAINER}" psql -U postgres -d postgres -P pager=off -c "${STORY_Q2}" | redact | tee "${RUN_DIR}/proof_story_existing.txt"
-guard_leaks "${RUN_DIR}/proof_story_existing.txt"
+  STORY_Q2="SELECT count(*) FROM public.stories WHERE user_id='${USER_ID}' AND title='${STORY_TITLE2}';"
+  docker exec -i "${DB_CONTAINER}" psql -U postgres -d postgres -P pager=off -c "${STORY_Q2}" | redact | tee "${RUN_DIR}/proof_story_existing.txt"
+  guard_leaks "${RUN_DIR}/proof_story_existing.txt"
 
-log "webhook updated twice again (should remain 1 row)"
-post_webhook "${tmp_updated}"
-post_webhook "${tmp_updated}"
-docker exec -i "${DB_CONTAINER}" psql -U postgres -d postgres -P pager=off -c "${SUB_Q}" | redact | tee "${RUN_DIR}/proof_subscription_existing.txt"
-guard_leaks "${RUN_DIR}/proof_subscription_existing.txt"
+  log "webhook updated twice again (should remain 1 row)"
+  post_webhook "${tmp_updated}"
+  post_webhook "${tmp_updated}"
+  docker exec -i "${DB_CONTAINER}" psql -U postgres -d postgres -P pager=off -c "${SUB_Q}" | redact | tee "${RUN_DIR}/proof_subscription_existing.txt"
+  guard_leaks "${RUN_DIR}/proof_subscription_existing.txt"
+
+  log "checkout again (existing db)"
+  call_api POST "/api/v1/checkout" "${CHECKOUT_BODY}"
+  docker exec -i "${DB_CONTAINER}" psql -U postgres -d postgres -P pager=off -c "${SUB_FAKE_Q}" | redact | tee "${RUN_DIR}/proof_subscription_checkout_existing.txt"
+  guard_leaks "${RUN_DIR}/proof_subscription_checkout_existing.txt"
+fi
 
 # --- Teardown ---
 kill "${SERVER_PID}" || true
+
+# Redaction guard receipts
+for p in "eyJ" "sb_secret_" "sb_publishable_" "sk_live" "github_pat_"; do
+  if grep -R "${p}" "${RUN_DIR}" >/dev/null; then
+    echo "pattern ${p} found (fail)"
+    exit 1
+  else
+    echo "pattern ${p}: none" | tee -a "${RUN_DIR}/redaction_checks.txt"
+  fi
+done
 
 log "smoke completed"
 
