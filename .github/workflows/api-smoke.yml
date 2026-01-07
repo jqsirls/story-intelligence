@@ -49,7 +49,15 @@ jobs:
         env:
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          STORYTAILOR_STRIPE_SECRET_KEY: ${{ secrets.STORYTAILOR_STRIPE_SECRET_KEY }}
+          STORYTAILOR_STRIPE_WEBHOOK_SECRET: ${{ secrets.STORYTAILOR_STRIPE_WEBHOOK_SECRET }}
         run: |
+          if [[ -z "${STRIPE_SECRET_KEY}" && -n "${STORYTAILOR_STRIPE_SECRET_KEY:-}" ]]; then
+            STRIPE_SECRET_KEY="${STORYTAILOR_STRIPE_SECRET_KEY}"
+          fi
+          if [[ -z "${STRIPE_WEBHOOK_SECRET}" && -n "${STORYTAILOR_STRIPE_WEBHOOK_SECRET:-}" ]]; then
+            STRIPE_WEBHOOK_SECRET="${STORYTAILOR_STRIPE_WEBHOOK_SECRET}"
+          fi
           if [[ -z "${STRIPE_SECRET_KEY}" || -z "${STRIPE_WEBHOOK_SECRET}" ]]; then
             echo "SKIPPED: missing Stripe secrets"
             if [[ "${{ github.event_name }}" == "schedule" ]]; then
