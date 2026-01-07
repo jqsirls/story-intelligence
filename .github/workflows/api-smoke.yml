@@ -1,0 +1,63 @@
+name: API Smoke
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'packages/universal-agent/**'
+      - 'packages/*agent/**'
+      - 'scripts/smoke/**'
+      - 'docs/api/**'
+
+jobs:
+  gitleaks:
+    name: Security Scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  smoke:
+    name: API Smoke
+    runs-on: ubuntu-latest
+    needs: [gitleaks]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Ensure jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Run deterministic reset
+        run: scripts/supabase/reset.sh
+
+      - name: Run API smoke (fresh + existing)
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+        run: |
+          if [[ -z "${STRIPE_SECRET_KEY}" || -z "${STRIPE_WEBHOOK_SECRET}" ]]; then
+            echo "Stripe secrets missing; skipping smoke."
+            exit 0
+          fi
+          chmod +x scripts/smoke/e2e.sh
+          scripts/smoke/e2e.sh
+
+      - name: Upload smoke logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-smoke-logs
+          path: /tmp/api-smoke/
+
