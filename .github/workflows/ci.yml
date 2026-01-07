@@ -15,37 +15,103 @@ env:
   TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
 jobs:
-  # Job 1: Code Quality Checks
-  quality:
-    name: Code Quality
+  # Job 0: Determine change scope for PR gating (DB-only PRs should not run non-DB pipelines)
+  changes:
+    name: Change Scope
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    
+    outputs:
+      db_only: ${{ steps.scope.outputs.db_only }}
+      db_changed: ${{ steps.filter.outputs.db }}
+      infra_changed: ${{ steps.filter.outputs.infra }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            db:
+              - 'supabase/migrations/**'
+              - 'supabase/schema.sql'
+              - 'supabase/config.toml'
+              - 'supabase/.env'
+            infra:
+              - 'infrastructure/**'
+              - '**/*.tf'
+              - '**/*.tfvars'
+            other:
+              - '**'
+              - '!supabase/migrations/**'
+              - '!supabase/schema.sql'
+              - '!supabase/config.toml'
+              - '!supabase/.env'
+
+      - name: Compute db_only
+        id: scope
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" && \
+                "${{ steps.filter.outputs.db }}" == "true" && \
+                "${{ steps.filter.outputs.infra }}" == "false" && \
+                "${{ steps.filter.outputs.other }}" == "false" ]]; then
+            echo "db_only=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "db_only=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Job 1: Code Quality Checks
+  quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    needs: [changes]
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout code
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Setup Node.js
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+      
+      - name: Enable Corepack
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        run: corepack enable
+
+      - name: Activate pnpm
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        run: corepack prepare pnpm@9.15.4 --activate
 
       - name: Install dependencies
-        run: npm ci
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Skip (DB-only PR)
+        if: ${{ github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true' }}
+        run: echo "DB-only PR: skipping Code Quality"
 
       - name: Lint code
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
         run: npm run lint
 
       - name: Type check
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
         run: npm run type-check
 
       - name: Check formatting
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
         run: npx prettier --check .
 
       - name: Validate package.json files
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
         run: |
           find packages -name "package.json" -exec npm pkg fix {} \;
           git diff --exit-code || (echo "package.json files need fixing" && exit 1)
@@ -54,6 +120,7 @@ jobs:
   test:
     name: Test Suite
     runs-on: ubuntu-latest
+    needs: [changes]
     timeout-minutes: 30
     
     services:
@@ -69,27 +136,44 @@ jobs:
 
     steps:
       - name: Checkout code
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
         uses: actions/checkout@v4
 
       - name: Setup Node.js
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+      
+      - name: Enable Corepack
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        run: corepack enable
+
+      - name: Activate pnpm
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        run: corepack prepare pnpm@9.15.4 --activate
 
       - name: Install dependencies
-        run: npm ci
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Skip (DB-only PR)
+        if: ${{ github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true' }}
+        run: echo "DB-only PR: skipping Test Suite"
 
       - name: Build packages
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
         run: npm run build
 
       - name: Run unit tests
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
         run: npm run test -- --coverage --passWithNoTests
         env:
           NODE_ENV: test
           REDIS_URL: redis://localhost:6379
 
       - name: Upload coverage reports
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
         uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -98,7 +182,7 @@ jobs:
 
       - name: Store test results
         uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ always() && !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
         with:
           name: test-results
           path: |
@@ -110,6 +194,7 @@ jobs:
   security:
     name: Security Scan
     runs-on: ubuntu-latest
+    needs: [changes]
     timeout-minutes: 20
     
     steps:
@@ -124,18 +209,33 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+      
+      - name: Enable Corepack
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        run: corepack enable
+
+      - name: Activate pnpm
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        run: corepack prepare pnpm@9.15.4 --activate
 
       - name: Install dependencies
-        run: npm ci
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Skip (DB-only PR)
+        if: ${{ github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true' }}
+        run: echo "DB-only PR: skipping npm audit / Snyk / CodeQL"
 
       - name: Run npm audit
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
         run: npm audit --audit-level=high
 
       - name: Run Snyk security scan
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
         uses: snyk/actions/node@master
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
@@ -143,18 +243,20 @@ jobs:
           args: --severity-threshold=high
 
       - name: Run CodeQL analysis
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
         uses: github/codeql-action/init@v3
         with:
           languages: javascript
 
       - name: Perform CodeQL analysis
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
         uses: github/codeql-action/analyze@v3
 
   # Job 4: Build and Package
   build:
     name: Build and Package
     runs-on: ubuntu-latest
-    needs: [quality, test]
+    needs: [changes, quality, test]
     timeout-minutes: 20
     
     outputs:
@@ -162,21 +264,37 @@ jobs:
       
     steps:
       - name: Checkout code
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
         uses: actions/checkout@v4
 
       - name: Setup Node.js
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+      
+      - name: Enable Corepack
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        run: corepack enable
+
+      - name: Activate pnpm
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        run: corepack prepare pnpm@9.15.4 --activate
 
       - name: Install dependencies
-        run: npm ci
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Skip (DB-only PR)
+        if: ${{ github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true' }}
+        run: echo "DB-only PR: skipping Build and Package"
 
       - name: Build all packages
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
         run: npm run build
 
       - name: Create deployment packages
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
         run: |
           mkdir -p dist/packages
           for package in packages/*/; do
@@ -192,12 +310,14 @@ jobs:
 
       - name: Generate build hash
         id: build-hash
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
         run: |
           BUILD_HASH=$(find dist/ -type f -exec sha256sum {} \; | sha256sum | cut -d' ' -f1)
           echo "hash=$BUILD_HASH" >> $GITHUB_OUTPUT
           echo "Build hash: $BUILD_HASH"
 
       - name: Upload build artifacts
+        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts-${{ steps.build-hash.outputs.hash }}
@@ -210,31 +330,38 @@ jobs:
   infrastructure:
     name: Infrastructure Validation
     runs-on: ubuntu-latest
+    needs: [changes]
     timeout-minutes: 15
     
     steps:
       - name: Checkout code
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.infra_changed == 'true' }}
         uses: actions/checkout@v4
 
       - name: Setup Terraform
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.infra_changed == 'true' }}
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.6.0
 
       - name: Terraform Format Check
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.infra_changed == 'true' }}
         run: terraform fmt -check -recursive infrastructure/
 
       - name: Terraform Init
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.infra_changed == 'true' }}
         run: |
           cd infrastructure/terraform
           terraform init -backend=false
 
       - name: Terraform Validate
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.infra_changed == 'true' }}
         run: |
           cd infrastructure/terraform
           terraform validate
 
       - name: Terraform Plan (Dry Run)
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.infra_changed == 'true' }}
         run: |
           cd infrastructure/terraform
           terraform plan -var-file=../../.github/terraform/ci.tfvars -out=tfplan
@@ -245,60 +372,79 @@ jobs:
           TF_VAR_supabase_service_key: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
       - name: Upload Terraform plan
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.infra_changed == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: terraform-plan
           path: infrastructure/terraform/tfplan
           retention-days: 7
 
+      - name: Skip (no infra changes)
+        if: ${{ github.event_name == 'pull_request' && needs.changes.outputs.infra_changed != 'true' }}
+        run: echo "No infrastructure changes: skipping terraform checks"
+
   # Job 6: Database Migration Validation
   database:
     name: Database Validation
     runs-on: ubuntu-latest
+    needs: [changes]
     timeout-minutes: 15
     
     steps:
       - name: Checkout code
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_changed == 'true' }}
         uses: actions/checkout@v4
 
       - name: Setup Supabase CLI
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_changed == 'true' }}
         uses: supabase/setup-cli@v1
         with:
           version: latest
 
       - name: Start Supabase
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_changed == 'true' }}
         run: supabase start
 
       - name: Run database tests
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_changed == 'true' }}
         run: |
           cd supabase
           ./validate_sql.sh
 
       - name: Check migration status
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_changed == 'true' }}
         run: supabase db diff --schema public
 
       - name: Stop Supabase
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_changed == 'true' }}
         run: supabase stop
+
+      - name: Skip (no DB changes)
+        if: ${{ github.event_name == 'pull_request' && needs.changes.outputs.db_changed != 'true' }}
+        run: echo "No DB-related changes: skipping database validation"
 
   # Job 7: Performance Baseline
   performance:
     name: Performance Baseline
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [changes, build]
     if: github.event_name == 'pull_request'
     timeout-minutes: 20
     
     steps:
       - name: Checkout code
+        if: ${{ needs.changes.outputs.db_only != 'true' }}
         uses: actions/checkout@v4
 
       - name: Setup Node.js
+        if: ${{ needs.changes.outputs.db_only != 'true' }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install K6
+        if: ${{ needs.changes.outputs.db_only != 'true' }}
         run: |
           sudo gpg -k
           sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
@@ -307,12 +453,14 @@ jobs:
           sudo apt-get install k6
 
       - name: Download build artifacts
+        if: ${{ needs.changes.outputs.db_only != 'true' }}
         uses: actions/download-artifact@v4
         with:
           name: build-artifacts-${{ needs.build.outputs.build-hash }}
           path: dist/
 
       - name: Run performance baseline tests
+        if: ${{ needs.changes.outputs.db_only != 'true' }}
         run: |
           k6 run --env TEST_TYPE=baseline \
                  --env MAX_VUS=10 \
@@ -320,11 +468,16 @@ jobs:
                  testing/load/k6-load-tests.js
 
       - name: Upload performance results
+        if: ${{ needs.changes.outputs.db_only != 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: performance-baseline
           path: k6-results.json
           retention-days: 7
+
+      - name: Skip (DB-only PR)
+        if: ${{ needs.changes.outputs.db_only == 'true' }}
+        run: echo "DB-only PR: skipping performance baseline"
 
   # Job 8: Compliance Check
   compliance:
@@ -368,8 +521,12 @@ jobs:
     if: always()
     
     steps:
+      - name: Slack notifications disabled (no webhook configured)
+        if: ${{ secrets.SLACK_WEBHOOK_URL == '' }}
+        run: echo "SLACK_WEBHOOK_URL is not set; skipping Slack notifications"
+
       - name: Notify Slack on success
-        if: ${{ needs.quality.result == 'success' && needs.test.result == 'success' && needs.security.result == 'success' && needs.build.result == 'success' }}
+        if: ${{ secrets.SLACK_WEBHOOK_URL != '' && needs.quality.result == 'success' && needs.test.result == 'success' && needs.security.result == 'success' && needs.build.result == 'success' }}
         uses: 8398a7/action-slack@v3
         with:
           status: success
@@ -379,7 +536,7 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
       - name: Notify Slack on failure
-        if: ${{ needs.quality.result == 'failure' || needs.test.result == 'failure' || needs.security.result == 'failure' || needs.build.result == 'failure' }}
+        if: ${{ secrets.SLACK_WEBHOOK_URL != '' && (needs.quality.result == 'failure' || needs.test.result == 'failure' || needs.security.result == 'failure' || needs.build.result == 'failure') }}
         uses: 8398a7/action-slack@v3
         with:
           status: failure

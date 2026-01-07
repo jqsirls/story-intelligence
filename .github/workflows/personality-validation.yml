@@ -2,8 +2,18 @@ name: 🎭 Personality Validation
 on: 
   push:
     branches: [ main, develop ]
+    paths-ignore:
+      - 'supabase/migrations/**'
+      - 'supabase/schema.sql'
+      - 'supabase/config.toml'
+      - 'supabase/.env'
   pull_request:
     branches: [ main, develop ]
+    paths-ignore:
+      - 'supabase/migrations/**'
+      - 'supabase/schema.sql'
+      - 'supabase/config.toml'
+      - 'supabase/.env'
 
 jobs:
   validate-personality:
