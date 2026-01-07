@@ -59,11 +59,13 @@ jobs:
             STRIPE_WEBHOOK_SECRET="${STORYTAILOR_STRIPE_WEBHOOK_SECRET}"
           fi
           if [[ -z "${STRIPE_SECRET_KEY}" || -z "${STRIPE_WEBHOOK_SECRET}" ]]; then
-            echo "SKIPPED: missing Stripe secrets"
             if [[ "${{ github.event_name }}" == "schedule" ]]; then
+              echo "SKIPPED: missing Stripe secrets (schedule -> fail)"
               exit 1
             else
-              exit 0
+              echo "WARN: missing Stripe secrets; using test fallbacks"
+              STRIPE_SECRET_KEY="sk_test_fallback_smoke"
+              STRIPE_WEBHOOK_SECRET="whsec_fallback_smoke"
             fi
           fi
           chmod +x scripts/smoke/e2e.sh
