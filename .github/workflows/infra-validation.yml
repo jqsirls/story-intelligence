@@ -1,0 +1,41 @@
+# Infrastructure-only validation
+# Runs only when Terraform/infrastructure files change.
+
+name: Infrastructure Validation
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'infrastructure/**'
+      - '**/*.tf'
+      - '**/*.tfvars'
+
+jobs:
+  infrastructure:
+    name: Infrastructure Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+          terraform_wrapper: false
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive infrastructure/
+
+      - name: Terraform Init (no backend)
+        run: |
+          cd infrastructure/terraform
+          terraform init -backend=false
+
+      - name: Terraform Validate
+        run: |
+          cd infrastructure/terraform
+          terraform validate
+
