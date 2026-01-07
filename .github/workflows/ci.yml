@@ -71,27 +71,27 @@ jobs:
     
     steps:
       - name: Checkout code
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Setup Node.js
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
       
       - name: Enable Corepack
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         run: corepack enable
 
       - name: Activate pnpm
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         run: corepack prepare pnpm@9.15.4 --activate
 
       - name: Install dependencies
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         run: pnpm install --no-frozen-lockfile
 
       - name: Skip (DB-only PR)
@@ -99,19 +99,19 @@ jobs:
         run: 'echo "DB-only PR: skipping Code Quality"'
 
       - name: Lint code
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         run: npm run lint
 
       - name: Type check
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         run: npm run type-check
 
       - name: Check formatting
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         run: npx prettier --check .
 
       - name: Validate package.json files
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         run: |
           find packages -name "package.json" -exec npm pkg fix {} \;
           git diff --exit-code || (echo "package.json files need fixing" && exit 1)
@@ -136,25 +136,25 @@ jobs:
 
     steps:
       - name: Checkout code
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         uses: actions/checkout@v4
 
       - name: Setup Node.js
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
       
       - name: Enable Corepack
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         run: corepack enable
 
       - name: Activate pnpm
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         run: corepack prepare pnpm@9.15.4 --activate
 
       - name: Install dependencies
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         run: pnpm install --no-frozen-lockfile
 
       - name: Skip (DB-only PR)
@@ -162,18 +162,18 @@ jobs:
         run: 'echo "DB-only PR: skipping Test Suite"'
 
       - name: Build packages
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         run: npm run build
 
       - name: Run unit tests
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         run: npm run test -- --coverage --passWithNoTests
         env:
           NODE_ENV: test
           REDIS_URL: redis://localhost:6379
 
       - name: Upload coverage reports
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -182,7 +182,7 @@ jobs:
 
       - name: Store test results
         uses: actions/upload-artifact@v4
-        if: ${{ always() && !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ always() && (github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true') }}
         with:
           name: test-results
           path: |
@@ -209,21 +209,21 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
       
       - name: Enable Corepack
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         run: corepack enable
 
       - name: Activate pnpm
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         run: corepack prepare pnpm@9.15.4 --activate
 
       - name: Install dependencies
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         run: pnpm install --no-frozen-lockfile
 
       - name: Skip (DB-only PR)
@@ -231,11 +231,11 @@ jobs:
         run: 'echo "DB-only PR: skipping npm audit / Snyk / CodeQL"'
 
       - name: Run npm audit
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         run: npm audit --audit-level=high
 
       - name: Run Snyk security scan
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         uses: snyk/actions/node@master
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
@@ -243,13 +243,13 @@ jobs:
           args: --severity-threshold=high
 
       - name: Run CodeQL analysis
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         uses: github/codeql-action/init@v3
         with:
           languages: javascript
 
       - name: Perform CodeQL analysis
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         uses: github/codeql-action/analyze@v3
 
   # Job 4: Build and Package
@@ -264,25 +264,25 @@ jobs:
       
     steps:
       - name: Checkout code
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         uses: actions/checkout@v4
 
       - name: Setup Node.js
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
       
       - name: Enable Corepack
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         run: corepack enable
 
       - name: Activate pnpm
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         run: corepack prepare pnpm@9.15.4 --activate
 
       - name: Install dependencies
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         run: pnpm install --no-frozen-lockfile
 
       - name: Skip (DB-only PR)
@@ -290,11 +290,11 @@ jobs:
         run: 'echo "DB-only PR: skipping Build and Package"'
 
       - name: Build all packages
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         run: npm run build
 
       - name: Create deployment packages
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         run: |
           mkdir -p dist/packages
           for package in packages/*/; do
@@ -310,14 +310,14 @@ jobs:
 
       - name: Generate build hash
         id: build-hash
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         run: |
           BUILD_HASH=$(find dist/ -type f -exec sha256sum {} \; | sha256sum | cut -d' ' -f1)
           echo "hash=$BUILD_HASH" >> $GITHUB_OUTPUT
           echo "Build hash: $BUILD_HASH"
 
       - name: Upload build artifacts
-        if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
+        if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.db_only != 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts-${{ steps.build-hash.outputs.hash }}
