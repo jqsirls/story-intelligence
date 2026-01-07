@@ -33,7 +33,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+      - name: Setup Node (pnpm)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - name: Install deps for smoke
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+          pnpm install --no-frozen-lockfile
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
