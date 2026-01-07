@@ -96,7 +96,7 @@ jobs:
 
       - name: Skip (DB-only PR)
         if: ${{ github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true' }}
-        run: echo "DB-only PR: skipping Code Quality"
+        run: 'echo "DB-only PR: skipping Code Quality"'
 
       - name: Lint code
         if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
@@ -159,7 +159,7 @@ jobs:
 
       - name: Skip (DB-only PR)
         if: ${{ github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true' }}
-        run: echo "DB-only PR: skipping Test Suite"
+        run: 'echo "DB-only PR: skipping Test Suite"'
 
       - name: Build packages
         if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
@@ -228,7 +228,7 @@ jobs:
 
       - name: Skip (DB-only PR)
         if: ${{ github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true' }}
-        run: echo "DB-only PR: skipping npm audit / Snyk / CodeQL"
+        run: 'echo "DB-only PR: skipping npm audit / Snyk / CodeQL"'
 
       - name: Run npm audit
         if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
@@ -287,7 +287,7 @@ jobs:
 
       - name: Skip (DB-only PR)
         if: ${{ github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true' }}
-        run: echo "DB-only PR: skipping Build and Package"
+        run: 'echo "DB-only PR: skipping Build and Package"'
 
       - name: Build all packages
         if: ${{ !(github.event_name == 'pull_request' && needs.changes.outputs.db_only == 'true') }}
@@ -381,7 +381,7 @@ jobs:
 
       - name: Skip (no infra changes)
         if: ${{ github.event_name == 'pull_request' && needs.changes.outputs.infra_changed != 'true' }}
-        run: echo "No infrastructure changes: skipping terraform checks"
+        run: 'echo "No infrastructure changes: skipping terraform checks"'
 
   # Job 6: Database Migration Validation
   database:
@@ -421,7 +421,7 @@ jobs:
 
       - name: Skip (no DB changes)
         if: ${{ github.event_name == 'pull_request' && needs.changes.outputs.db_changed != 'true' }}
-        run: echo "No DB-related changes: skipping database validation"
+        run: 'echo "No DB-related changes: skipping database validation"'
 
   # Job 7: Performance Baseline
   performance:
@@ -477,7 +477,7 @@ jobs:
 
       - name: Skip (DB-only PR)
         if: ${{ needs.changes.outputs.db_only == 'true' }}
-        run: echo "DB-only PR: skipping performance baseline"
+        run: 'echo "DB-only PR: skipping performance baseline"'
 
   # Job 8: Compliance Check
   compliance:
