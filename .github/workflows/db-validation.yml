@@ -1,0 +1,56 @@
+# Database-only validation
+# Runs only when Supabase schema/migrations change.
+
+name: Database Validation
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/schema.sql'
+      - 'supabase/config.toml'
+      - 'supabase/.env'
+
+jobs:
+  gitleaks:
+    name: Security Scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  database:
+    name: Database Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start Supabase
+        run: supabase start
+
+      - name: Run database tests
+        run: |
+          cd supabase
+          ./validate_sql.sh
+
+      - name: Check migration status
+        run: supabase db diff --schema public
+
+      - name: Stop Supabase
+        run: supabase stop
+

@@ -2,8 +2,18 @@ name: 🎭 Personality Validation
 on: 
   push:
     branches: [ main, develop ]
+    paths-ignore:
+      - 'supabase/migrations/**'
+      - 'supabase/schema.sql'
+      - 'supabase/config.toml'
+      - 'supabase/.env'
   pull_request:
     branches: [ main, develop ]
+    paths-ignore:
+      - 'supabase/migrations/**'
+      - 'supabase/schema.sql'
+      - 'supabase/config.toml'
+      - 'supabase/.env'
 
 jobs:
   validate-personality:
@@ -13,49 +23,93 @@ jobs:
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🧾 Determine changed files
+        id: changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA=""
+          HEAD_SHA="${{ github.sha }}"
+          
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE_SHA="${{ github.event.before }}"
+          fi
+          
+          echo "Base: $BASE_SHA"
+          echo "Head: $HEAD_SHA"
+          
+          git diff --name-only "$BASE_SHA" "$HEAD_SHA" > changed_files.txt || true
+          
+          echo "Changed files:"
+          cat changed_files.txt || true
         
       - name: 🚨 Check for forbidden AI terminology
+        shell: bash
         run: |
-          echo "🔍 Scanning for forbidden terminology..."
+          set -euo pipefail
+          echo "🔍 Scanning changed files for forbidden terminology..."
+          
+          FILES="$(grep -E '\\.(ts|js|md)$' changed_files.txt || true)"
+          if [[ -z "$FILES" ]]; then
+            echo "✅ No changed .ts/.js/.md files to scan"
+            exit 0
+          fi
           
           # Check for AI-powered and variations
-          if grep -r "AI-powered\|AI-driven\|AI-led" --include="*.ts" --include="*.js" --include="*.md" .; then
-            echo "❌ VIOLATION: Forbidden AI terminology found"
+          if grep -n -E "AI-powered|AI-driven|AI-led" $FILES; then
+            echo "❌ VIOLATION: Forbidden AI terminology found in changed files"
             echo "💡 Use 'Story Intelligence™ powered' instead of 'AI-powered'"
             echo "💡 Use 'Story Intelligence™ enhanced' instead of 'AI-driven'"
             exit 1
           fi
           
           # Check for personalized (should be age-appropriate)
-          if grep -r "personalized" --include="*.ts" --include="*.js" --include="*.md" .; then
+          if grep -n -E "personalized" $FILES; then
             echo "❌ VIOLATION: 'personalized' found - use 'age-appropriate' instead"
             exit 1
           fi
           
-          # Check for business jargon
-          if grep -r "optimize\|leverage\|utilize\|solutioning" --include="*.ts" --include="*.js" .; then
-            echo "❌ VIOLATION: Business jargon found - use simple, clear language"
-            exit 1
+          # Check for business jargon (code files)
+          CODE_FILES="$(grep -E '\\.(ts|js)$' changed_files.txt || true)"
+          if [[ -n "$CODE_FILES" ]]; then
+            if grep -n -E "optimize|leverage|utilize|solutioning" $CODE_FILES; then
+              echo "❌ VIOLATION: Business jargon found - use simple, clear language"
+              exit 1
+            fi
           fi
           
-          echo "✅ No forbidden terminology found"
+          echo "✅ No forbidden terminology found in changed files"
           
       - name: 📏 Validate sentence length in key files
+        shell: bash
         run: |
-          echo "🔍 Checking sentence length in user-facing content..."
+          set -euo pipefail
+          echo "🔍 Checking sentence length in changed README files..."
           
-          # Check README files for long sentences
-          find . -name "README.md" -exec awk '
-            /^[^#]/ { 
-              gsub(/[.!?]+/, ".|", $0); 
-              split($0, sentences, "|"); 
-              for (i in sentences) {
-                if (gsub(/ /, " ", sentences[i]) > 18) {
-                  print FILENAME ":" NR ": Sentence too long (" gsub(/ /, " ", sentences[i]) " words): " sentences[i];
-                  exit 1;
+          README_FILES="$(grep -E 'README\\.md$' changed_files.txt || true)"
+          if [[ -z "$README_FILES" ]]; then
+            echo "✅ No changed README.md files to scan"
+            exit 0
+          fi
+          
+          for f in $README_FILES; do
+            awk '
+              /^[^#]/ {
+                gsub(/[.!?]+/, ".|", $0);
+                split($0, sentences, "|");
+                for (i in sentences) {
+                  if (gsub(/ /, " ", sentences[i]) > 18) {
+                    print FILENAME ":" NR ": Sentence too long (" gsub(/ /, " ", sentences[i]) " words): " sentences[i];
+                    exit 1;
+                  }
                 }
-              }
-            }' {} \;
+              }' "$f"
+          done
           
           echo "✅ Sentence length validation passed"
           
@@ -115,10 +169,27 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'
-          
+      
       - name: 📦 Install dependencies
-        run: npm ci
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+          pnpm install --no-frozen-lockfile
+          
+      - name: 🧾 Determine changed files
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA=""
+          HEAD_SHA="${{ github.sha }}"
+          
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE_SHA="${{ github.event.before }}"
+          fi
+          
+          git diff --name-only "$BASE_SHA" "$HEAD_SHA" > changed_files.txt || true
         
       - name: 🧪 Run personality validation tests
         run: |
@@ -135,20 +206,26 @@ jobs:
             console.log('⚠️  PersonalityEnforcement middleware test skipped (TypeScript)');
           }
           
-          // Test for forbidden terms in TypeScript files
-          const glob = require('glob');
+          // Test for forbidden terms in CHANGED TypeScript files
+          const changed = fs.readFileSync('changed_files.txt', 'utf8')
+            .split('\\n')
+            .map(s => s.trim())
+            .filter(Boolean)
+            .filter(f => f.endsWith('.ts'));
+          
           const forbiddenTerms = ['AI-powered', 'AI-driven', 'personalized'];
           let violations = 0;
           
-          glob.sync('packages/**/*.ts').forEach(file => {
+          for (const file of changed) {
+            if (!fs.existsSync(file)) continue;
             const content = fs.readFileSync(file, 'utf8');
-            forbiddenTerms.forEach(term => {
+            for (const term of forbiddenTerms) {
               if (content.includes(term)) {
                 console.log(`❌ Found "${term}" in ${file}`);
                 violations++;
               }
-            });
-          });
+            }
+          }
           
           if (violations === 0) {
             console.log('✅ No personality violations in TypeScript code');

@@ -1,0 +1,30 @@
+name: Disposable Artifacts Check
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  check:
+    name: Check for disposable artifacts in git
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Fail if disposable artifacts are tracked
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Checking for tracked disposable artifacts..."
+          
+          # Reject common ephemeral outputs
+          if git ls-files | grep -E '(^test-results/|^tmp/|^tmp-ci/|test-results-all|test-results-.*\\.log$|\\.npm/_logs/)' >/dev/null; then
+            echo "❌ Disposable artifacts are tracked in git. Remove them and update .gitignore."
+            git ls-files | grep -E '(^test-results/|^tmp/|^tmp-ci/|test-results-all|test-results-.*\\.log$|\\.npm/_logs/)' || true
+            exit 1
+          fi
+          
+          echo "✅ No disposable artifacts tracked"
