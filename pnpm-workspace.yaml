@@ -2,6 +2,7 @@ packages:
   - "packages/shared-types"
   - "packages/router"
   - "packages/event-system"
+  - "packages/a2a-adapter"
   - "packages/api-contract"
   - "packages/auth-agent"
   - "packages/content-agent"

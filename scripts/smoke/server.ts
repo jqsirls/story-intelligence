@@ -12,6 +12,7 @@ const aliasMap: Record<string, string> = {
   '@alexa-multi-agent/router': path.join(ROOT, 'packages/router/src/index.ts'),
   '@alexa-multi-agent/event-system': path.join(ROOT, 'packages/event-system/src/index.ts'),
   '@alexa-multi-agent/auth-agent': path.join(ROOT, 'packages/auth-agent/src/index.ts'),
+  '@alexa-multi-agent/a2a-adapter': path.join(ROOT, 'packages/a2a-adapter/src/index.ts'),
   '@alexa-multi-agent/content-agent': path.join(ROOT, 'packages/content-agent/src/index.ts'),
   '@alexa-multi-agent/library-agent': path.join(ROOT, 'packages/library-agent/src/index.ts'),
   '@alexa-multi-agent/emotion-agent': path.join(ROOT, 'packages/emotion-agent/src/index.ts'),

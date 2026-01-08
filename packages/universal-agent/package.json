@@ -19,6 +19,7 @@
     "@alexa-multi-agent/router": "workspace:*",
     "@alexa-multi-agent/event-system": "workspace:*",
     "@alexa-multi-agent/auth-agent": "workspace:*",
+    "@alexa-multi-agent/a2a-adapter": "workspace:*",
     "@storytailor/api-contract": "workspace:*",
     "@alexa-multi-agent/content-agent": "workspace:*",
     "@alexa-multi-agent/library-agent": "workspace:*",
