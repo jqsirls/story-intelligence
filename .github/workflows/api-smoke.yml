@@ -1,0 +1,90 @@
+name: API Smoke
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'packages/universal-agent/**'
+      - 'packages/*agent/**'
+      - 'scripts/smoke/**'
+      - 'docs/api/**'
+  schedule:
+    - cron: '0 8 * * *'
+
+jobs:
+  gitleaks:
+    name: Security Scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  smoke:
+    name: API Smoke
+    runs-on: ubuntu-latest
+    needs: [gitleaks]
+    environment: storytailor
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node (pnpm)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install deps for smoke
+        run: |
+          node -v
+          corepack --version || true
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+          pnpm -v
+          pnpm -w install --frozen-lockfile
+      - name: Build API dependencies
+        run: |
+          pnpm -w --filter @alexa-multi-agent/shared-types build
+          pnpm -w --filter @alexa-multi-agent/universal-agent... build
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Ensure jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Run deterministic reset
+        run: scripts/supabase/reset.sh
+
+      - name: Run API smoke (fresh + existing)
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+        run: |
+          if [[ "${GITHUB_REPOSITORY_OWNER}" != "jqsirls" ]]; then
+            echo "Skipping api-smoke in fork (${GITHUB_REPOSITORY_OWNER})"
+            exit 0
+          fi
+          if [[ -z "${STRIPE_WEBHOOK_SECRET}" ]]; then
+            echo "MISSING STRIPE_WEBHOOK_SECRET (required for api-smoke)"
+            exit 1
+          fi
+          if [[ -z "${STRIPE_SECRET_KEY}" ]]; then
+            echo "MISSING STRIPE_SECRET_KEY (required for api-smoke)"
+            exit 1
+          fi
+          chmod +x scripts/smoke/e2e.sh
+          MODE=fresh scripts/smoke/e2e.sh
+          MODE=existing scripts/smoke/e2e.sh
+
+      - name: Upload smoke logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-smoke-logs
+          path: /tmp/api-smoke/
+

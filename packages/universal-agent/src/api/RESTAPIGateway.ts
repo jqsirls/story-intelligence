@@ -12,7 +12,6 @@ import { AuthRoutes } from './AuthRoutes';
 import { WebhookDeliverySystem } from '../webhooks/WebhookDeliverySystem';
 // @ts-ignore - serverless-http is ES module
 import serverlessHttp from 'serverless-http';
-import { A2AAdapter } from '@alexa-multi-agent/a2a-adapter';
 import { UniversalStorytellerAPI } from '../UniversalStorytellerAPI';
 import { LibraryService } from '@alexa-multi-agent/library-agent/dist/services/LibraryService';
 import { CommerceAgent } from '@alexa-multi-agent/commerce-agent';
@@ -31,7 +30,8 @@ export class RESTAPIGateway {
   private libraryService: LibraryService;
   private logger: Logger;
   private serverlessHandler: ReturnType<typeof serverlessHttp> | null = null;
-  private a2aAdapter: A2AAdapter | null = null;
+  // A2A is optional in smoke/CI; loaded dynamically when enabled
+  private a2aAdapter: any = null;
 
   constructor(
     private storytellerAPI: UniversalStorytellerAPI | null,
@@ -270,7 +270,11 @@ export class RESTAPIGateway {
     this.setupRoutes();
     
     // Setup A2A routes
-    this.setupA2ARoutes();
+    if (process.env.CI_SMOKE_NO_A2A === '1') {
+      this.logger.info('A2A adapter disabled for smoke');
+    } else {
+      this.setupA2ARoutes();
+    }
     
     // Error handler (must be last)
     this.app.use((err: Error & { status?: number; code?: string }, req: Request, res: Response, next: NextFunction) => {
@@ -12047,10 +12051,17 @@ export class RESTAPIGateway {
    * Setup A2A (Agent2Agent) Protocol routes
    */
   private setupA2ARoutes(): void {
+    // Allow smoke/CI to skip A2A if dependencies aren’t present
+    if (process.env.CI_SMOKE_NO_A2A === '1') {
+      return;
+    }
+
     try {
-      // Initialize A2A adapter
+      // Initialize A2A adapter lazily to avoid hard dependency during smoke harness
       const router = (this.storytellerAPI as any)?.router || null;
-      
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { A2AAdapter } = require('@alexa-multi-agent/a2a-adapter');
+
       this.a2aAdapter = new A2AAdapter({
         router: router as any,
         storytellerAPI: this.storytellerAPI as any,

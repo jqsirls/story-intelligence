@@ -1,0 +1,21 @@
+{
+  "id": "evt_smoke_subscription_created_1",
+  "object": "event",
+  "type": "customer.subscription.created",
+  "created": 1700000000,
+  "data": {
+    "object": {
+      "id": "sub_smoke_fixed",
+      "object": "subscription",
+      "status": "active",
+      "current_period_start": 1700000000,
+      "current_period_end": 1702592000,
+      "metadata": {
+        "userId": "SMOKE_USER_ID",
+        "planId": "pro_individual",
+        "accountType": "individual"
+      }
+    }
+  }
+}
+

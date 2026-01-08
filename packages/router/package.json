@@ -8,5 +8,8 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "test": "jest"
+  },
+  "dependencies": {
+    "zod": "^3.22.4"
   }
 }
