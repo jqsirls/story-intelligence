@@ -13,7 +13,7 @@ type KidAudioInput = any;
 type TranscriptionResult = any;
 type ChildProfile = any;
 
-import { FEATURES } from '@alexa-multi-agent/api-contract';
+import { FEATURES } from '@storytailor/api-contract';
 
 export interface ConversationConfig {
   platform: 'web' | 'mobile' | 'alexa' | 'google' | 'apple' | 'api' | 'custom';

@@ -38,12 +38,12 @@ try {
   // @ts-ignore - Dynamic require may fail
   let apiContractModule: any = null;
   try {
-    // Try @alexa-multi-agent/api-contract first (workspace alias)
-    apiContractModule = require('@alexa-multi-agent/api-contract');
+    // Try @storytailor/api-contract first (workspace name)
+    apiContractModule = require('@storytailor/api-contract');
   } catch (e1: any) {
     try {
-      // Fallback to @storytailor/api-contract (actual package name)
-      apiContractModule = require('@storytailor/api-contract');
+      // Fallback to legacy scope if present
+      apiContractModule = require('@alexa-multi-agent/api-contract');
     } catch (e2: any) {
       // If both fail, use inline definition
       throw e2;
