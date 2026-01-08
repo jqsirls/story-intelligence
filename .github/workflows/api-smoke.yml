@@ -36,7 +36,7 @@ jobs:
       - name: Setup Node (pnpm)
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
       - name: Install deps for smoke
         run: |
           node -v
@@ -44,7 +44,11 @@ jobs:
           corepack enable
           corepack prepare pnpm@9.15.4 --activate
           pnpm -v
-          pnpm install --frozen-lockfile
+          pnpm -w install --frozen-lockfile
+      - name: Build API dependencies
+        run: |
+          pnpm -w --filter @alexa-multi-agent/shared-types build
+          pnpm -w --filter @alexa-multi-agent/universal-agent... build
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:

@@ -84,7 +84,7 @@ log "Stripe secrets present (values not logged)"
 # --- 2) Start API server harness ---
 SERVER_LOG="${RUN_DIR}/server.log"
 log "starting server harness on ${PORT}"
-(cd "${ROOT}" && npx --yes ts-node --transpile-only scripts/smoke/server.ts) > "${SERVER_LOG}" 2>&1 &
+CI_SMOKE_NO_A2A=1 (cd "${ROOT}" && node scripts/smoke/server.js) > "${SERVER_LOG}" 2>&1 &
 SERVER_PID=$!
 
 tries=0
