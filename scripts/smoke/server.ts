@@ -2,8 +2,6 @@
 import http from 'http'
 import path from 'path'
 import Module from 'module'
-import { UniversalStorytellerAPI } from '../../packages/universal-agent/src/UniversalStorytellerAPI'
-import { RESTAPIGateway } from '../../packages/universal-agent/src/api/RESTAPIGateway'
 
 const PORT = parseInt(process.env.PORT || '8787', 10)
 const HEALTH_PATH = process.env.HEALTH_PATH || '/health'
@@ -41,6 +39,8 @@ async function main() {
     debug: (...args: unknown[]) => console.debug(...args)
   }
 
+  const { UniversalStorytellerAPI } = await import('../../packages/universal-agent/src/UniversalStorytellerAPI')
+  const { RESTAPIGateway } = await import('../../packages/universal-agent/src/api/RESTAPIGateway')
   const storytellerAPI = new UniversalStorytellerAPI(null as any, null as any, logger)
   const gateway = new RESTAPIGateway(storytellerAPI, logger)
   const app = gateway.app
