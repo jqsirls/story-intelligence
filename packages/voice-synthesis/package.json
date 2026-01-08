@@ -14,7 +14,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@alexa-multi-agent/shared-types": "*",
+    "@alexa-multi-agent/shared-types": "workspace:*",
     "ws": "^8.14.2",
     "aws-sdk": "^2.1490.0",
     "redis": "^4.6.10",

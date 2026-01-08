@@ -1,0 +1,13 @@
+packages:
+  - "packages/shared-types"
+  - "packages/router"
+  - "packages/event-system"
+  - "packages/auth-agent"
+  - "packages/content-agent"
+  - "packages/library-agent"
+  - "packages/emotion-agent"
+  - "packages/commerce-agent"
+  - "packages/insights-agent"
+  - "packages/smart-home-agent"
+  - "packages/voice-synthesis"
+  - "packages/universal-agent"
