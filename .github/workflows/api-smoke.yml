@@ -39,9 +39,12 @@ jobs:
           node-version: 18
       - name: Install deps for smoke
         run: |
+          node -v
+          corepack --version || true
           corepack enable
           corepack prepare pnpm@9.15.4 --activate
-          pnpm install --no-frozen-lockfile
+          pnpm -v
+          pnpm install --frozen-lockfile
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
@@ -57,28 +60,22 @@ jobs:
         env:
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
-          STORYTAILOR_STRIPE_SECRET_KEY: ${{ secrets.STORYTAILOR_STRIPE_SECRET_KEY }}
-          STORYTAILOR_STRIPE_WEBHOOK_SECRET: ${{ secrets.STORYTAILOR_STRIPE_WEBHOOK_SECRET }}
         run: |
-          if [[ -z "${STRIPE_SECRET_KEY}" && -n "${STORYTAILOR_STRIPE_SECRET_KEY:-}" ]]; then
-            STRIPE_SECRET_KEY="${STORYTAILOR_STRIPE_SECRET_KEY}"
+          if [[ "${GITHUB_REPOSITORY_OWNER}" != "jqsirls" ]]; then
+            echo "Skipping api-smoke in fork (${GITHUB_REPOSITORY_OWNER})"
+            exit 0
           fi
-          if [[ -z "${STRIPE_WEBHOOK_SECRET}" && -n "${STORYTAILOR_STRIPE_WEBHOOK_SECRET:-}" ]]; then
-            STRIPE_WEBHOOK_SECRET="${STORYTAILOR_STRIPE_WEBHOOK_SECRET}"
+          if [[ -z "${STRIPE_WEBHOOK_SECRET}" ]]; then
+            echo "MISSING STRIPE_WEBHOOK_SECRET (required for api-smoke)"
+            exit 1
           fi
-          if [[ -z "${STRIPE_SECRET_KEY}" || -z "${STRIPE_WEBHOOK_SECRET}" ]]; then
-            if [[ "${{ github.event_name }}" == "schedule" ]]; then
-              echo "SKIPPED: missing Stripe secrets (schedule -> fail)"
-              exit 1
-            else
-              echo "WARN: missing Stripe secrets; using test fallbacks"
-              STRIPE_SECRET_KEY="sk_test_fallback_smoke"
-              STRIPE_WEBHOOK_SECRET="whsec_fallback_smoke"
-            fi
+          if [[ -z "${STRIPE_SECRET_KEY}" ]]; then
+            echo "MISSING STRIPE_SECRET_KEY (required for api-smoke)"
+            exit 1
           fi
           chmod +x scripts/smoke/e2e.sh
-          CI_SMOKE_FAKE_COMMERCE=true MODE=fresh scripts/smoke/e2e.sh
-          CI_SMOKE_FAKE_COMMERCE=true MODE=existing scripts/smoke/e2e.sh
+          MODE=fresh scripts/smoke/e2e.sh
+          MODE=existing scripts/smoke/e2e.sh
 
       - name: Upload smoke logs
         if: always()

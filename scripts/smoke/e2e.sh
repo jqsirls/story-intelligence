@@ -69,17 +69,22 @@ API_URL="$(jq -r '.API_URL // .api_url // .services.api.url // "http://127.0.0.1
 
 export SUPABASE_URL="${API_URL}"
 export SUPABASE_SERVICE_ROLE_KEY="${SERVICE_ROLE_KEY}"
+export SUPABASE_ANON_KEY="${ANON_KEY}"
 
-if [[ -z "${STRIPE_SECRET_KEY:-}" || -z "${STRIPE_WEBHOOK_SECRET:-}" ]]; then
-  log "Stripe secrets not set; skipping smoke (soft skip)"
-  exit 0
+if [[ -z "${STRIPE_WEBHOOK_SECRET:-}" ]]; then
+  echo "MISSING STRIPE_WEBHOOK_SECRET (required for api-smoke)"
+  exit 1
+fi
+if [[ -z "${STRIPE_SECRET_KEY:-}" ]]; then
+  echo "MISSING STRIPE_SECRET_KEY (required for api-smoke)"
+  exit 1
 fi
 log "Stripe secrets present (values not logged)"
 
 # --- 2) Start API server harness ---
 SERVER_LOG="${RUN_DIR}/server.log"
 log "starting server harness on ${PORT}"
-(cd "${ROOT}" && CI_SMOKE_FAKE_COMMERCE="${CI_SMOKE_FAKE_COMMERCE:-true}" npx --yes ts-node --transpile-only scripts/smoke/server.ts) > "${SERVER_LOG}" 2>&1 &
+(cd "${ROOT}" && npx --yes ts-node --transpile-only scripts/smoke/server.ts) > "${SERVER_LOG}" 2>&1 &
 SERVER_PID=$!
 
 tries=0
