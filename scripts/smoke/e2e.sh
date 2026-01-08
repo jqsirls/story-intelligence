@@ -81,13 +81,7 @@ if [[ -z "${STRIPE_SECRET_KEY:-}" ]]; then
 fi
 log "Stripe secrets present (values not logged)"
 
-# --- 2) Build API + dependencies so dist artifacts exist for ts-node ---
-BUILD_LOG="${RUN_DIR}/build.log"
-log "building universal-agent and dependencies for smoke harness"
-(cd "${ROOT}" && pnpm --filter @alexa-multi-agent/universal-agent... build) | tee "${BUILD_LOG}"
-guard_leaks "${BUILD_LOG}"
-
-# --- 3) Start API server harness ---
+# --- 2) Start API server harness ---
 SERVER_LOG="${RUN_DIR}/server.log"
 log "starting server harness on ${PORT}"
 (cd "${ROOT}" && npx --yes ts-node --transpile-only scripts/smoke/server.ts) > "${SERVER_LOG}" 2>&1 &
