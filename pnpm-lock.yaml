@@ -484,6 +484,9 @@ importers:
       '@storytailor/api-contract':
         specifier: workspace:*
         version: link:../api-contract
+      '@supabase/supabase-js':
+        specifier: ^2.38.0
+        version: 2.90.0
       axios:
         specifier: ^1.6.2
         version: 1.13.2
