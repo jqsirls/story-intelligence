@@ -1,6 +1,5 @@
 #!/usr/bin/env ts-node
 import http from 'http'
-import { createLogger, transports, format } from 'winston'
 import { UniversalStorytellerAPI } from '../../packages/universal-agent/src/UniversalStorytellerAPI'
 import { RESTAPIGateway } from '../../packages/universal-agent/src/api/RESTAPIGateway'
 
@@ -8,11 +7,12 @@ const PORT = parseInt(process.env.PORT || '8787', 10)
 const HEALTH_PATH = process.env.HEALTH_PATH || '/health'
 
 async function main() {
-  const logger = createLogger({
-    level: 'info',
-    format: format.combine(format.timestamp(), format.json()),
-    transports: [new transports.Console({ silent: false })]
-  })
+  const logger = {
+    info: (...args: unknown[]) => console.log(...args),
+    warn: (...args: unknown[]) => console.warn(...args),
+    error: (...args: unknown[]) => console.error(...args),
+    debug: (...args: unknown[]) => console.debug(...args)
+  }
 
   const storytellerAPI = new UniversalStorytellerAPI(null as any, null as any, logger)
   const gateway = new RESTAPIGateway(storytellerAPI, logger)
