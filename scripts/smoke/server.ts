@@ -1,10 +1,37 @@
 #!/usr/bin/env ts-node
 import http from 'http'
+import path from 'path'
+import Module from 'module'
 import { UniversalStorytellerAPI } from '../../packages/universal-agent/src/UniversalStorytellerAPI'
 import { RESTAPIGateway } from '../../packages/universal-agent/src/api/RESTAPIGateway'
 
 const PORT = parseInt(process.env.PORT || '8787', 10)
 const HEALTH_PATH = process.env.HEALTH_PATH || '/health'
+const ROOT = path.join(__dirname, '..', '..')
+
+const aliasMap: Record<string, string> = {
+  '@alexa-multi-agent/shared-types': path.join(ROOT, 'packages/shared-types/src/index.ts'),
+  '@alexa-multi-agent/router': path.join(ROOT, 'packages/router/src/index.ts'),
+  '@alexa-multi-agent/event-system': path.join(ROOT, 'packages/event-system/src/index.ts'),
+  '@alexa-multi-agent/auth-agent': path.join(ROOT, 'packages/auth-agent/src/index.ts'),
+  '@alexa-multi-agent/content-agent': path.join(ROOT, 'packages/content-agent/src/index.ts'),
+  '@alexa-multi-agent/library-agent': path.join(ROOT, 'packages/library-agent/src/index.ts'),
+  '@alexa-multi-agent/emotion-agent': path.join(ROOT, 'packages/emotion-agent/src/index.ts'),
+  '@alexa-multi-agent/commerce-agent': path.join(ROOT, 'packages/commerce-agent/src/index.ts'),
+  '@alexa-multi-agent/insights-agent': path.join(ROOT, 'packages/insights-agent/src/index.ts'),
+  '@alexa-multi-agent/smart-home-agent': path.join(ROOT, 'packages/smart-home-agent/src/index.ts'),
+  '@alexa-multi-agent/voice-synthesis': path.join(ROOT, 'packages/voice-synthesis/src/index.ts'),
+  '@storytailor/api-contract': path.join(ROOT, 'packages/api-contract/src/index.ts'),
+  '@alexa-multi-agent/api-contract': path.join(ROOT, 'packages/api-contract/src/index.ts')
+}
+
+const originalResolve = Module._resolveFilename
+;(Module as any)._resolveFilename = function (request: string, parent: any, isMain: boolean, options: any) {
+  if (aliasMap[request]) {
+    request = aliasMap[request]
+  }
+  return (originalResolve as any).call(this, request, parent, isMain, options)
+}
 
 async function main() {
   const logger = {
