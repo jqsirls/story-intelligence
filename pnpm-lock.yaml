@@ -442,10 +442,19 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.38.0
         version: 2.90.0
+      redis:
+        specifier: ^4.6.10
+        version: 4.7.1
+      winston:
+        specifier: ^3.11.0
+        version: 3.19.0
       zod:
         specifier: ^3.22.0
         version: 3.25.76
     devDependencies:
+      '@types/node':
+        specifier: ^20.8.0
+        version: 20.19.27
       eslint:
         specifier: ^8.0.0
         version: 8.57.1
@@ -4552,6 +4561,8 @@ snapshots:
       '@grpc/grpc-js': 1.14.3
       '@grpc/proto-loader': 0.7.15
       '@supabase/supabase-js': 2.90.0
+      redis: 4.7.1
+      winston: 3.19.0
       zod: 3.25.76
     transitivePeerDependencies:
       - bufferutil
