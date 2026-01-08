@@ -45,8 +45,13 @@ try {
       // Fallback to legacy scope if present
       apiContractModule = require('@alexa-multi-agent/api-contract');
     } catch (e2: any) {
-      // If both fail, use inline definition
-      throw e2;
+      try {
+        // Final fallback to local source during dev/smoke
+        apiContractModule = require('../api-contract/src');
+      } catch (_e3: any) {
+        // If all fail, use inline definition
+        throw e2;
+      }
     }
   }
   FEATURES = apiContractModule.FEATURES || apiContractModule.default?.FEATURES || apiContractModule;

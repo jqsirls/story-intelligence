@@ -13,7 +13,33 @@ type KidAudioInput = any;
 type TranscriptionResult = any;
 type ChildProfile = any;
 
-import { FEATURES } from '@storytailor/api-contract';
+// Lazily resolve FEATURES to avoid requiring built artifacts during ts-node smoke harness
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const FEATURES: Record<string, string> = (() => {
+  try {
+    const mod = require('@storytailor/api-contract');
+    return mod.FEATURES || mod.default?.FEATURES || mod;
+  } catch (e1) {
+    try {
+      const mod = require('@alexa-multi-agent/api-contract');
+      return mod.FEATURES || mod.default?.FEATURES || mod;
+    } catch (e2) {
+      try {
+        const mod = require('../api-contract/src');
+        return mod.FEATURES || mod.default?.FEATURES || mod;
+      } catch (_e3) {
+        return {
+          CONVERSATION: 'conversation',
+          STORY_CREATION: 'story_creation',
+          CHARACTER_MANAGEMENT: 'character_management',
+          LIBRARY_MANAGEMENT: 'library_management',
+          EMOTION_TRACKING: 'emotion_tracking',
+          VOICE_SYNTHESIS: 'voice_synthesis'
+        };
+      }
+    }
+  }
+})();
 
 export interface ConversationConfig {
   platform: 'web' | 'mobile' | 'alexa' | 'google' | 'apple' | 'api' | 'custom';
