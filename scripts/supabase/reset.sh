@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Enforce deterministic tooling (no workspace-aware npm)
+export NPM_CONFIG_WORKSPACES=false
+export npm_config_workspaces=false
+
 # Deterministic Supabase reset (two-phase: DB-only reset, then full stack boot).
 # Goals:
 # - Avoid Kong/storage 502 during reset by excluding them while running db reset.
@@ -9,17 +13,25 @@ set -euo pipefail
 # - Redact only sb_publishable_*, sb_secret_*, eyJ… (JWT-like).
 # - Health checks must not show 5xx.
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && git rev-parse --show-toplevel 2>/dev/null || pwd)"
+if [[ -z "${PROJECT_ROOT}" ]]; then
+  echo "PROJECT_ROOT could not be determined" >&2
+  exit 1
+fi
+
+SUPABASE_VERSION="${SUPABASE_VERSION:-2.67.1}"
+
 if [[ -z "${SUPABASE_BIN:-}" ]]; then
   if command -v supabase >/dev/null 2>&1; then
     SUPABASE_BIN=(supabase)
   else
-    SUPABASE_BIN=(npx --yes supabase)
+    SUPABASE_BIN=(env NPM_CONFIG_WORKSPACES=false npm_config_workspaces=false npx --yes "supabase@${SUPABASE_VERSION}")
   fi
 else
   # shellcheck disable=SC2206
   SUPABASE_BIN=(${SUPABASE_BIN})
 fi
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LOG_ROOT="${LOG_ROOT:-/tmp/story-intelligence-reset}"
 mkdir -p "${LOG_ROOT}"
 
@@ -28,16 +40,39 @@ log() {
 }
 
 sanitize() {
-  sed \
-    -e 's/sb_publishable_[A-Za-z0-9_-]\\+/[REDACTED_SUPABASE_ANON_KEY]/g' \
-    -e 's/sb_secret_[A-Za-z0-9_-]\\+/[REDACTED_SUPABASE_SERVICE_ROLE_KEY]/g' \
-    -e 's/eyJ[A-Za-z0-9_-]\\+[.][A-Za-z0-9_-]\\+[.][A-Za-z0-9_-]\\+/[REDACTED_JWT]/g'
+  sed -E \
+    -e 's/sb_publishable_[^[:space:]]+/[REDACTED_SUPABASE_ANON_KEY]/g' \
+    -e 's/sb_secret_[^[:space:]]+/[REDACTED_SUPABASE_SERVICE_ROLE_KEY]/g' \
+    -e 's/eyJ[[:alnum:]_-]+\\.[[:alnum:]_-]+\\.[[:alnum:]_-]+/[REDACTED_JWT]/g' \
+    -e 's/sk_live[[:alnum:]_-]*/[REDACTED_SK_LIVE]/g' \
+    -e 's/github_pat_[[:alnum:]_-]*/[REDACTED_GH_PAT]/g'
+}
+
+sanitize_logs() {
+  local run_dir="$1"
+  while IFS= read -r log_path; do
+    [[ -z "${log_path}" ]] && continue
+    sed -E -i '' \
+      -e 's/sb_publishable_[^[:space:]]+/[REDACTED_SUPABASE_ANON_KEY]/g' \
+      -e 's/sb_secret_[^[:space:]]+/[REDACTED_SUPABASE_SERVICE_ROLE_KEY]/g' \
+      -e 's/eyJ[[:alnum:]_-]+\\.[[:alnum:]_-]+\\.[[:alnum:]_-]+/[REDACTED_JWT]/g' \
+      -e 's/sk_live[[:alnum:]_-]*/[REDACTED_SK_LIVE]/g' \
+      -e 's/github_pat_[[:alnum:]_-]*/[REDACTED_GH_PAT]/g' "${log_path}" || true
+  done < <(find "${run_dir}" -type f -name '*.log')
 }
 
 log_file_run() {
   local run_dir="$1" name="$2"
   mkdir -p "${run_dir}"
   echo "${run_dir}/${name}.log"
+}
+
+redaction_guard() {
+  local run_dir="$1"
+  if grep -R -n -E "sb_secret_|sb_publishable_|eyJ|sk_live|github_pat_" "${run_dir}" >/dev/null 2>&1; then
+    log "redaction guard failed: sensitive token pattern found in logs under ${run_dir}"
+    exit 1
+  fi
 }
 
 storage_health() {
@@ -73,6 +108,28 @@ stop_stack() {
   "${SUPABASE_BIN[@]}" stop || true
 }
 
+force_remove_supabase_containers() {
+  local containers
+  containers=$(docker ps -a --format '{{.Names}}' | grep '^supabase_' || true)
+  if [[ -z "${containers}" ]]; then
+    log "no supabase containers to remove"
+    return
+  fi
+  log "removing supabase containers: ${containers}"
+  echo "${containers}" | xargs -r docker rm -f || true
+}
+
+purge_db_volume() {
+  local vols
+  vols=$(docker volume ls --format '{{.Name}}' | grep 'supabase_db_' || true)
+  if [[ -z "${vols}" ]]; then
+    log "no supabase_db volumes to purge"
+    return
+  fi
+  log "purging supabase_db volumes: ${vols}"
+  echo "${vols}" | xargs -r docker volume rm || true
+}
+
 start_stack() {
   log "starting stack (ignore health check)"
   "${SUPABASE_BIN[@]}" start --ignore-health-check
@@ -90,13 +147,13 @@ reset_once() {
   log_file="$(mktemp)"
   if [[ -n "${db_url}" ]]; then
     log "running db reset (--no-seed) with --db-url"
-    if "${SUPABASE_BIN[@]}" db reset --yes --no-seed --db-url "${db_url}" 2>&1 | tee "${log_file}"; then
+    if printf 'y\n' | "${SUPABASE_BIN[@]}" db reset --no-seed --db-url "${db_url}" 2>&1 | tee "${log_file}"; then
       rm -f "${log_file}"
       return 0
     fi
   else
     log "running db reset (--no-seed)"
-    if "${SUPABASE_BIN[@]}" db reset --yes --no-seed 2>&1 | tee "${log_file}"; then
+    if printf 'y\n' | "${SUPABASE_BIN[@]}" db reset --no-seed 2>&1 | tee "${log_file}"; then
       rm -f "${log_file}"
       return 0
     fi
@@ -149,8 +206,10 @@ main() {
   log "logs: ${RUN_DIR}"
 
   # Phase 1: DB-only reset (no Kong/storage to avoid 502)
-  stop_stack | sanitize | tee "$(log_file_run "${RUN_DIR}" "01_stop")" >/dev/null
-  start_db_only | sanitize | tee "$(log_file_run "${RUN_DIR}" "02_start_db_only")" >/dev/null
+  stop_stack 2>&1 | sanitize | tee "$(log_file_run "${RUN_DIR}" "01_stop")" >/dev/null
+  force_remove_supabase_containers 2>&1 | sanitize | tee "$(log_file_run "${RUN_DIR}" "01a_remove_containers")" >/dev/null
+  purge_db_volume 2>&1 | sanitize | tee "$(log_file_run "${RUN_DIR}" "01b_purge_db_volume")" >/dev/null
+  start_db_only 2>&1 | sanitize | tee "$(log_file_run "${RUN_DIR}" "02_start_db_only")" >/dev/null
 
   local db_url rc=0
   db_url="$(RUN_DIR=${RUN_DIR} db_status_url || true)"
@@ -183,8 +242,8 @@ main() {
   docker exec -i "${db_container}" psql -U postgres -d postgres -P pager=off -c "\\d+ public.subscriptions" | sanitize > "$(log_file_run "${RUN_DIR}" "05_dplus_subscriptions")"
 
   # Phase 2: full stack start + health checks
-  stop_stack | sanitize | tee "$(log_file_run "${RUN_DIR}" "06_stop_before_full")" >/dev/null
-  start_stack | sanitize | tee "$(log_file_run "${RUN_DIR}" "07_start_full")" >/dev/null
+  stop_stack 2>&1 | sanitize | tee "$(log_file_run "${RUN_DIR}" "06_stop_before_full")" >/dev/null
+  start_stack 2>&1 | sanitize | tee "$(log_file_run "${RUN_DIR}" "07_start_full")" >/dev/null
 
   # Health checks (fail on 5xx)
   (
@@ -199,6 +258,8 @@ main() {
     fi
   ) | tee "$(log_file_run "${RUN_DIR}" "08_health_checks")"
 
+  sanitize_logs "${RUN_DIR}"
+  redaction_guard "${RUN_DIR}"
   log "reset + full start succeeded"
   exit 0
 }
