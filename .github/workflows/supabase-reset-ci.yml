@@ -1,0 +1,46 @@
+name: Supabase Reset CI
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/supabase/reset.sh'
+      - '.nvmrc'
+      - 'supabase/**'
+      - '.github/workflows/supabase-reset-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Supabase reset
+        run: |
+          PATH="/opt/hostedtoolcache/node/$(cat .nvmrc)/x64/bin:$PATH"
+          node -v
+          npm -v
+          bash scripts/supabase/reset.sh
+
+      - name: Tooling versions
+        run: |
+          node -v
+          npm -v
+          docker -v
+          npx --yes supabase@2.67.1 --version
+
+      - name: Upload reset logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: story-intelligence-reset-logs
+          path: /tmp/story-intelligence-reset/**
+
