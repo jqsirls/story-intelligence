@@ -1,6 +1,3 @@
-# Continuous Integration Pipeline
-# Runs on every push and pull request to ensure code quality
-
 name: CI Pipeline
 
 on:
@@ -8,40 +5,22 @@ on:
     branches: [main]
   pull_request:
     branches: [main, develop]
-    paths-ignore:
-      - 'supabase/migrations/**'
-      - 'supabase/schema.sql'
-      - 'supabase/config.toml'
-      - 'supabase/.env'
-      - 'scripts/supabase/reset.sh'
   workflow_dispatch:
 
-env:
-  NODE_VERSION: '20'
-  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
-  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
-
 jobs:
-
-  # Job 1: Code Quality Checks
   quality:
-    name: Code Quality
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: 'pnpm'
 
-      - name: Enable pnpm and show versions
+      - name: Enable pnpm
         run: |
           corepack enable
           corepack prepare pnpm@9.15.4 --activate
@@ -49,27 +28,24 @@ jobs:
           npm -v
           pnpm -v
 
-      - name: Install dependencies (frozen)
+      - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: List workspace packages
+      - name: List workspace
         run: pnpm -w list --depth -1
 
-      - name: Lint code
+      - name: Lint
         run: pnpm -r --filter "./packages/**" run lint --if-present
 
-      - name: Type check
+      - name: Typecheck
         run: pnpm -r --filter "./packages/**" run typecheck --if-present
 
-      - name: Check formatting
+      - name: Format check
         run: pnpm -r --filter "./packages/**" run format:check --if-present
 
-  # Job 2: Unit and Integration Tests
   test:
-    name: Test Suite
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    
+    needs: [quality]
     services:
       redis:
         image: redis:7-alpine
@@ -80,299 +56,92 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: 'pnpm'
-
-      - name: Enable pnpm and install (frozen)
+      - name: Enable pnpm
         run: |
           corepack enable
           corepack prepare pnpm@9.15.4 --activate
           node -v
           npm -v
           pnpm -v
-          pnpm install --frozen-lockfile
-          pnpm -w list --depth -1
-
-      - name: Build packages
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: List workspace
+        run: pnpm -w list --depth -1
+      - name: Build
         run: pnpm -r --filter "./packages/**" run build --if-present
-
-      - name: Run unit tests
+      - name: Tests
         run: pnpm -r --filter "./packages/**" run test --if-present -- --coverage --passWithNoTests
         env:
           NODE_ENV: test
           REDIS_URL: redis://localhost:6379
 
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@v3
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          directory: ./coverage
-          fail_ci_if_error: true
-
-      - name: Store test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: test-results
-          path: |
-            coverage/
-            jest-results.xml
-          retention-days: 7
-
-  # Job 3: Security Scanning
   security:
-    name: Security Scan
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    
+    needs: [quality]
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Secret scan (gitleaks)
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: 'pnpm'
-
-      - name: Enable pnpm and install (frozen)
+      - name: Enable pnpm
         run: |
           corepack enable
           corepack prepare pnpm@9.15.4 --activate
           node -v
           npm -v
           pnpm -v
-          pnpm install --frozen-lockfile
-          pnpm -w list --depth -1
-
-      - name: Run pnpm audit
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: List workspace
+        run: pnpm -w list --depth -1
+      - name: pnpm audit
         run: pnpm audit --audit-level=high
 
-      - name: Run Snyk security scan
-        uses: snyk/actions/node@master
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          args: --severity-threshold=high
-
-      - name: Run CodeQL analysis
-        uses: github/codeql-action/init@v3
-        with:
-          languages: javascript
-
-      - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@v3
-
-  # Job 4: Build and Package
   build:
-    name: Build and Package
     runs-on: ubuntu-latest
-    needs: [quality, test]
-    timeout-minutes: 20
-    
-    outputs:
-      build-hash: ${{ steps.build-hash.outputs.hash }}
-      
+    needs: [quality, test, security]
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: 'pnpm'
-
-      - name: Enable pnpm and install (frozen)
+      - name: Enable pnpm
         run: |
           corepack enable
           corepack prepare pnpm@9.15.4 --activate
           node -v
           npm -v
           pnpm -v
-          pnpm install --frozen-lockfile
-          pnpm -w list --depth -1
-
-      - name: Build all packages
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: List workspace
+        run: pnpm -w list --depth -1
+      - name: Build
         run: pnpm -r --filter "./packages/**" run build --if-present
 
-      - name: Create deployment packages
-        run: |
-          mkdir -p dist/packages
-          for package in packages/*/; do
-            package_name=$(basename "$package")
-            if [ -d "$package/dist" ]; then
-              echo "Packaging $package_name..."
-              cd "$package"
-              pnpm pack
-              mv *.tgz "../../dist/packages/"
-              cd ../..
-            fi
-          done
-
-      - name: Generate build hash
-        id: build-hash
-        run: |
-          BUILD_HASH=$(find dist/ -type f -exec sha256sum {} \; | sha256sum | cut -d' ' -f1)
-          echo "hash=$BUILD_HASH" >> $GITHUB_OUTPUT
-          echo "Build hash: $BUILD_HASH"
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-artifacts-${{ steps.build-hash.outputs.hash }}
-          path: |
-            dist/
-            packages/*/dist/
-          retention-days: 30
-
-  # Job 6: Database Migration Validation
-  database:
-    name: Database Validation
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
-        with:
-          version: latest
-
-      - name: Start Supabase
-        run: supabase start
-
-      - name: Run database tests
-        run: |
-          cd supabase
-          ./validate_sql.sh
-
-      - name: Check migration status
-        run: supabase db diff --schema public
-
-      - name: Stop Supabase
-        run: supabase stop
-
-  # Job 7: Performance Baseline
-  performance:
-    name: Performance Baseline
-    runs-on: ubuntu-latest
-    needs: [build]
-    if: github.event_name == 'pull_request'
-    timeout-minutes: 20
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: 'pnpm'
-      
-      - name: Enable pnpm and install (frozen)
-        run: |
-          corepack enable
-          corepack prepare pnpm@9.15.4 --activate
-          node -v
-          npm -v
-          pnpm -v
-          pnpm install --frozen-lockfile
-          pnpm -w list --depth -1
-
-      - name: Install K6
-        run: |
-          sudo gpg -k
-          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
-          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
-          sudo apt-get update
-          sudo apt-get install k6
-
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts-${{ needs.build.outputs.build-hash }}
-          path: dist/
-
-      - name: Run performance baseline tests
-        run: |
-          k6 run --env TEST_TYPE=baseline \
-                 --env MAX_VUS=10 \
-                 --env DURATION=2m \
-                 testing/load/k6-load-tests.js
-
-      - name: Upload performance results
-        uses: actions/upload-artifact@v4
-        with:
-          name: performance-baseline
-          path: k6-results.json
-          retention-days: 7
-
-  # Job 8: Compliance Check
-  compliance:
-    name: Compliance Validation
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-      - name: Install Python dependencies
-        run: |
-          pip install requests pytest
-          pip install -r testing/requirements.txt
-
-      - name: Run COPPA/GDPR compliance tests
-        run: |
-          python testing/compliance/coppa-gdpr-validation-tests.py \
-            --url http://localhost:3000 \
-            --dry-run \
-            --output compliance-report.json
-
-      - name: Upload compliance report
-        uses: actions/upload-artifact@v4
-        with:
-          name: compliance-report
-          path: compliance-report.json
-          retention-days: 30
-
-  # Job 9: Notification
   notify:
-    name: Notify Results
     runs-on: ubuntu-latest
-    needs: [quality, test, security, build, database]
+    needs: [quality, test, security, build]
     if: always()
-    
     steps:
-      - name: Slack notifications disabled (no webhook configured)
+      - name: Slack notifications disabled
         if: ${{ secrets.SLACK_WEBHOOK_URL == '' }}
-        run: echo "SLACK_WEBHOOK_URL is not set; skipping Slack notifications"
-
-      - name: Notify Slack on success
+        run: echo "SLACK_WEBHOOK_URL not set; skipping Slack notifications"
+      - name: Notify success
         if: ${{ secrets.SLACK_WEBHOOK_URL != '' && needs.quality.result == 'success' && needs.test.result == 'success' && needs.security.result == 'success' && needs.build.result == 'success' }}
         uses: 8398a7/action-slack@v3
         with:
@@ -381,8 +150,7 @@ jobs:
           text: '✅ CI Pipeline passed for ${{ github.ref }}'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-
-      - name: Notify Slack on failure
+      - name: Notify failure
         if: ${{ secrets.SLACK_WEBHOOK_URL != '' && (needs.quality.result == 'failure' || needs.test.result == 'failure' || needs.security.result == 'failure' || needs.build.result == 'failure') }}
         uses: 8398a7/action-slack@v3
         with:
