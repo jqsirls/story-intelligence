@@ -254,7 +254,7 @@ export class CommerceAgent {
         throw error;
       }
 
-      return subscription;
+      return subscription ? this.mapSubscriptionRow(subscription) : null;
     } catch (error) {
       console.error('Error getting subscription status:', error);
       throw error;
@@ -637,7 +637,7 @@ export class CommerceAgent {
 
       return {
         success: true,
-        subscription: updatedSubscription
+        subscription: this.mapSubscriptionRow(updatedSubscription)
       };
     } catch (error) {
       console.error('Error changing plan:', error);
@@ -942,7 +942,8 @@ export class CommerceAgent {
         .from('referral_tracking')
         .insert({
           referrer_id: inviterId,
-          referee_id: null, // Will be filled when user signs up
+          // Will be filled when user signs up
+          referee_id: undefined,
           discount_code: discountCode,
           reward_amount: 0, // Could implement referral rewards later
           status: 'pending'
@@ -1196,7 +1197,7 @@ export class CommerceAgent {
         throw error;
       }
 
-      return discounts || [];
+      return (discounts || []).map(d => this.mapInviteDiscountRow(d));
     } catch (error) {
       console.error('Error getting available discounts:', error);
       throw error;
@@ -1333,5 +1334,36 @@ export class CommerceAgent {
         couponCode: code
       };
     }
+  }
+
+  private mapSubscriptionRow(
+    row: Database['public']['Tables']['subscriptions']['Row']
+  ): Subscription {
+    return {
+      id: row.id,
+      user_id: row.user_id,
+      stripe_subscription_id: row.stripe_subscription_id ?? null,
+      plan_id: row.plan_id,
+      status: row.status,
+      current_period_start: row.current_period_start ?? null,
+      current_period_end: row.current_period_end ?? null,
+      created_at: row.created_at ?? null,
+    };
+  }
+
+  private mapInviteDiscountRow(
+    row: Database['public']['Tables']['invite_discounts']['Row']
+  ): InviteDiscount {
+    const type = row.type === 'story_transfer' ? 'story_transfer' : 'user_invite';
+    return {
+      id: row.id,
+      code: row.code,
+      type,
+      discountPercentage: row.discount_percentage,
+      createdBy: row.created_by,
+      validUntil: row.valid_until,
+      usedBy: row.used_by ?? undefined,
+      createdAt: row.created_at ?? null,
+    };
   }
 }

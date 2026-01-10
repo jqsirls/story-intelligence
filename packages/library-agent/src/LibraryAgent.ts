@@ -1,4 +1,3 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '@alexa-multi-agent/shared-types';
 import { LibraryService } from './services/LibraryService';
 import { PermissionService } from './services/PermissionService';
@@ -18,12 +17,14 @@ import {
   StoryTransferRequest,
   StoryTransferResponse,
   CharacterShareRequest,
-  LibraryError
+  LibraryError,
+  LibrarySupabaseClient
 } from './types';
 import { DatabaseStory, DatabaseCharacter } from './types';
+import { createLibraryClient } from './db/client';
 
 export class LibraryAgent {
-  private supabase: SupabaseClient<Database>;
+  private supabase: LibrarySupabaseClient;
   private libraryService: LibraryService;
   private permissionService: PermissionService;
   private storyService: StoryService;
@@ -32,7 +33,7 @@ export class LibraryAgent {
   private emotionalInsightsService: EmotionalInsightsService;
 
   constructor(private config: LibraryAgentConfig) {
-    this.supabase = createClient<Database>(config.supabaseUrl, config.supabaseKey);
+    this.supabase = createLibraryClient(config.supabaseUrl, config.supabaseKey);
     
     // Initialize services
     this.libraryService = new LibraryService(this.supabase);

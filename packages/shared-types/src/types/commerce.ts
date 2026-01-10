@@ -1,12 +1,12 @@
 export interface Subscription {
   id: string;
   user_id: string;
-  stripe_subscription_id?: string;
+  stripe_subscription_id?: string | null;
   plan_id: string;
   status: string;
-  current_period_start?: string;
-  current_period_end?: string;
-  created_at: string;
+  current_period_start?: string | null;
+  current_period_end?: string | null;
+  created_at: string | null;
 }
 
 export interface CheckoutSession {
