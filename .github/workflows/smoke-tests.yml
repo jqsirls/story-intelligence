@@ -26,10 +26,16 @@ env:
   NODE_VERSION: '20'
 
 jobs:
+  skip-push:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - run: echo "Skipping smoke tests on push"
+
   smoke-tests:
     name: Smoke Tests
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name != 'push' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     timeout-minutes: 10
     
     steps:
