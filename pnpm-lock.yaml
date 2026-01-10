@@ -1002,7 +1002,36 @@ importers:
         specifier: ^5.0.0
         version: 5.9.3
 
-  packages/router: {}
+  packages/router:
+    dependencies:
+      '@alexa-multi-agent/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+      '@supabase/supabase-js':
+        specifier: ^2.38.0
+        version: 2.90.0
+      cors:
+        specifier: ^2.8.5
+        version: 2.8.5
+      express:
+        specifier: ^4.18.2
+        version: 4.22.1
+      redis:
+        specifier: ^4.6.10
+        version: 4.7.1
+      winston:
+        specifier: ^3.11.0
+        version: 3.19.0
+    devDependencies:
+      '@types/cors':
+        specifier: ^2.8.17
+        version: 2.8.19
+      '@types/express':
+        specifier: ^4.17.21
+        version: 4.17.25
+      '@types/jest':
+        specifier: ^29.5.5
+        version: 29.5.14
 
   packages/security-framework:
     dependencies:
@@ -2797,7 +2826,6 @@ packages:
 
   '@evilmartians/lefthook@1.13.6':
     resolution: {integrity: sha512-79vplrUBWL4Fkt59YkEBdSpqBVhNrY8t5+jEp+wX5QbsmbQLcSULqwS7FmbNRyECa2LWMrUWpe6ENIfNwB4jiw==}
-    cpu: [x64, arm64, ia32]
     os: [darwin, linux, win32]
     hasBin: true
 

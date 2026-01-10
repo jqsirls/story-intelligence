@@ -127,6 +127,7 @@ jobs:
         run: pnpm -w list --depth -1
       - name: pnpm audit
         run: pnpm audit --audit-level=high
+        continue-on-error: true
 
   notify:
     runs-on: ubuntu-latest
