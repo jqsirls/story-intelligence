@@ -69,7 +69,7 @@ export class EventSubscriber {
           },
           RetryPolicy: subscription.retryPolicy ? {
             MaximumRetryAttempts: subscription.retryPolicy.maximumRetryAttempts,
-            MaximumEventAgeSeconds: subscription.retryPolicy.maximumEventAge
+            MaximumEventAgeInSeconds: subscription.retryPolicy.maximumEventAge
           } : undefined,
           DeadLetterConfig: subscription.deadLetterQueue ? {
             Arn: subscription.deadLetterQueue
@@ -218,7 +218,7 @@ export class EventSubscriber {
 
     try {
       // Test EventBridge connection
-      await this.eventBridge.send(new CreateRuleCommand({
+      await this.eventBridge.send(new PutRuleCommand({
         Name: 'health-check-rule-temp',
         EventPattern: JSON.stringify({ source: ['health-check'] }),
         State: 'DISABLED'
