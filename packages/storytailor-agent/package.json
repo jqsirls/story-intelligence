@@ -13,7 +13,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@alexa-multi-agent/shared-types": "*",
+    "@alexa-multi-agent/shared-types": "workspace:*",
     "@alexa-multi-agent/voice-synthesis": "*",
     "@alexa-multi-agent/auth-agent": "*",
     "@supabase/supabase-js": "^2.38.0",

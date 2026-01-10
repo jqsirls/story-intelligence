@@ -15,7 +15,7 @@
     "example": "ts-node examples/rest-api-gateway-example.ts"
   },
   "dependencies": {
-    "@alexa-multi-agent/shared-types": "*",
+    "@alexa-multi-agent/shared-types": "workspace:*",
     "@alexa-multi-agent/router": "*",
     "@alexa-multi-agent/event-system": "*",
     "@alexa-multi-agent/auth-agent": "*",
@@ -30,7 +30,7 @@
     "ws": "^8.14.2",
     "cors": "^2.8.5",
     "helmet": "^7.1.0",
-    "rate-limiter-flexible": "^3.0.8",
+    "rate-limiter-flexible": "9.0.1",
     "redis": "^4.6.10",
     "uuid": "^9.0.1",
     "winston": "^3.11.0",
@@ -48,8 +48,7 @@
     "@types/cors": "^2.8.17",
     "@types/uuid": "^9.0.7",
     "@types/swagger-ui-express": "^4.1.6",
-    "@types/express-graphql": "^0.12.0",
-    "@types/openapi-types": "^12.0.0",
+    "@types/express-graphql": "0.9.2",
     "@types/node": "^20.8.0",
     "@types/jest": "^29.5.5",
     "typescript": "^5.2.2",

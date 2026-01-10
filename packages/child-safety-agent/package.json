@@ -12,12 +12,12 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@storytailor/shared-types": "workspace:*",
     "@supabase/supabase-js": "^2.39.0",
     "openai": "^4.20.1",
     "redis": "^4.6.5",
     "winston": "^3.11.0",
-    "zod": "^3.22.4"
+    "zod": "^3.22.4",
+    "@alexa-multi-agent/shared-types": "workspace:*"
   },
   "devDependencies": {
     "@types/jest": "^29.5.8",
@@ -29,6 +29,8 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",
-    "setupFilesAfterEnv": ["<rootDir>/jest.setup.js"]
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.js"
+    ]
   }
 }
