@@ -20,47 +20,52 @@ export interface CloudEvent {
 }
 
 // Event types for the Alexa Multi-Agent System
-export type EventType = 
+export type EventType =
   // Authentication events
   | 'com.storytailor.auth.account-linked'
   | 'com.storytailor.auth.verification-completed'
   | 'com.storytailor.auth.login-attempted'
   | 'com.storytailor.auth.password-reset'
-  
   // Story creation events
   | 'com.storytailor.story.creation-started'
   | 'com.storytailor.story.character-created'
   | 'com.storytailor.story.story-generated'
   | 'com.storytailor.story.assets-generated'
   | 'com.storytailor.story.story-finalized'
-  
   // Smart home events
   | 'com.storytailor.smarthome.device-connected'
   | 'com.storytailor.smarthome.lighting-changed'
   | 'com.storytailor.smarthome.narrative-sync'
   | 'com.storytailor.smarthome.device-disconnected'
-  
   // Privacy compliance events
   | 'com.storytailor.privacy.consent-given'
   | 'com.storytailor.privacy.consent-withdrawn'
   | 'com.storytailor.privacy.data-deleted'
   | 'com.storytailor.privacy.parental-verification'
-  
   // Emotion tracking events
   | 'com.storytailor.emotion.checkin-completed'
   | 'com.storytailor.emotion.pattern-detected'
   | 'com.storytailor.emotion.mood-updated'
-  
   // System events
   | 'com.storytailor.system.agent-started'
   | 'com.storytailor.system.agent-stopped'
   | 'com.storytailor.system.error-occurred'
   | 'com.storytailor.system.health-check'
-  
+  | 'com.storytailor.agent.error'
+  | 'com.storytailor.api.timeout'
+  | 'com.storytailor.database.error'
+  | 'com.storytailor.performance.degraded'
   // Commerce events
   | 'com.storytailor.commerce.subscription-created'
   | 'com.storytailor.commerce.payment-processed'
-  | 'com.storytailor.commerce.subscription-cancelled';
+  | 'com.storytailor.commerce.subscription-cancelled'
+  // Self-healing events
+  | 'com.storytailor.healing.started'
+  | 'com.storytailor.healing.completed'
+  | 'com.storytailor.healing.failed'
+  | 'com.storytailor.incident.detected'
+  | 'com.storytailor.circuit.opened'
+  | 'com.storytailor.circuit.closed';
 
 // Event sources (agents that can publish events)
 export type EventSource = 

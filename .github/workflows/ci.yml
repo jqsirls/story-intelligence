@@ -50,7 +50,15 @@ jobs:
         run: pnpm -w list --depth -1
 
       - name: Typecheck (launch-critical)
-        run: pnpm -r --filter "@alexa-multi-agent/shared-types" --filter "@alexa-multi-agent/event-system" --filter "@alexa-multi-agent/voice-synthesis" --filter "@alexa-multi-agent/router" --filter "@alexa-multi-agent/universal-agent" run --if-present typecheck
+        run: pnpm -r \
+          --filter "@alexa-multi-agent/shared-types" \
+          --filter "@alexa-multi-agent/event-system" \
+          --filter "@alexa-multi-agent/auth-agent" \
+          --filter "@alexa-multi-agent/library-agent" \
+          --filter "@alexa-multi-agent/commerce-agent" \
+          --filter "@alexa-multi-agent/router" \
+          --filter "@alexa-multi-agent/universal-agent" \
+          run --if-present typecheck
 
   build:
     runs-on: ubuntu-latest
@@ -70,7 +78,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Build (launch-critical)
-        run: pnpm -r --filter "@alexa-multi-agent/shared-types" --filter "@alexa-multi-agent/event-system" --filter "@alexa-multi-agent/voice-synthesis" --filter "@alexa-multi-agent/router" --filter "@alexa-multi-agent/universal-agent" run --if-present build
+        run: pnpm -r \
+          --filter "@alexa-multi-agent/shared-types" \
+          --filter "@alexa-multi-agent/event-system" \
+          --filter "@alexa-multi-agent/auth-agent" \
+          --filter "@alexa-multi-agent/library-agent" \
+          --filter "@alexa-multi-agent/commerce-agent" \
+          --filter "@alexa-multi-agent/router" \
+          --filter "@alexa-multi-agent/universal-agent" \
+          run --if-present build
 
   test:
     runs-on: ubuntu-latest
@@ -100,7 +116,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Tests (launch-critical)
-        run: pnpm -r --filter "@alexa-multi-agent/shared-types" --filter "@alexa-multi-agent/event-system" --filter "@alexa-multi-agent/voice-synthesis" --filter "@alexa-multi-agent/router" --filter "@alexa-multi-agent/universal-agent" run --if-present test -- --passWithNoTests
+        run: pnpm -r \
+          --filter "@alexa-multi-agent/shared-types" \
+          --filter "@alexa-multi-agent/event-system" \
+          --filter "@alexa-multi-agent/auth-agent" \
+          --filter "@alexa-multi-agent/library-agent" \
+          --filter "@alexa-multi-agent/commerce-agent" \
+          --filter "@alexa-multi-agent/router" \
+          --filter "@alexa-multi-agent/universal-agent" \
+          run --if-present test -- --passWithNoTests
         env:
           NODE_ENV: test
           REDIS_URL: redis://localhost:6379

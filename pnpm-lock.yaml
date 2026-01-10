@@ -1028,12 +1028,18 @@ importers:
       express:
         specifier: ^4.18.2
         version: 4.22.1
+      openai:
+        specifier: ^4.28.4
+        version: 4.104.0(ws@8.19.0)(zod@3.25.76)
       redis:
         specifier: ^4.6.10
         version: 4.7.1
       winston:
         specifier: ^3.11.0
         version: 3.19.0
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
     devDependencies:
       '@types/cors':
         specifier: ^2.8.17
@@ -1106,6 +1112,9 @@ importers:
       '@grpc/proto-loader':
         specifier: ^0.7.0
         version: 0.7.15
+      '@supabase/postgrest-js':
+        specifier: 2.90.0
+        version: 2.90.0
       '@supabase/supabase-js':
         specifier: ^2.38.0
         version: 2.90.0
@@ -1405,38 +1414,41 @@ importers:
 
   packages/universal-agent:
     dependencies:
+      '@alexa-multi-agent/a2a-adapter':
+        specifier: workspace:*
+        version: link:../a2a-adapter
       '@alexa-multi-agent/auth-agent':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../auth-agent
       '@alexa-multi-agent/commerce-agent':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../commerce-agent
       '@alexa-multi-agent/content-agent':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../content-agent
       '@alexa-multi-agent/emotion-agent':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../emotion-agent
       '@alexa-multi-agent/event-system':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../event-system
       '@alexa-multi-agent/insights-agent':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../insights-agent
       '@alexa-multi-agent/library-agent':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../library-agent
       '@alexa-multi-agent/router':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../router
       '@alexa-multi-agent/shared-types':
         specifier: workspace:*
         version: link:../shared-types
       '@alexa-multi-agent/smart-home-agent':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../smart-home-agent
       '@alexa-multi-agent/voice-synthesis':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../voice-synthesis
       '@aws-sdk/client-ses':
         specifier: ^3.0.0
@@ -1444,6 +1456,9 @@ importers:
       '@aws-sdk/client-ssm':
         specifier: ^3.0.0
         version: 3.965.0
+      '@storytailor/api-contract':
+        specifier: workspace:*
+        version: link:../api-contract
       axios:
         specifier: ^1.6.2
         version: 1.13.2
@@ -11157,6 +11172,7 @@ snapshots:
       '@alexa-multi-agent/event-system': link:packages/event-system
       '@grpc/grpc-js': 1.14.3
       '@grpc/proto-loader': 0.7.15
+      '@supabase/postgrest-js': 2.90.0
       '@supabase/supabase-js': 2.90.0
       redis: 4.7.1
       winston: 3.19.0
