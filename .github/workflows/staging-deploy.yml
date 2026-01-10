@@ -5,7 +5,7 @@ name: Staging Deployment
 
 on:
   push:
-    branches: [develop]
+    branches: [develop, main]
   workflow_dispatch:
     inputs:
       force_deploy:
