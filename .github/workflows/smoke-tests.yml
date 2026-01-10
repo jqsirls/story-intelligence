@@ -23,15 +23,9 @@ on:
     - cron: '*/15 * * * *'
 
 env:
-  NODE_VERSION: '18'
+  NODE_VERSION: '20'
 
 jobs:
-  skip-unexpected:
-    runs-on: ubuntu-latest
-    if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
-    steps:
-      - run: echo "Smoke Tests only run on schedule or workflow_dispatch; skipping."
-
   smoke-tests:
     name: Smoke Tests
     runs-on: ubuntu-latest
@@ -66,7 +60,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .nvmrc
+
+      - name: Skip if Stripe secrets missing
+        run: |
+          if [ -z "${{ secrets.STRIPE_SECRET_KEY }}" ] || [ -z "${{ secrets.STRIPE_WEBHOOK_SECRET }}" ]; then
+            echo "SKIPPED: missing STRIPE_SECRET_KEY/STRIPE_WEBHOOK_SECRET"
+            exit 0
+          fi
 
       - name: Create smoke test script
         run: |
