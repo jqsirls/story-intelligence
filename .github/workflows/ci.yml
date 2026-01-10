@@ -4,8 +4,6 @@
 name: CI Pipeline
 
 on:
-  push:
-    branches: [main, develop, 'feature/*', 'hotfix/*']
   pull_request:
     branches: [main, develop]
     paths-ignore:
@@ -14,6 +12,7 @@ on:
       - 'supabase/config.toml'
       - 'supabase/.env'
       - 'scripts/supabase/reset.sh'
+  workflow_dispatch:
 
 env:
   NODE_VERSION: '18'

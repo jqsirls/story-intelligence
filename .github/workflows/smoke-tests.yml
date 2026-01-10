@@ -61,15 +61,16 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install dependencies
-        run: |
-          npm install axios chalk
-
       - name: Create smoke test script
         run: |
           cat > smoke-tests.js << 'EOF'
-          const axios = require('axios');
-          const chalk = require('chalk');
+          const fetch = global.fetch;
+          const chalk = {
+            blue: (msg) => msg,
+            green: (msg) => msg,
+            red: (msg) => msg,
+            yellow: (msg) => msg,
+          };
           
           const API_URL = process.env.API_URL;
           const ENVIRONMENT = process.env.ENVIRONMENT;
@@ -124,29 +125,40 @@ jobs:
             const startTime = Date.now();
             
             try {
-              const config = {
-                method: test.method,
-                url: test.url,
-                timeout: test.timeout,
-                headers: test.headers || {},
-                validateStatus: (status) => {
-                  if (Array.isArray(test.expectedStatus)) {
-                    return test.expectedStatus.includes(status);
-                  }
-                  return status === test.expectedStatus;
+              const doFetch = async () => {
+                const controller = new AbortController();
+                const id = setTimeout(() => controller.abort(), test.timeout);
+                const res = await fetch(test.url, {
+                  method: test.method,
+                  headers: test.headers || {},
+                  signal: controller.signal,
+                });
+                clearTimeout(id);
+                return res;
+              };
+              
+              const validateStatus = (status) => {
+                if (Array.isArray(test.expectedStatus)) {
+                  return test.expectedStatus.includes(status);
                 }
+                return status === test.expectedStatus;
               };
               
               if (test.repeat) {
-                // Run test multiple times for rate limiting check
                 for (let i = 0; i < test.repeat; i++) {
-                  await axios(config);
+                  const res = await doFetch();
+                  if (!validateStatus(res.status)) {
+                    throw new Error(`Status ${res.status} not in ${JSON.stringify(test.expectedStatus)}`);
+                  }
                   if (i < test.repeat - 1) {
                     await new Promise(resolve => setTimeout(resolve, 100));
                   }
                 }
               } else {
-                await axios(config);
+                const res = await doFetch();
+                if (!validateStatus(res.status)) {
+                  throw new Error(`Status ${res.status} not in ${JSON.stringify(test.expectedStatus)}`);
+                }
               }
               
               const duration = Date.now() - startTime;
@@ -263,7 +275,7 @@ jobs:
           fi
 
       - name: Notify on failure
-        if: failure() && steps.config.outputs.environment == 'production'
+        if: failure() && steps.config.outputs.environment == 'production' && secrets.SLACK_WEBHOOK_URL != ''
         uses: 8398a7/action-slack@v3
         with:
           status: failure
