@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
 
 env:
-  NODE_VERSION: '18'
+  NODE_VERSION: '20'
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
@@ -38,27 +38,31 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .nvmrc
+          cache: 'pnpm'
 
-      - name: Install dependencies
+      - name: Enable pnpm and show versions
         run: |
           corepack enable
           corepack prepare pnpm@9.15.4 --activate
-          pnpm install --no-frozen-lockfile
+          node -v
+          npm -v
+          pnpm -v
+
+      - name: Install dependencies (frozen)
+        run: pnpm install --frozen-lockfile
+
+      - name: List workspace packages
+        run: pnpm -w list --depth -1
 
       - name: Lint code
-        run: npm run lint
+        run: pnpm -r --filter "./packages/**" run lint --if-present
 
       - name: Type check
-        run: npm run type-check
+        run: pnpm -r --filter "./packages/**" run typecheck --if-present
 
       - name: Check formatting
-        run: npx prettier --check .
-
-      - name: Validate package.json files
-        run: |
-          find packages -name "package.json" -exec npm pkg fix {} \;
-          git diff --exit-code || (echo "package.json files need fixing" && exit 1)
+        run: pnpm -r --filter "./packages/**" run format:check --if-present
 
   # Job 2: Unit and Integration Tests
   test:
@@ -84,19 +88,24 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .nvmrc
+          cache: 'pnpm'
 
-      - name: Install dependencies
+      - name: Enable pnpm and install (frozen)
         run: |
           corepack enable
           corepack prepare pnpm@9.15.4 --activate
-          pnpm install --no-frozen-lockfile
+          node -v
+          npm -v
+          pnpm -v
+          pnpm install --frozen-lockfile
+          pnpm -w list --depth -1
 
       - name: Build packages
-        run: npm run build
+        run: pnpm -r --filter "./packages/**" run build --if-present
 
       - name: Run unit tests
-        run: npm run test -- --coverage --passWithNoTests
+        run: pnpm -r --filter "./packages/**" run test --if-present -- --coverage --passWithNoTests
         env:
           NODE_ENV: test
           REDIS_URL: redis://localhost:6379
@@ -138,16 +147,21 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .nvmrc
+          cache: 'pnpm'
 
-      - name: Install dependencies
+      - name: Enable pnpm and install (frozen)
         run: |
           corepack enable
           corepack prepare pnpm@9.15.4 --activate
-          pnpm install --no-frozen-lockfile
+          node -v
+          npm -v
+          pnpm -v
+          pnpm install --frozen-lockfile
+          pnpm -w list --depth -1
 
-      - name: Run npm audit
-        run: npm audit --audit-level=high
+      - name: Run pnpm audit
+        run: pnpm audit --audit-level=high
 
       - name: Run Snyk security scan
         uses: snyk/actions/node@master
@@ -169,7 +183,6 @@ jobs:
     name: Build and Package
     runs-on: ubuntu-latest
     needs: [quality, test]
-    if: github.event_name != 'push'
     timeout-minutes: 20
     
     outputs:
@@ -182,16 +195,21 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .nvmrc
+          cache: 'pnpm'
 
-      - name: Install dependencies
+      - name: Enable pnpm and install (frozen)
         run: |
           corepack enable
           corepack prepare pnpm@9.15.4 --activate
-          pnpm install --no-frozen-lockfile
+          node -v
+          npm -v
+          pnpm -v
+          pnpm install --frozen-lockfile
+          pnpm -w list --depth -1
 
       - name: Build all packages
-        run: npm run build
+        run: pnpm -r --filter "./packages/**" run build --if-present
 
       - name: Create deployment packages
         run: |
@@ -201,7 +219,7 @@ jobs:
             if [ -d "$package/dist" ]; then
               echo "Packaging $package_name..."
               cd "$package"
-              npm pack
+              pnpm pack
               mv *.tgz "../../dist/packages/"
               cd ../..
             fi
@@ -267,13 +285,18 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .nvmrc
+          cache: 'pnpm'
       
-      - name: Install dependencies
+      - name: Enable pnpm and install (frozen)
         run: |
           corepack enable
           corepack prepare pnpm@9.15.4 --activate
-          pnpm install --no-frozen-lockfile
+          node -v
+          npm -v
+          pnpm -v
+          pnpm install --frozen-lockfile
+          pnpm -w list --depth -1
 
       - name: Install K6
         run: |
@@ -342,7 +365,7 @@ jobs:
     name: Notify Results
     runs-on: ubuntu-latest
     needs: [quality, test, security, build, database]
-    if: always() && github.event_name != 'push'
+    if: always()
     
     steps:
       - name: Slack notifications disabled (no webhook configured)

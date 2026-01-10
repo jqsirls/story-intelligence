@@ -4,8 +4,6 @@
 name: Staging Deployment
 
 on:
-  push:
-    branches: [develop]
   workflow_dispatch:
     inputs:
       force_deploy:
@@ -15,7 +13,7 @@ on:
         type: boolean
 
 env:
-  NODE_VERSION: '18'
+  NODE_VERSION: '20'
   AWS_REGION: 'us-east-1'
   ENVIRONMENT: 'staging'
 
@@ -40,21 +38,28 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          node-version-file: .nvmrc
+          cache: 'pnpm'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Enable pnpm and install (frozen)
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+          node -v
+          npm -v
+          pnpm -v
+          pnpm install --frozen-lockfile
+          pnpm -w list --depth -1
 
       - name: Run full test suite
-        run: npm run test -- --coverage
+        run: pnpm -r --filter "./packages/**" run test --if-present -- --coverage
         env:
           NODE_ENV: test
 
       - name: Build all packages
         id: build
         run: |
-          npm run build
+          pnpm -r --filter "./packages/**" run build --if-present
           BUILD_HASH=$(find packages/*/dist -type f -exec sha256sum {} \; | sha256sum | cut -d' ' -f1)
           echo "hash=$BUILD_HASH" >> $GITHUB_OUTPUT
 
@@ -258,11 +263,18 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          node-version-file: .nvmrc
+          cache: 'pnpm'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Enable pnpm and install (frozen)
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+          node -v
+          npm -v
+          pnpm -v
+          pnpm install --frozen-lockfile
+          pnpm -w list --depth -1
 
       - name: Wait for deployment to be ready
         run: |
@@ -278,7 +290,7 @@ jobs:
 
       - name: Run integration tests
         run: |
-          npm run test:integration
+          pnpm run test:integration
         env:
           API_BASE_URL: ${{ needs.infrastructure.outputs.api-gateway-url }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL_STAGING }}
@@ -447,8 +459,12 @@ jobs:
     if: always() && (github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch')
     
     steps:
+      - name: Slack notifications disabled
+        if: ${{ secrets.SLACK_WEBHOOK_URL == '' }}
+        run: echo "SLACK_WEBHOOK_URL not set; skipping Slack notifications"
+
       - name: Notify success
-        if: ${{ needs.infrastructure.result == 'success' && needs.database.result == 'success' && needs.integration-tests.result == 'success' && needs.load-tests.result == 'success' && needs.security-tests.result == 'success' && needs.smoke-tests.result == 'success' }}
+        if: ${{ secrets.SLACK_WEBHOOK_URL != '' && needs.infrastructure.result == 'success' && needs.database.result == 'success' && needs.integration-tests.result == 'success' && needs.load-tests.result == 'success' && needs.security-tests.result == 'success' && needs.smoke-tests.result == 'success' }}
         uses: 8398a7/action-slack@v3
         with:
           status: success
@@ -471,7 +487,7 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
       - name: Notify failure
-        if: ${{ needs.infrastructure.result == 'failure' || needs.database.result == 'failure' || needs.integration-tests.result == 'failure' || needs.load-tests.result == 'failure' || needs.security-tests.result == 'failure' || needs.smoke-tests.result == 'failure' }}
+        if: ${{ secrets.SLACK_WEBHOOK_URL != '' && (needs.infrastructure.result == 'failure' || needs.database.result == 'failure' || needs.integration-tests.result == 'failure' || needs.load-tests.result == 'failure' || needs.security-tests.result == 'failure' || needs.smoke-tests.result == 'failure') }}
         uses: 8398a7/action-slack@v3
         with:
           status: failure
