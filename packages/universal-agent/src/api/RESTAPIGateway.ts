@@ -13,7 +13,7 @@ import { WebhookDeliverySystem } from '../webhooks/WebhookDeliverySystem';
 // @ts-ignore - serverless-http is ES module
 import serverlessHttp from 'serverless-http';
 import { UniversalStorytellerAPI } from '../UniversalStorytellerAPI';
-import { LibraryService } from '@alexa-multi-agent/library-agent/dist/services/LibraryService';
+import { LibraryService } from '@alexa-multi-agent/library-agent';
 import { CommerceAgent } from '@alexa-multi-agent/commerce-agent';
 
 export class RESTAPIGateway {
