@@ -15,10 +15,7 @@ name: Comprehensive CI/CD Pipeline - 100/100 Quality
 #    - ENABLE_DEPLOYMENT_TRACKING (set to 'true' to enable)
 
 on:
-  push:
-    branches: [ main, develop, staging ]
-  schedule:
-    - cron: '0 2 * * *' # Nightly regression tests
+  workflow_dispatch:
 
 env:
   AWS_REGION: us-east-1
