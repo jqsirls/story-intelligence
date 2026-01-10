@@ -3,17 +3,23 @@ import { Router } from 'express';
 import { AuthAgent } from '@alexa-multi-agent/auth-agent';
 import { Logger } from 'winston';
 import * as Joi from 'joi';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { Database } from '@alexa-multi-agent/shared-types';
 
 import { EmailService } from '../services/EmailService';
+
+type UserRow = Database['public']['Tables']['users']['Row'];
 
 export class AuthRoutes {
   private router: Router;
   private authAgent: AuthAgent;
   private logger: Logger;
   private emailService?: EmailService;
+  private supabase: SupabaseClient<Database>;
 
-  constructor(authAgent: AuthAgent, logger: Logger, emailService?: EmailService) {
+  constructor(authAgent: AuthAgent, supabase: SupabaseClient<Database>, logger: Logger, emailService?: EmailService) {
     this.authAgent = authAgent;
+    this.supabase = supabase;
     this.logger = logger;
     this.emailService = emailService;
     this.router = Router();
@@ -62,8 +68,13 @@ export class AuthRoutes {
           });
         }
 
-        // Generate tokens
-        const tokenResponse = await this.authAgent.generateAuthTokens(result.userId);
+        const tokens = result.tokens
+          ? {
+              accessToken: result.tokens.accessToken,
+              refreshToken: result.tokens.refreshToken,
+              expiresIn: result.tokens.expiresIn
+            }
+          : null;
 
         res.status(201).json({
           success: true,
@@ -72,16 +83,12 @@ export class AuthRoutes {
             email,
             firstName,
             lastName,
-            age,
             userType,
-            isCoppaProtected: age && age < 13,
-            parentConsentRequired: age && age < 13 && !result.parentConsentVerified
+            isCoppaProtected: result.isCoppaProtected,
+            parentConsentVerified: result.parentConsentVerified ?? false,
+            isMinor: result.isMinor
           },
-          tokens: {
-            accessToken: tokenResponse.accessToken,
-            refreshToken: tokenResponse.refreshToken,
-            expiresIn: tokenResponse.expiresIn
-          }
+          tokens
         });
 
       } catch (error) {
@@ -115,9 +122,6 @@ export class AuthRoutes {
           });
         }
 
-        // Generate tokens
-        const tokenResponse = await this.authAgent.generateAuthTokens(authResult.user.id);
-
         res.json({
           success: true,
           user: {
@@ -125,16 +129,12 @@ export class AuthRoutes {
             email: authResult.user.email,
             firstName: authResult.user.firstName,
             lastName: authResult.user.lastName,
-            age: authResult.user.age,
             isCoppaProtected: authResult.user.isCoppaProtected,
             parentConsentVerified: authResult.user.parentConsentVerified,
+            isMinor: authResult.user.isMinor,
             lastLoginAt: new Date().toISOString()
           },
-          tokens: {
-            accessToken: tokenResponse.accessToken,
-            refreshToken: tokenResponse.refreshToken,
-            expiresIn: tokenResponse.expiresIn
-          }
+          tokens: authResult.tokens
         });
 
       } catch (error) {
@@ -239,10 +239,10 @@ export class AuthRoutes {
           user: {
             id: userSession.userId,
             email: userSession.email,
-            age: userSession.age,
             isCoppaProtected: userSession.isCoppaProtected,
             parentConsentVerified: userSession.parentConsentVerified,
             isEmailConfirmed: userSession.isEmailConfirmed,
+            isMinor: userSession.isMinor,
             lastLoginAt: userSession.lastLoginAt,
             createdAt: userSession.createdAt
           }
@@ -312,20 +312,35 @@ export class AuthRoutes {
     parentEmail?: string;
     firstName: string;
     lastName: string;
-  }): Promise<{ success: boolean; userId?: string; error?: string; parentConsentVerified?: boolean }> {
+  }): Promise<{
+    success: boolean;
+    userId?: string;
+    error?: string;
+    parentConsentVerified?: boolean;
+    isCoppaProtected?: boolean;
+    isMinor?: boolean;
+    tokens?: {
+      accessToken: string;
+      refreshToken: string;
+      expiresIn: number;
+    } | null;
+  }> {
     try {
+      const isCoppaProtected = userData.age < 13;
+      const isMinor = userData.age < 18;
+
       // Use Supabase Auth to create the user
-      const { data, error } = await this.authAgent.getSupabaseClient().auth.signUp({
+      const { data, error } = await this.supabase.auth.signUp({
         email: userData.email,
         password: userData.password,
         options: {
           data: {
             first_name: userData.firstName,
             last_name: userData.lastName,
-            age: userData.age,
             user_type: userData.userType,
             parent_email: userData.parentEmail,
-            is_coppa_protected: userData.age < 13
+            is_coppa_protected: isCoppaProtected,
+            is_minor: isMinor
           }
         }
       });
@@ -346,9 +361,8 @@ export class AuthRoutes {
 
       // For COPPA-protected users, initiate parent consent process
       let parentConsentVerified = true;
-      if (userData.age < 13 && userData.parentEmail) {
+      if (isCoppaProtected && userData.parentEmail) {
         parentConsentVerified = false;
-        // TODO: Initiate parent consent email process
         this.logger.info('COPPA-protected user created, parent consent required', {
           userId: data.user.id,
           parentEmail: userData.parentEmail
@@ -380,7 +394,16 @@ export class AuthRoutes {
       return {
         success: true,
         userId: data.user.id,
-        parentConsentVerified
+        parentConsentVerified,
+        isCoppaProtected,
+        isMinor,
+        tokens: data.session
+          ? {
+              accessToken: data.session.access_token,
+              refreshToken: data.session.refresh_token,
+              expiresIn: data.session.expires_in
+            }
+          : null
       };
 
     } catch (error) {
@@ -398,12 +421,25 @@ export class AuthRoutes {
 
   private async authenticateUser(email: string, password: string): Promise<{
     success: boolean;
-    user?: any;
+    user?: {
+      id: string;
+      email: string;
+      firstName: string;
+      lastName: string;
+      isCoppaProtected: boolean;
+      parentConsentVerified: boolean;
+      isMinor: boolean;
+    };
+    tokens?: {
+      accessToken: string;
+      refreshToken: string;
+      expiresIn: number;
+    } | null;
     error?: string;
   }> {
     try {
       // Use Supabase Auth to authenticate
-      const { data, error } = await this.authAgent.getSupabaseClient().auth.signInWithPassword({
+      const { data, error } = await this.supabase.auth.signInWithPassword({
         email,
         password
       });
@@ -423,26 +459,26 @@ export class AuthRoutes {
       }
 
       // Get additional user data from our users table
-      const { data: userData, error: userError } = await this.authAgent.getSupabaseClient()
+      const { data: userData, error: userError } = await this.supabase
         .from('users')
         .select('*')
         .eq('id', data.user.id)
-        .single();
+        .single<UserRow>();
 
-      const safeUserData = (userData as any) || null;
+      const safeUserData = userData || null;
       
       if (userError || !safeUserData) {
         // Create user record if it doesn't exist
-        const { error: insertError } = await (this.authAgent.getSupabaseClient()
-          .from('users') as any)
+        const { error: insertError } = await this.supabase
+          .from('users')
           .insert({
             id: data.user.id,
             email: data.user.email,
             first_name: data.user.user_metadata?.first_name,
             last_name: data.user.user_metadata?.last_name,
-            age: data.user.user_metadata?.age,
             parent_email: data.user.user_metadata?.parent_email,
             is_coppa_protected: data.user.user_metadata?.is_coppa_protected || false,
+            is_minor: data.user.user_metadata?.is_minor ?? false,
             email_confirmed: data.user.email_confirmed_at !== null,
             last_login_at: new Date().toISOString()
           });
@@ -455,11 +491,13 @@ export class AuthRoutes {
         }
       } else {
         // Update last login time
-        await (this.authAgent.getSupabaseClient()
-          .from('users') as any)
+        await this.supabase
+          .from('users')
           .update({ last_login_at: new Date().toISOString() })
           .eq('id', data.user.id);
       }
+
+      const userRow = safeUserData as UserRow | null;
 
       return {
         success: true,
@@ -468,10 +506,17 @@ export class AuthRoutes {
           email: data.user.email,
           firstName: (safeUserData ? safeUserData.first_name : data.user.user_metadata?.first_name) ?? '',
           lastName: (safeUserData ? safeUserData.last_name : data.user.user_metadata?.last_name) ?? '',
-          age: (safeUserData ? safeUserData.age : data.user.user_metadata?.age) ?? 0,
-          isCoppaProtected: (safeUserData ? safeUserData.is_coppa_protected : data.user.user_metadata?.is_coppa_protected) ?? false,
-          parentConsentVerified: (safeUserData ? safeUserData.parent_consent_verified : false) ?? false
-        }
+          isCoppaProtected: (userRow ? userRow.is_coppa_protected : data.user.user_metadata?.is_coppa_protected) ?? false,
+          parentConsentVerified: (userRow ? userRow.parent_consent_verified : false) ?? false,
+          isMinor: (userRow ? userRow.is_minor : data.user.user_metadata?.is_minor) ?? false
+        },
+        tokens: data.session
+          ? {
+              accessToken: data.session.access_token,
+              refreshToken: data.session.refresh_token,
+              expiresIn: data.session.expires_in
+            }
+          : null
       };
 
     } catch (error) {

@@ -81,7 +81,7 @@ export class RESTAPIGateway {
     this.libraryService = new LibraryService(this.supabase);
     
     // Initialize WebhookDeliverySystem
-    this.webhookDeliverySystem = new WebhookDeliverySystem(this.logger, this.supabase);
+    this.webhookDeliverySystem = new WebhookDeliverySystem(this.logger);
     
     // Initialize auth middleware
     // Create minimal AuthAgent config (AuthAgent requires full config, but we only need validateToken)
@@ -123,10 +123,10 @@ export class RESTAPIGateway {
     // Initialize AuthAgent (required before use)
     // Note: This is async but we can't await in constructor, so we'll initialize lazily
     // AuthRoutes will handle initialization check
-    this.authMiddleware = new AuthMiddleware(authAgent, this.logger, this.supabase);
+    this.authMiddleware = new AuthMiddleware(authAgent, this.logger);
     
     // Initialize AuthRoutes (pass supabase client for user_type lookup)
-    const authRoutes = new AuthRoutes(authAgent, this.logger, this.emailService, this.supabase);
+    const authRoutes = new AuthRoutes(authAgent, this.supabase, this.logger, this.emailService);
     
     // Store authAgent for potential async initialization
     this.authAgent = authAgent;
@@ -1409,6 +1409,8 @@ export class RESTAPIGateway {
               .eq('id', userId)
               .single();
             
+            let storiesUsed = storyCount ?? user?.lifetime_stories_created ?? 0;
+
             // Test mode bypass (production-safe admin override)
             if (user?.test_mode_authorized === true) {
               console.log(`quota_bypass userId=${userId} reason=test_mode_authorized`);
@@ -1416,8 +1418,6 @@ export class RESTAPIGateway {
               quotaInfo = {tier: 'test', available: 999, used: 0};
             } else {
               // Use direct count if available, fallback to trigger-synced value
-              const storiesUsed = storyCount ?? user?.lifetime_stories_created ?? 0;
-              
               canCreate = (user?.available_story_credits || 0) >= 1;
               quotaInfo = {tier: 'free', available: user?.available_story_credits || 0, used: storiesUsed};
             }

@@ -7,10 +7,10 @@ export interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
     email: string;
-    age?: number;
     isCoppaProtected: boolean;
     parentConsentVerified: boolean;
     isEmailConfirmed: boolean;
+    isMinor?: boolean;
   };
 }
 
@@ -55,10 +55,10 @@ export class AuthMiddleware {
       req.user = {
         id: userSession.userId,
         email: userSession.email,
-        age: userSession.age,
         isCoppaProtected: userSession.isCoppaProtected,
         parentConsentVerified: userSession.parentConsentVerified,
-        isEmailConfirmed: userSession.isEmailConfirmed
+        isEmailConfirmed: userSession.isEmailConfirmed,
+        isMinor: userSession.isMinor
       };
 
       next();
@@ -157,10 +157,10 @@ export class AuthMiddleware {
         req.user = {
           id: userSession.userId,
           email: userSession.email,
-          age: userSession.age,
           isCoppaProtected: userSession.isCoppaProtected,
           parentConsentVerified: userSession.parentConsentVerified,
-          isEmailConfirmed: userSession.isEmailConfirmed
+          isEmailConfirmed: userSession.isEmailConfirmed,
+          isMinor: userSession.isMinor
         };
       }
 
