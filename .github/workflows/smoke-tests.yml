@@ -21,6 +21,8 @@ on:
   schedule:
     # Run smoke tests every 15 minutes in production
     - cron: '*/15 * * * *'
+  push:
+    branches: [main]
 
 env:
   NODE_VERSION: '18'
