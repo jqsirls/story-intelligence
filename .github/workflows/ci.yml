@@ -169,7 +169,6 @@ jobs:
     name: Build and Package
     runs-on: ubuntu-latest
     needs: [quality, test]
-    if: github.event_name != 'push'
     timeout-minutes: 20
     
     outputs:
@@ -343,28 +342,30 @@ jobs:
     runs-on: ubuntu-latest
     needs: [quality, test, security, build, database]
     if: always() && github.event_name != 'push'
+    env:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
     
     steps:
       - name: Slack notifications disabled (no webhook configured)
-        if: ${{ secrets.SLACK_WEBHOOK_URL == '' }}
+        if: ${{ env.SLACK_WEBHOOK_URL == '' }}
         run: echo "SLACK_WEBHOOK_URL is not set; skipping Slack notifications"
 
       - name: Notify Slack on success
-        if: ${{ secrets.SLACK_WEBHOOK_URL != '' && needs.quality.result == 'success' && needs.test.result == 'success' && needs.security.result == 'success' && needs.build.result == 'success' }}
+        if: ${{ env.SLACK_WEBHOOK_URL != '' && needs.quality.result == 'success' && needs.test.result == 'success' && needs.security.result == 'success' && needs.build.result == 'success' }}
         uses: 8398a7/action-slack@v3
         with:
           status: success
           channel: '#ci-cd'
           text: '✅ CI Pipeline passed for ${{ github.ref }}'
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_URL: ${{ env.SLACK_WEBHOOK_URL }}
 
       - name: Notify Slack on failure
-        if: ${{ secrets.SLACK_WEBHOOK_URL != '' && (needs.quality.result == 'failure' || needs.test.result == 'failure' || needs.security.result == 'failure' || needs.build.result == 'failure') }}
+        if: ${{ env.SLACK_WEBHOOK_URL != '' && (needs.quality.result == 'failure' || needs.test.result == 'failure' || needs.security.result == 'failure' || needs.build.result == 'failure') }}
         uses: 8398a7/action-slack@v3
         with:
           status: failure
           channel: '#ci-cd'
           text: '❌ CI Pipeline failed for ${{ github.ref }}'
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_URL: ${{ env.SLACK_WEBHOOK_URL }}
