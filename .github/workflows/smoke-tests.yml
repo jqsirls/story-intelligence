@@ -26,6 +26,12 @@ env:
   NODE_VERSION: '18'
 
 jobs:
+  skip-unexpected:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
+    steps:
+      - run: echo "Smoke Tests only run on schedule or workflow_dispatch; skipping."
+
   smoke-tests:
     name: Smoke Tests
     runs-on: ubuntu-latest
