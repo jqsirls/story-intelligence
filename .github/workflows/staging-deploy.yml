@@ -20,6 +20,12 @@ env:
   ENVIRONMENT: 'staging'
 
 jobs:
+  skip-unmatched:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref != 'refs/heads/develop'
+    steps:
+      - run: echo "Staging deploy only runs on develop or manual dispatch; skipping."
+
   # Job 1: Pre-deployment validation
   pre-deploy:
     name: Pre-deployment Validation
