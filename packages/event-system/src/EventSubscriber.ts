@@ -1,4 +1,4 @@
-import { EventBridgeClient, CreateRuleCommand, PutTargetsCommand, DeleteRuleCommand, RemoveTargetsCommand } from '@aws-sdk/client-eventbridge';
+import { EventBridgeClient, PutRuleCommand, PutTargetsCommand, DeleteRuleCommand, RemoveTargetsCommand } from '@aws-sdk/client-eventbridge';
 import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand, Message } from '@aws-sdk/client-sqs';
 import { Logger } from 'winston';
 import { 
@@ -51,7 +51,7 @@ export class EventSubscriber {
       const ruleName = `storytailor-${subscriptionId}`;
       const eventPattern = this.buildEventPattern(subscription);
 
-      await this.eventBridge.send(new CreateRuleCommand({
+      await this.eventBridge.send(new PutRuleCommand({
         Name: ruleName,
         EventPattern: JSON.stringify(eventPattern),
         State: 'ENABLED',
@@ -69,7 +69,7 @@ export class EventSubscriber {
           },
           RetryPolicy: subscription.retryPolicy ? {
             MaximumRetryAttempts: subscription.retryPolicy.maximumRetryAttempts,
-            MaximumEventAge: subscription.retryPolicy.maximumEventAge
+            MaximumEventAgeSeconds: subscription.retryPolicy.maximumEventAge
           } : undefined,
           DeadLetterConfig: subscription.deadLetterQueue ? {
             Arn: subscription.deadLetterQueue
