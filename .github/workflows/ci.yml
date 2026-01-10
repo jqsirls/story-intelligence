@@ -8,8 +8,24 @@ on:
   workflow_dispatch:
 
 jobs:
+  dist-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fail if tracked dist outputs exist
+        run: |
+          set -euo pipefail
+          if git ls-files | grep '^packages/.*/dist/'; then
+            echo "Tracked dist outputs found; remove them before merging."
+            exit 1
+          fi
+          echo "No tracked dist outputs detected."
+
   quality:
     runs-on: ubuntu-latest
+    needs: [dist-guard]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -131,7 +147,7 @@ jobs:
 
   notify:
     runs-on: ubuntu-latest
-    needs: [quality, build, test, db-validate, security]
+    needs: [dist-guard, quality, build, test, db-validate, security]
     if: always()
     env:
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

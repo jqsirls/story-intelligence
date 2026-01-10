@@ -5,6 +5,9 @@ packages/*/node_modules/
 
 # Build outputs
 dist/
+packages/**/dist/**
+**/dist/**/*.d.ts
+**/*.tsbuildinfo
 build/
 *.zip
 deployment-package.zip
