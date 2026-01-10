@@ -11,10 +11,10 @@
     "dev": "ts-node src/index.ts"
   },
   "dependencies": {
-    "@storytailor/shared-types": "workspace:*",
     "@supabase/supabase-js": "^2.39.0",
     "zod": "^3.22.4",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "@alexa-multi-agent/shared-types": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
@@ -28,6 +28,8 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",
-    "testMatch": ["**/__tests__/**/*.test.ts"]
+    "testMatch": [
+      "**/__tests__/**/*.test.ts"
+    ]
   }
 }

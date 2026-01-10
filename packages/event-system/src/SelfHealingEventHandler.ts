@@ -18,29 +18,36 @@ export class SelfHealingEventHandler {
   private config: SelfHealingConfig;
   private knownPatterns: Map<string, IncidentPattern> = new Map();
   private activeIncidents: Map<string, IncidentRecord> = new Map();
+  private queueUrl?: string;
 
   constructor(
     eventPublisher: EventPublisher,
     eventSubscriber: EventSubscriber,
     logger: Logger,
-    config: SelfHealingConfig
+    config: SelfHealingConfig,
+    queueUrl?: string
   ) {
     this.eventPublisher = eventPublisher;
     this.eventSubscriber = eventSubscriber;
     this.logger = logger;
     this.config = config;
+    this.queueUrl = queueUrl;
     
     this.setupEventHandlers();
   }
 
   private setupEventHandlers(): void {
+    if (!this.queueUrl) {
+      this.logger.warn('Self-healing queueUrl not provided; healing subscriptions disabled');
+      return;
+    }
     // Listen to existing agent error events
-    this.eventSubscriber.subscribe('com.storytailor.agent.error', this.handleAgentError.bind(this));
-    this.eventSubscriber.subscribe('com.storytailor.api.timeout', this.handleApiTimeout.bind(this));
-    this.eventSubscriber.subscribe('com.storytailor.database.error', this.handleDatabaseError.bind(this));
+    this.eventSubscriber.subscribe('com.storytailor.agent.error', this.handleAgentError.bind(this), this.queueUrl);
+    this.eventSubscriber.subscribe('com.storytailor.api.timeout', this.handleApiTimeout.bind(this), this.queueUrl);
+    this.eventSubscriber.subscribe('com.storytailor.database.error', this.handleDatabaseError.bind(this), this.queueUrl);
     
     // Listen to existing performance events
-    this.eventSubscriber.subscribe('com.storytailor.performance.degraded', this.handlePerformanceDegradation.bind(this));
+    this.eventSubscriber.subscribe('com.storytailor.performance.degraded', this.handlePerformanceDegradation.bind(this), this.queueUrl);
   }
 
   async handleAgentError(event: any): Promise<void> {

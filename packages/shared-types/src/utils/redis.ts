@@ -17,7 +17,7 @@ export class RedisClient {
       database: config.db,
     });
 
-    this.client.on('error', (err) => {
+    this.client.on('error', (err: Error) => {
       console.error('Redis Client Error:', err);
     });
 

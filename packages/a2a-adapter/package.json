@@ -14,7 +14,7 @@
     "test:integration": "jest --testPathPattern=integration"
   },
   "dependencies": {
-    "@alexa-multi-agent/shared-types": "*",
+    "@alexa-multi-agent/shared-types": "workspace:*",
     "@alexa-multi-agent/router": "*",
     "@alexa-multi-agent/universal-agent": "*",
     "@supabase/supabase-js": "^2.38.4",
