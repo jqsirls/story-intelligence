@@ -22,17 +22,11 @@ env:
   TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
 jobs:
-  skip-push:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push'
-    steps:
-      - run: echo "CI Pipeline is gated to PRs/workflow_dispatch; push runs are skipped."
 
   # Job 1: Code Quality Checks
   quality:
     name: Code Quality
     runs-on: ubuntu-latest
-    if: github.event_name != 'push'
     timeout-minutes: 15
     
     steps:
@@ -70,7 +64,6 @@ jobs:
   test:
     name: Test Suite
     runs-on: ubuntu-latest
-    if: github.event_name != 'push'
     timeout-minutes: 30
     
     services:
@@ -129,7 +122,6 @@ jobs:
   security:
     name: Security Scan
     runs-on: ubuntu-latest
-    if: github.event_name != 'push'
     timeout-minutes: 20
     
     steps:
@@ -235,7 +227,6 @@ jobs:
   database:
     name: Database Validation
     runs-on: ubuntu-latest
-    if: github.event_name != 'push'
     timeout-minutes: 15
     
     steps:
@@ -316,7 +307,6 @@ jobs:
   compliance:
     name: Compliance Validation
     runs-on: ubuntu-latest
-    if: github.event_name != 'push'
     timeout-minutes: 15
     
     steps:
