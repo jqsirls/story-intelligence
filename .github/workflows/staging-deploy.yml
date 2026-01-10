@@ -45,7 +45,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-          cache: 'pnpm'
 
       - name: Enable pnpm and install (frozen)
         run: |
@@ -270,7 +269,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-          cache: 'pnpm'
 
       - name: Enable pnpm and install (frozen)
         run: |
