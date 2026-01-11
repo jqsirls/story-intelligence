@@ -15,8 +15,8 @@
   },
   "dependencies": {
     "@alexa-multi-agent/shared-types": "workspace:*",
-    "@alexa-multi-agent/router": "*",
-    "@alexa-multi-agent/universal-agent": "*",
+    "@alexa-multi-agent/router": "workspace:*",
+    "@alexa-multi-agent/universal-agent": "workspace:*",
     "@supabase/supabase-js": "^2.38.4",
     "axios": "^1.6.0",
     "jsonwebtoken": "^9.0.2",

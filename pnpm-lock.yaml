@@ -33,13 +33,13 @@ importers:
   packages/a2a-adapter:
     dependencies:
       '@alexa-multi-agent/router':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../router
       '@alexa-multi-agent/shared-types':
         specifier: workspace:*
         version: link:../shared-types
       '@alexa-multi-agent/universal-agent':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../universal-agent
       '@supabase/supabase-js':
         specifier: ^2.38.4
@@ -1453,6 +1453,9 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.0.0
         version: 3.966.0
+      '@storytailor/api-contract':
+        specifier: workspace:*
+        version: link:../api-contract
       '@supabase/supabase-js':
         specifier: ^2.90.0
         version: 2.90.0
