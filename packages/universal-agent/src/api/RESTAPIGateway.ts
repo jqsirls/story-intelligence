@@ -823,7 +823,7 @@ export class RESTAPIGateway {
           // Try storytellerAPI first, fallback to Supabase on error
           if (this.storytellerAPI && this.storytellerAPI.getStories) {
             try {
-              const stories = await this.storytellerAPI.getStories(userId, libraryId);
+            const stories = await this.storytellerAPI.getStories(userId, libraryId);
               // Apply pagination to API results
               const paginatedStories = stories?.slice(offset, offset + limit) || [];
               res.json(this.buildPaginationResponse(
@@ -843,7 +843,7 @@ export class RESTAPIGateway {
           
           // Always use Supabase fallback for consistent pagination
           
-          // Fallback: query Supabase directly
+            // Fallback: query Supabase directly
             const { data: ownedLibraries, error: ownedLibError } = await this.supabase
               .from('libraries')
               .select('id')
@@ -1218,7 +1218,7 @@ export class RESTAPIGateway {
 
           // Remove join data from main story object (keep it clean)
           const { library: storyLibrary, story_type, ...storyData } = story;
-
+          
           res.json({
             success: true,
             data: {
@@ -1559,7 +1559,7 @@ export class RESTAPIGateway {
             // CRITICAL: Create story record IMMEDIATELY with status='generating' to return ID
             const { data: storyRecord, error: createError } = await this.supabase
               .from('stories')
-              .insert({
+                .insert({
                 library_id: targetLibraryId,
                 creator_user_id: userId,
                 title: storyIdea ? `Story about ${characterName}` : (title || 'Untitled Story'),
@@ -1578,8 +1578,8 @@ export class RESTAPIGateway {
                 asset_generation_started_at: new Date().toISOString()
               })
               .select()
-              .single();
-            
+                .single();
+              
             if (createError) {
               this.logger.error('Failed to create story record', { error: createError });
               throw createError;
@@ -1757,20 +1757,20 @@ export class RESTAPIGateway {
             });
           } else {
             // MANUAL STORY CREATION (backward compatibility)
-            const { data: story, error } = await this.supabase
-              .from('stories')
-              .insert({
+          const { data: story, error } = await this.supabase
+            .from('stories')
+            .insert({
                 library_id: targetLibraryId,
                 creator_user_id: userId,  // CRITICAL: Track creator for quota attribution
-                title: title || 'Untitled Story',
-                content: content || {},
-                status: 'draft',
-                age_rating: 0
-              })
-              .select()
-              .single();
-            
-            if (error) throw error;
+              title: title || 'Untitled Story',
+              content: content || {},
+              status: 'draft',
+              age_rating: 0
+            })
+            .select()
+            .single();
+          
+          if (error) throw error;
             
             // 5. After successful creation, deduct credit
             if (!hasSub && packCredits > 0) {
@@ -1804,11 +1804,11 @@ export class RESTAPIGateway {
                 });
               }
             }
-            
-            res.status(201).json({
-              success: true,
-              data: story
-            });
+          
+          res.status(201).json({
+            success: true,
+            data: story
+          });
           }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
@@ -2639,8 +2639,8 @@ export class RESTAPIGateway {
               .select('*', { count: 'exact', head: true })
               .in('library_id', accessibleLibraryIds),
             this.supabase
-              .from('characters')
-              .select('*')
+            .from('characters')
+            .select('*')
               .in('library_id', accessibleLibraryIds)
               .order('created_at', { ascending: false })
               .range(offset, offset + limit - 1)
@@ -2843,7 +2843,7 @@ export class RESTAPIGateway {
               // Create default library
               const { data: newLibrary, error: libError } = await this.supabase
                 .from('libraries')
-                .insert({
+            .insert({
                   owner: userId,
                   name: 'My Library'
                 })
@@ -3217,9 +3217,9 @@ export class RESTAPIGateway {
               .select('*', { count: 'exact', head: true })
               .eq('owner', userId),
             this.supabase
-              .from('libraries')
-              .select('*')
-              .eq('owner', userId)
+            .from('libraries')
+            .select('*')
+            .eq('owner', userId)
               .order('created_at', { ascending: false })
               .range(offset, offset + limit - 1)
           ]);
@@ -3786,13 +3786,14 @@ export class RESTAPIGateway {
                 ? `${user.first_name} ${user.last_name}`
                 : user.email;
               
-              await this.emailService.sendParentConsentEmail(
+              await this.emailService.sendParentInsightEmail(
                 user.email,
                 parentName,
-                library.name, // childName (Storytailor ID name)
-                '', // childEmail (not applicable for Storytailor IDs)
-                consentUrl,
-                expiresAt
+                library.name,
+                {
+                  summary: `Please review consent for ${library.name} (Storytailor ID) before ${expiresAt}`,
+                  detailsUrl: consentUrl
+                }
               );
             } catch (emailError) {
               this.logger.warn('Failed to send consent email', { error: emailError });
@@ -8234,7 +8235,7 @@ export class RESTAPIGateway {
             .insert({
               affiliate_user_id: userId,
               amount,
-              method,
+            method,
               status: 'pending',
               requested_at: new Date().toISOString()
             })
@@ -8508,7 +8509,7 @@ export class RESTAPIGateway {
           const { narrationUrl, musicId, sfxIds, sfxTimings, mixProfile = 'balanced' } = req.body;
 
           if (!narrationUrl) {
-            return res.status(400).json({
+          return res.status(400).json({
               success: false,
               error: 'Narration URL is required',
               code: 'NARRATION_URL_REQUIRED'
@@ -8965,7 +8966,7 @@ export class RESTAPIGateway {
               error: errorMessage,
               code: 'ASSET_STREAM_FAILED'
             });
-          } else {
+        } else {
             try {
               res.write(`event: error\ndata: ${JSON.stringify({ error: errorMessage, code: 'ASSET_STREAM_FAILED' })}\n\n`);
               res.end();
@@ -9008,16 +9009,16 @@ export class RESTAPIGateway {
             success: true,
             data: story
           });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
           this.logger.error('Update story failed', { error: errorMessage });
-          res.status(500).json({
+            res.status(500).json({
             success: false,
             error: errorMessage,
             code: 'UPDATE_STORY_FAILED'
-          });
+            });
+          }
         }
-      }
     );
 
     // Delete story
@@ -11267,7 +11268,7 @@ export class RESTAPIGateway {
             success: true,
             data: config
           });
-        } catch (error) {
+    } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
           this.logger.error('Update config failed', { error: errorMessage });
           res.status(500).json({
