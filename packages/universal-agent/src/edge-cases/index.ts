@@ -7,20 +7,27 @@ export { ConversationFlowEdgeCaseHandler } from './ConversationFlowEdgeCaseHandl
 export type {
   NetworkResilienceConfig,
   OfflineCapability,
-  ConflictResolution,
+  ConflictResolution
+} from './NetworkResilienceManager';
+
+export type {
   ServiceFailure,
   FallbackMechanism,
   ResourceConstraint,
-  CascadingFailurePrevention,
+  CascadingFailurePrevention
+} from './SystemFailureResilienceEngine';
+
+export type {
   ContradictoryInput,
   AmbiguousInput,
   EmotionalDistressSignal,
-  MultiUserConflict,
+  MultiUserConflict
+} from './UserInputEdgeCaseHandler';
+
+export type {
   InterruptionDetection,
   TangentManagement,
   AttentionLossSignal,
   ConversationAbandonment,
-  ContextCorruption,
-  EdgeCaseConfig,
-  EdgeCaseMetrics
-} from './EdgeCaseOrchestrator';
+  ContextCorruption
+} from './ConversationFlowEdgeCaseHandler';
