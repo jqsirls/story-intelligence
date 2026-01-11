@@ -6,9 +6,10 @@ export { ConversationFlowEdgeCaseHandler } from './ConversationFlowEdgeCaseHandl
 
 export type {
   NetworkResilienceConfig,
-  OfflineCapability,
-  ConflictResolution
+  OfflineCapability
 } from './NetworkResilienceManager';
+
+export type { ConflictResolution } from '../types';
 
 export type {
   ServiceFailure,
