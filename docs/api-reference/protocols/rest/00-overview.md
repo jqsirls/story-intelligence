@@ -2,9 +2,12 @@
 
 This documentation describes the **production REST API** served by the Storytailor Universal Agent REST gateway.
 
+> **Contract Precedence (Product REST API)**: Treat `docs/api/REST_API_EXPERIENCE_MASTER.md` as canonical for the product REST API contract.  
+> This `docs/api-reference/protocols/rest/**` section is legacy/auxiliary reference; update it only when it matches shipped gateway behavior.
+
 Source of truth:
-- REST gateway (Express + serverless-http): [`packages/universal-agent/src/api/RESTAPIGateway.ts`](../../../../packages/universal-agent/src/api/RESTAPIGateway.ts)
-- Auth routes: [`packages/universal-agent/src/api/AuthRoutes.ts`](../../../../packages/universal-agent/src/api/AuthRoutes.ts)
+- REST gateway (Express + serverless-http): [`lambda-deployments/universal-agent/src/api/RESTAPIGateway.ts`](../../../../lambda-deployments/universal-agent/src/api/RESTAPIGateway.ts)
+- Auth routes: [`lambda-deployments/universal-agent/src/api/AuthRoutes.ts`](../../../../lambda-deployments/universal-agent/src/api/AuthRoutes.ts)
 
 ## Base URL and Versioning
 

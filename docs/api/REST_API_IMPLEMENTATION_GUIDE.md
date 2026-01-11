@@ -5,6 +5,15 @@
 
 ---
 
+## ⚠️ Contract Precedence (Product REST API)
+
+For the **product REST API** contract (headers, pagination, error shapes/codes, and endpoint catalog), treat this file as guidance only.
+
+- **Canonical contract**: `docs/api/REST_API_EXPERIENCE_MASTER.md`
+- If anything conflicts, **the master file wins**.
+
+---
+
 ## Table of Contents
 
 1. [Overview](#overview)
@@ -60,7 +69,7 @@ Staging:    https://staging-api.storytailor.dev/api/v1
 ```http
 Authorization: Bearer <jwt_token>
 Content-Type: application/json
-X-Correlation-ID: <unique_request_id>
+X-Request-Id: <unique_request_id>
 ```
 
 ---

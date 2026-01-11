@@ -2,8 +2,10 @@
 
 This catalog documents every HTTP status code used/expected across the production REST gateway and OpenAPI contract.
 
+> **Contract Precedence (Product REST API)**: Treat `docs/api/REST_API_EXPERIENCE_MASTER.md` as canonical for the product REST API contract.
+
 Source of truth:
-- Gateway behavior and per-endpoint error bodies: [`packages/universal-agent/src/api/RESTAPIGateway.ts`](../../../../packages/universal-agent/src/api/RESTAPIGateway.ts)
+- Gateway behavior and per-endpoint error bodies: [`lambda-deployments/universal-agent/src/api/RESTAPIGateway.ts`](../../../../lambda-deployments/universal-agent/src/api/RESTAPIGateway.ts)
 - OpenAPI contract: [`api/openapi-specification.yaml`](../../../../api/openapi-specification.yaml)
 
 ## Error Body Shapes (Complete)

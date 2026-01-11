@@ -7,6 +7,16 @@
 
 ---
 
+## ⚠️ Contract Precedence (Read this first)
+
+If you are building against the **product REST API**, the **only** contract you should treat as canonical is:
+
+- `docs/api/REST_API_EXPERIENCE_MASTER.md`
+
+This file is a **legacy reference snapshot**. If anything in this file conflicts with `REST_API_EXPERIENCE_MASTER.md`, **the master file wins**.
+
+---
+
 ## Table of Contents
 
 1. [Overview](#overview)
@@ -45,7 +55,12 @@ Staging:    https://staging-api.storytailor.dev/api/v1
 ```http
 Authorization: Bearer <jwt_token>
 Content-Type: application/json
-X-Correlation-ID: <unique_request_id>
+X-Request-Id: <unique_request_id>
+```
+
+**Idempotency (where applicable)**:
+```http
+X-Idempotency-Key: <client-generated-key>
 ```
 
 ---
@@ -185,7 +200,7 @@ As each beat image completes, the `asset_generation_status` is updated with indi
 
 ## Pagination
 
-All list endpoints support pagination with consistent parameters and response format.
+Pagination details are defined in `docs/api/REST_API_EXPERIENCE_MASTER.md` and should be treated as canonical.
 
 ### Request Parameters
 
@@ -201,16 +216,14 @@ GET /api/v1/stories?page=1&limit=25
 ```json
 {
   "success": true,
-  "data": {
-    "items": [...],
-    "pagination": {
-      "page": 1,
-      "limit": 25,
-      "total": 100,
-      "totalPages": 4,
-      "hasNext": true,
-      "hasPrevious": false
-    }
+  "data": [ /* items */ ],
+  "pagination": {
+    "page": 1,
+    "limit": 25,
+    "total": 100,
+    "totalPages": 4,
+    "hasNext": true,
+    "hasPrevious": false
   }
 }
 ```
@@ -225,21 +238,15 @@ GET /api/v1/stories?page=1&limit=25
 {
   "success": false,
   "error": "Error message",
-  "code": "ERROR_CODE",
-  "requestId": "req_123"
+  "code": "ERROR_CODE"
 }
 ```
 
+**Note**: Some code in the repo defines structured error objects (e.g., lifecycle enforcement), but those middleware are **not currently mounted in the REST gateway route stack**. Treat the flat `error + code` shape above as the REST contract today.
+
 ### Common Error Codes
 
-- `AUTH_REQUIRED` (401): Authentication required
-- `AUTH_INVALID` (401): Invalid or expired token
-- `FORBIDDEN` (403): Insufficient permissions
-- `NOT_FOUND` (404): Resource not found
-- `VALIDATION_ERROR` (400): Invalid request data
-- `RATE_LIMIT_EXCEEDED` (429): Too many requests
-- `QUOTA_EXCEEDED` (403): Plan quota exceeded
-- `INTERNAL_ERROR` (500): Server error
+See `docs/api/REST_API_EXPERIENCE_MASTER.md` for the exhaustive gateway-sourced list of frontend-relevant errors + codes.
 
 ---
 
@@ -385,7 +392,7 @@ Content-Type: application/json
 
 ### 9. Other Endpoints
 
-See [`docs/integration-guides/WIZED_COMPLETE_API_REFERENCE.md`](../integration-guides/WIZED_COMPLETE_API_REFERENCE.md) for complete list of 150+ endpoints.
+See `docs/api/REST_API_EXPERIENCE_MASTER.md` for the canonical, product-facing REST API endpoint catalog.
 
 ---
 
@@ -463,7 +470,7 @@ X-RateLimit-Reset: 1609459200
 
 ## Additional Resources
 
-- [Wized Integration Guide](../integration-guides/WIZED_PROGRESSIVE_LOADING_GUIDE.md)
+- [REST API Experience Master](./REST_API_EXPERIENCE_MASTER.md)
 - [Pipeline Process Documentation](../pipelines/COMPLETE_PIPELINE_PROCESS.md)
 - [OpenAPI Specification](../api/OPENAPI_EXTENSIONS.md)
 - [Error Catalog](../api-reference/error-catalog.md)

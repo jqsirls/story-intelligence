@@ -100,7 +100,9 @@ All API documentation includes:
 - **User Journeys**: `../06_USER_JOURNEYS/` - Complete user experience flows
 
 ### **External Links**
-- **Live API**: https://sxjwfwffz7.execute-api.us-east-1.amazonaws.com/staging/
+- **Product REST API (Production)**: `https://api.storytailor.dev/api/v1`
+- **Product REST API (Staging)**: `https://staging-api.storytailor.dev/api/v1`
+- **Legacy (execute-api)**: `https://sxjwfwffz7.execute-api.us-east-1.amazonaws.com/staging/` (not canonical for product REST contract)
 - **Supabase Dashboard**: https://supabase.com/dashboard/project/lendybmmnlqelrhkhdyc
 - **AWS Console**: https://console.aws.amazon.com/lambda/
 

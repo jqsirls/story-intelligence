@@ -2,6 +2,9 @@
 
 Comprehensive collection of working code examples for integrating Storytailor's Story Intelligence™ powered storytelling into your applications.
 
+> **Product REST API note**: These examples are primarily SDK-oriented (client-side embed/SDK keys).  
+> For the product REST API contract (JWT auth, `/api/v1` routes, gateway error codes/shapes), use `docs/api/REST_API_EXPERIENCE_MASTER.md`.
+
 ## 🚀 Quick Start Examples
 
 ### Web Integration (5 minutes)
