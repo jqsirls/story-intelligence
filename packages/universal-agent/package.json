@@ -22,6 +22,7 @@
     "@alexa-multi-agent/library-agent": "workspace:*",
     "@alexa-multi-agent/commerce-agent": "workspace:*",
     "@alexa-multi-agent/a2a-adapter": "workspace:*",
+    "@storytailor/api-contract": "workspace:*",
     "express": "^4.18.2",
     "ws": "^8.14.2",
     "cors": "^2.8.5",
