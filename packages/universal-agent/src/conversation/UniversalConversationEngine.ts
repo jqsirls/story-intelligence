@@ -1,4 +1,3 @@
-// @ts-ignore - Event-system is bundled at runtime, types may not be available during compilation
 import { EventPublisher } from '@alexa-multi-agent/event-system';
 // PlatformAwareRouter imported dynamically to avoid module resolution issues in Lambda
 // import { PlatformAwareRouter } from '@alexa-multi-agent/router';
@@ -19,6 +18,8 @@ export type ConversationChannel =
 
 export type MessageType = 'text' | 'voice' | 'image' | 'file' | 'action' | 'system';
 export type ResponseType = 'text' | 'voice' | 'image' | 'card' | 'action' | 'stream';
+export type ChannelState = Record<string, unknown>;
+export type ChannelStateMap = Partial<Record<ConversationChannel, ChannelState>>;
 
 export interface ChannelCapabilities {
   supportsText: boolean;
@@ -107,8 +108,8 @@ export interface ConversationResponse {
   conversationState: ConversationState;
   nextExpectedInput?: string;
   
-  // Channel-specific adaptations
-  channelAdaptations: Record<ConversationChannel, any>;
+// Channel-specific adaptations
+  channelAdaptations: ChannelStateMap;
   
   // Actions and side effects
   actions?: ConversationAction[];
@@ -171,7 +172,7 @@ export interface ConversationState {
   history: ConversationHistoryItem[];
   currentStory: any;
   currentCharacter: any;
-  channelStates: Record<ConversationChannel, any>;
+  channelStates: ChannelStateMap;
 }
 
 export interface ConversationAction {
@@ -313,7 +314,7 @@ export class UniversalConversationEngine {
           history: [],
           currentStory: null,
           currentCharacter: null,
-          channelStates: {}
+        channelStates: {} as ChannelStateMap
         },
         authentication: request.authentication,
         preferences: request.preferences || this.getDefaultPreferences()
@@ -326,18 +327,6 @@ export class UniversalConversationEngine {
       // Initialize channel-specific state
       const adapter = this.channelAdapters.get(request.channel)!;
       await adapter.initializeSession(session);
-
-      // Publish event
-      await this.eventPublisher.publishEvent(
-        'com.storytailor.conversation.session_started',
-        {
-          sessionId,
-          userId: request.userId,
-          channel: request.channel,
-          capabilities: capabilities,
-          duration: Date.now() - startTime
-        }
-      );
 
       this.logger.info('Conversation session started successfully', {
         sessionId,
@@ -464,22 +453,6 @@ export class UniversalConversationEngine {
       // Execute post-response actions
       await this.executePostResponseActions(response);
 
-      // Publish event
-      await this.eventPublisher.publishEvent(
-        'com.storytailor.conversation.message_processed',
-        {
-          requestId: request.requestId,
-          responseId: response.responseId,
-          sessionId: request.sessionId,
-          userId: request.userId,
-          channel: request.channel,
-          messageType: request.message.type,
-          responseType: finalResponse.type,
-          responseTime: response.metadata.responseTime,
-          agentsUsed: finalResponse.metadata.agentsUsed
-        }
-      );
-
       this.logger.info('Conversation message processed successfully', {
         requestId: request.requestId,
         responseId: response.responseId,
@@ -515,7 +488,7 @@ export class UniversalConversationEngine {
   /**
    * Stream conversation response for real-time channels
    */
-  async *streamResponse(request: ConversationRequest): AsyncIterator<ConversationResponseChunk> {
+  async *streamResponse(request: ConversationRequest): AsyncIterableIterator<ConversationResponseChunk> {
     const session = await this.validateSession(request.sessionId);
     const adapter = this.channelAdapters.get(request.channel);
     
@@ -617,18 +590,6 @@ export class UniversalConversationEngine {
         session.state.channelStates[fromChannel] = exportedState;
       }
 
-      // Publish event
-      await this.eventPublisher.publishEvent(
-        'com.storytailor.conversation.channel_switched',
-        {
-          sessionId,
-          fromChannel,
-          toChannel,
-          userId: session.userId,
-          duration: Date.now() - startTime
-        }
-      );
-
       const result: ChannelSwitchResult = {
         sessionId,
         fromChannel,
@@ -721,20 +682,6 @@ export class UniversalConversationEngine {
         success: errors.length === 0,
         errors: errors.length > 0 ? errors : undefined
       };
-
-      // Publish event
-      await this.eventPublisher.publishEvent(
-        'com.storytailor.conversation.channels_synchronized',
-        {
-          syncId,
-          sourceChannel: request.sourceChannel,
-          targetChannels: request.targetChannels,
-          syncType: request.syncType,
-          conflictCount: conflicts.length,
-          errorCount: errors.length,
-          duration: Date.now() - startTime
-        }
-      );
 
       this.logger.info('Channel synchronization completed', {
         syncId,
@@ -831,19 +778,6 @@ export class UniversalConversationEngine {
 
       // Remove session
       this.activeSessions.delete(sessionId);
-
-      // Publish event
-      await this.eventPublisher.publishEvent(
-        'com.storytailor.conversation.session_ended',
-        {
-          sessionId,
-          userId: session.userId,
-          channel: session.channel,
-          duration: Date.now() - new Date(session.startedAt).getTime(),
-          messageCount: session.state.history.length,
-          reason
-        }
-      );
 
       this.logger.info('Conversation session ended successfully', {
         sessionId,
@@ -1096,15 +1030,13 @@ export class UniversalConversationEngine {
             applicationId: session.sessionId || 'default-app-id'
           },
           user: {
-            userId: request.userId,
-            accessToken: request.metadata?.authToken || undefined
+            userId: request.userId
           },
           device: {
             deviceId: request.deviceId || session.sessionId,
             supportedInterfaces: {}
           },
-          apiEndpoint: 'https://api.amazonalexa.com',
-          apiAccessToken: request.metadata?.authToken || undefined
+          apiEndpoint: 'https://api.amazonalexa.com'
         }
       },
       metadata: {
@@ -1209,8 +1141,8 @@ export class UniversalConversationEngine {
   private async createChannelAdaptations(
     response: UniversalResponse,
     session: ConversationSession
-  ): Promise<Record<ConversationChannel, any>> {
-    const adaptations: Record<ConversationChannel, any> = {};
+  ): Promise<ChannelStateMap> {
+    const adaptations: ChannelStateMap = {};
 
     // Create adaptations for each supported channel
     for (const [channel, adapter] of this.channelAdapters.entries()) {
@@ -1307,16 +1239,10 @@ export class UniversalConversationEngine {
         this.logger.info('Conversation action log', action.payload);
         break;
       case 'escalate':
-        await this.eventPublisher.publishEvent(
-          'com.storytailor.conversation.escalation',
-          action.payload
-        );
+        this.logger.warn('Escalation action received', action.payload);
         break;
       case 'notify':
-        await this.eventPublisher.publishEvent(
-          'com.storytailor.conversation.notification',
-          action.payload
-        );
+        this.logger.info('Notification action received', action.payload);
         break;
       case 'trigger_webhook':
         // TODO: Implement webhook triggering
@@ -1353,7 +1279,7 @@ export class UniversalConversationEngine {
         history: [],
         currentStory: null,
         currentCharacter: null,
-        channelStates: {}
+        channelStates: {} as ChannelStateMap
       },
       channelAdaptations: {},
       actions: [{
@@ -1375,7 +1301,7 @@ export class UniversalConversationEngine {
     };
   }
 
-  private async *simulateStreaming(response: ConversationResponse): AsyncIterator<ConversationResponseChunk> {
+  private async *simulateStreaming(response: ConversationResponse): AsyncIterableIterator<ConversationResponseChunk> {
     const content = response.response.content.toString();
     const words = content.split(' ');
     

@@ -70,16 +70,21 @@ export class VoiceCodeService {
         expiresAt: expiresAt.toISOString(),
       });
 
+      const attempts = voiceCodeData.attempts ?? 0;
+      const used = voiceCodeData.used ?? false;
+      const createdAt = voiceCodeData.created_at ? new Date(voiceCodeData.created_at) : new Date();
+      const expiresAtDate = voiceCodeData.expires_at ? new Date(voiceCodeData.expires_at) : new Date(expiresAt);
+
       return {
         id: voiceCodeData.id,
         email: voiceCodeData.email,
         code: voiceCodeData.code,
-        expiresAt: new Date(voiceCodeData.expires_at),
-        attempts: voiceCodeData.attempts,
-        used: voiceCodeData.used,
+        expiresAt: expiresAtDate,
+        attempts,
+        used,
         alexaPersonId: request.alexaPersonId,
         deviceType: request.deviceType,
-        createdAt: new Date(voiceCodeData.created_at),
+        createdAt,
       };
 
     } catch (error) {
@@ -126,8 +131,11 @@ export class VoiceCodeService {
         );
       }
 
+      const attempts = voiceCode.attempts ?? 0;
+      const expiresAt = voiceCode.expires_at ? new Date(voiceCode.expires_at) : null;
+
       // Check if code has expired
-      if (new Date() > new Date(voiceCode.expires_at)) {
+      if (!expiresAt || new Date() > expiresAt) {
         this.logger.warn('Voice code expired', {
           email: verification.email,
           code: verification.code,
@@ -140,10 +148,10 @@ export class VoiceCodeService {
       }
 
       // Check attempt limit
-      if (voiceCode.attempts >= this.config.voiceCode.maxAttempts) {
+      if (attempts >= this.config.voiceCode.maxAttempts) {
         this.logger.warn('Max attempts exceeded for voice code', {
           email: verification.email,
-          attempts: voiceCode.attempts,
+          attempts,
         });
         throw new AuthError(
           AuthErrorCode.MAX_ATTEMPTS_EXCEEDED,
@@ -156,7 +164,7 @@ export class VoiceCodeService {
         .from('voice_codes')
         .update({
           used: true,
-          attempts: voiceCode.attempts + 1,
+          attempts: attempts + 1,
         })
         .eq('id', voiceCode.id);
 
@@ -254,7 +262,8 @@ export class VoiceCodeService {
       await this.supabase
         .from('voice_codes')
         .update({
-          attempts: this.supabase.rpc('increment_attempts'),
+          // increment_attempts returns a PostgREST builder; cast to number to satisfy column type
+          attempts: this.supabase.rpc('increment_attempts') as unknown as number,
         })
         .eq('email', email)
         .eq('code', code)

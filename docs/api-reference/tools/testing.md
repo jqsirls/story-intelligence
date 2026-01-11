@@ -2,6 +2,26 @@
 
 Comprehensive testing tools and sandbox environment for developing and testing your Storytailor integrations safely and efficiently.
 
+> **Product REST API note**: The canonical contract for the **product REST API** is `docs/api/REST_API_EXPERIENCE_MASTER.md` (JWT auth, `/api/v1` routes, gateway error codes/shapes).  
+> The sandbox URLs and “API key” flows in this document are **legacy / non-product surfaces** and are not guaranteed to match the current product REST gateway.
+
+## ✅ Product REST API (Current)
+
+Base URLs:
+
+```text
+Production: https://api.storytailor.dev/api/v1
+Staging:    https://staging-api.storytailor.dev/api/v1
+```
+
+Auth (example):
+
+```bash
+curl -X POST "https://staging-api.storytailor.dev/api/v1/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"..."}'
+```
+
 ## 🧪 Sandbox Environment
 
 ### Access the Sandbox

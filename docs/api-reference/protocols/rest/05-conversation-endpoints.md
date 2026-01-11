@@ -1,7 +1,9 @@
 # REST API — Conversation Endpoints — Exhaustive
 
+> **Contract Precedence (Product REST API)**: Treat `docs/api/REST_API_EXPERIENCE_MASTER.md` as canonical for the product REST API contract.
+
 Source of truth:
-- Conversation routes: [`packages/universal-agent/src/api/RESTAPIGateway.ts`](../../../../packages/universal-agent/src/api/RESTAPIGateway.ts)
+- Conversation routes: [`lambda-deployments/universal-agent/src/api/RESTAPIGateway.ts`](../../../../lambda-deployments/universal-agent/src/api/RESTAPIGateway.ts)
 
 All conversation endpoints require:
 - `Authorization: Bearer [REDACTED_JWT]

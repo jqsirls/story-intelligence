@@ -2,6 +2,9 @@
 
 The Storytailor Developer Dashboard provides comprehensive tools for managing your API keys, monitoring usage, analyzing performance, and accessing developer resources.
 
+> **Product REST API note**: “API keys” in dashboard docs refer to SDK/partner surfaces and are not the product REST API contract.  
+> For product REST (JWT auth, `/api/v1` routes), use `docs/api/REST_API_EXPERIENCE_MASTER.md`.
+
 ## 🚀 Access the Dashboard
 
 **[Launch Developer Dashboard →](https://dashboard.storytailor.com)**

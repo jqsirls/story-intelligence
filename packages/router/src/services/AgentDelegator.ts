@@ -151,8 +151,8 @@ export class AgentDelegator {
 
     this.logger.info('Parallel agent delegation completed', {
       agentCount: requests.length,
-      successCount: results.filter(r => r.success).length,
-      failureCount: results.filter(r => !r.success).length,
+      successCount: results.filter((r: AgentResponse) => r.success).length,
+      failureCount: results.filter((r: AgentResponse) => !r.success).length,
       totalDuration,
     });
 
@@ -163,8 +163,8 @@ export class AgentDelegator {
    * Aggregate responses from multiple agents into a single response
    */
   aggregateResponses(responses: AgentResponse[], primaryAgent?: string): AgentResponse {
-    const successfulResponses = responses.filter(r => r.success);
-    const failedResponses = responses.filter(r => !r.success);
+    const successfulResponses = responses.filter((r: AgentResponse) => r.success);
+    const failedResponses = responses.filter((r: AgentResponse) => !r.success);
 
     // If all agents failed, return a failure response
     if (successfulResponses.length === 0) {

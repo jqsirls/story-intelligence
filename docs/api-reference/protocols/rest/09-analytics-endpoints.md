@@ -4,14 +4,16 @@ This document covers:
 - analytics endpoints defined by the OpenAPI contract
 - research proxy endpoints implemented by the production REST gateway
 
-## A) OpenAPI Contract — `/v1/analytics/*`
+> **Contract Precedence (Product REST API)**: Treat `docs/api/REST_API_EXPERIENCE_MASTER.md` as canonical for the product REST API contract.
+
+## A) OpenAPI Contract — `/api/v1/analytics/*`
 
 Source of truth:
 - [`api/openapi-specification.yaml`](../../../../api/openapi-specification.yaml)
 
-> Note: These are `/v1/...` contract paths, not `/api/v1/...` gateway paths.
+> Note: The product REST API uses `/api/v1/...` paths. Treat any `/v1/...` references as legacy.
 
-### A1) Usage metrics — `GET /v1/analytics/usage`
+### A1) Usage metrics — `GET /api/v1/analytics/usage`
 
 Query parameters:
 - `period`: `day|week|month|quarter|year` (default `month`)
@@ -37,7 +39,7 @@ Response example:
 }
 ```
 
-### A2) Insights — `GET /v1/analytics/insights`
+### A2) Insights — `GET /api/v1/analytics/insights`
 
 Query parameters:
 - `category`: `user_behavior|content_performance|engagement|all` (default `all`)
@@ -64,7 +66,7 @@ Response example:
 ## B) Production Gateway — Research Proxy Endpoints (`/api/v1/research/*`)
 
 Source of truth:
-- [`packages/universal-agent/src/api/RESTAPIGateway.ts`](../../../../packages/universal-agent/src/api/RESTAPIGateway.ts)
+- [`lambda-deployments/universal-agent/src/api/RESTAPIGateway.ts`](../../../../lambda-deployments/universal-agent/src/api/RESTAPIGateway.ts)
 
 ### Availability (important)
 

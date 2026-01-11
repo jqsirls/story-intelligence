@@ -25,7 +25,7 @@ const response = await fetch('/api/v1/stories');
 console.log({
   duration: response.headers.get('X-Response-Time'),
   cached: response.headers.get('X-Cache'),
-  correlationId: response.headers.get('X-Correlation-ID')
+  requestId: response.headers.get('X-Request-Id')
 });
 ```
 

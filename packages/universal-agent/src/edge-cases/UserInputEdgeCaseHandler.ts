@@ -67,10 +67,10 @@ export class UserInputEdgeCaseHandler extends EventEmitter {
     
     if (contradictions.length === 0) {
       return {
-        strategy: 'accept',
-        conflictedFields: [],
-        resolution: currentInput,
-        timestamp: new Date()
+        field: 'input',
+        conflictType: 'data_mismatch',
+        resolution: 'merge',
+        resolvedValue: currentInput
       };
     }
 
@@ -85,7 +85,7 @@ export class UserInputEdgeCaseHandler extends EventEmitter {
     
     switch (strategy) {
       case 'clarify':
-        return await this.requestClarification(contradictions, context);
+        return await this.requestClarification(contradictions);
       
       case 'merge':
         return await this.mergeContradictoryInputs(contradictions, currentInput);
@@ -374,16 +374,16 @@ export class UserInputEdgeCaseHandler extends EventEmitter {
   }
 
   private async requestClarification(
-    contradictions: ContradictoryInput[],
-    context: ConversationContext
+    contradictions: ContradictoryInput[]
   ): Promise<ConflictResolution> {
     const clarificationText = this.generateContradictionClarification(contradictions);
-    
+    const targetField = contradictions[0]?.field || 'input';
+
     return {
-      strategy: 'clarify',
-      conflictedFields: contradictions.map(c => c.field),
-      resolution: { clarificationRequired: true, text: clarificationText },
-      timestamp: new Date()
+      field: targetField,
+      conflictType: 'data_mismatch',
+      resolution: 'user_choice',
+      resolvedValue: clarificationText
     };
   }
 
@@ -394,6 +394,69 @@ export class UserInputEdgeCaseHandler extends EventEmitter {
     }
 
     return `I noticed a few different details about your character. Let's make sure I have everything right. Which of these would you like to keep?`;
+  }
+
+  private async mergeContradictoryInputs(
+    contradictions: ContradictoryInput[],
+    currentInput: UserInput
+  ): Promise<ConflictResolution> {
+    const targetField = contradictions[0]?.field || 'input';
+    return {
+      field: targetField,
+      conflictType: 'data_mismatch',
+      resolution: 'merge',
+      resolvedValue: currentInput
+    };
+  }
+
+  private preferRecentInput(
+    contradictions: ContradictoryInput[],
+    currentInput: UserInput
+  ): ConflictResolution {
+    const targetField = contradictions[0]?.field || 'input';
+    return {
+      field: targetField,
+      conflictType: 'timestamp_conflict',
+      resolution: 'latest_wins',
+      resolvedValue: currentInput
+    };
+  }
+
+  private preferConsistentInput(
+    contradictions: ContradictoryInput[],
+    context: ConversationContext
+  ): ConflictResolution {
+    const targetField = contradictions[0]?.field || 'input';
+    const resolvedValue = context.story || context.character || {};
+    return {
+      field: targetField,
+      conflictType: 'data_mismatch',
+      resolution: 'merge',
+      resolvedValue
+    };
+  }
+
+  private requestUserChoice(
+    contradictions: ContradictoryInput[],
+    currentInput: UserInput
+  ): ConflictResolution {
+    const targetField = contradictions[0]?.field || 'input';
+    return {
+      field: targetField,
+      conflictType: 'data_mismatch',
+      resolution: 'user_choice',
+      resolvedValue: currentInput
+    };
+  }
+
+  private generateClarificationQuestion(
+    ambiguity: AmbiguousInput,
+    _context: ConversationContext
+  ): string {
+    const firstOption = ambiguity.possibleInterpretations[0]?.interpretation;
+    return firstOption
+      ? `Did you mean ${firstOption}?`
+      : 'Could you clarify what you meant?';
   }
 
   // Helper methods for ambiguity handling

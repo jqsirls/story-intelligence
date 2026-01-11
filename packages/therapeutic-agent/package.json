@@ -10,12 +10,12 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@storytailor/shared-types": "workspace:*",
-    "@storytailor/emotion-agent": "workspace:*",
-    "@storytailor/content-agent": "workspace:*",
+    "@alexa-multi-agent/emotion-agent": "workspace:*",
+    "@alexa-multi-agent/content-agent": "workspace:*",
     "@supabase/supabase-js": "^2.38.0",
     "openai": "^4.20.1",
-    "zod": "^3.22.4"
+    "zod": "^3.22.4",
+    "@alexa-multi-agent/shared-types": "workspace:*"
   },
   "devDependencies": {
     "@types/jest": "^29.5.8",

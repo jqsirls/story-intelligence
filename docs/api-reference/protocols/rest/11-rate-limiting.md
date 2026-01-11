@@ -1,8 +1,10 @@
 # REST API — Rate Limiting — Exhaustive
 
+> **Contract Precedence (Product REST API)**: Treat `docs/api/REST_API_EXPERIENCE_MASTER.md` as canonical for the product REST API contract.
+
 Source of truth:
-- Rate limit middleware implementation: [`packages/universal-agent/src/middleware/AuthMiddleware.ts`](../../../../packages/universal-agent/src/middleware/AuthMiddleware.ts)
-- Gateway route wiring: [`packages/universal-agent/src/api/RESTAPIGateway.ts`](../../../../packages/universal-agent/src/api/RESTAPIGateway.ts)
+- Rate limit middleware implementation: [`lambda-deployments/universal-agent/src/middleware/AuthMiddleware.ts`](../../../../lambda-deployments/universal-agent/src/middleware/AuthMiddleware.ts)
+- Gateway route wiring: [`lambda-deployments/universal-agent/src/api/RESTAPIGateway.ts`](../../../../lambda-deployments/universal-agent/src/api/RESTAPIGateway.ts)
 
 ## Status (Production)
 

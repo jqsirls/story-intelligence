@@ -1,9 +1,16 @@
 import express from 'express';
-import cors from 'cors';
-import { SystemConfig } from '@alexa-multi-agent/shared-types';
+import cors, { CorsOptions } from 'cors';
 import { createLogger } from './utils/logger';
 
-export const createServer = async (config: SystemConfig) => {
+export interface RouterServerConfig {
+  agent: {
+    name: string;
+    version: string;
+  };
+  cors?: CorsOptions;
+}
+
+export const createServer = (config: RouterServerConfig): express.Express => {
   const app = express();
   const logger = createLogger('router-agent-server');
 

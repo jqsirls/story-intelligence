@@ -2,27 +2,26 @@
 
 This document describes pagination patterns used across:
 - the production REST gateway (`/api/v1/*`)
-- the OpenAPI contract (`/v1/*`)
+
+> **Contract Precedence (Product REST API)**: Treat `docs/api/REST_API_EXPERIENCE_MASTER.md` as canonical for which endpoints paginate and the exact response shapes.
 
 ## A) Production Gateway (`/api/v1/*`)
 
-Most list endpoints in the gateway do **not** currently implement explicit pagination parameters. They typically:
-- query Supabase
-- order by `created_at desc`
-- return the full result set for that user
+Some list endpoints in the gateway implement pagination via `page` + `limit` and return a top-level `pagination` object.
 
-Examples:
-- `GET /api/v1/stories` — no `limit`/`offset`
-- `GET /api/v1/characters` — no `limit`/`offset`
-- `GET /api/v1/libraries` — no `limit`/`offset`
-- `GET /api/v1/webhooks` — no `limit`/`offset`
+Examples (gateway-sourced; see master for the definitive list):
+- `GET /api/v1/stories`
+- `GET /api/v1/characters`
+- `GET /api/v1/libraries`
+- `GET /api/v1/users/me/notifications`
+- `GET /api/v1/users/me/rewards`
 
 Where the gateway does apply limits:
 - `GET /api/v1/stories/:storyId/ip-detection-audit` limits to 100 audit records.
 
-## B) OpenAPI Contract (`/v1/*`)
+## B) Legacy pagination notes (non-canonical)
 
-The OpenAPI spec documents classical `limit`/`offset` pagination.
+Some older/legacy docs may describe `limit`/`offset` pagination. For the product REST API contract, prefer `page` + `limit` where supported, and follow the per-endpoint documentation in `docs/api/REST_API_EXPERIENCE_MASTER.md`.
 
 Example (from story list):
 
@@ -32,22 +31,27 @@ Example (from story list):
 Pattern:
 
 ```text
-GET /v1/stories?limit=20&offset=0
+GET /api/v1/stories?page=1&limit=20
 ```
 
 Response pattern:
 
 ```json
 {
-  "items": [],
-  "total": 123,
-  "limit": 20,
-  "offset": 0
+  "success": true,
+  "data": [],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 123,
+    "totalPages": 7,
+    "hasNext": true,
+    "hasPrevious": false
+  }
 }
 ```
 
 ## Guidance for Clients
 
-- For `/api/v1/*` list endpoints, assume the gateway may return large arrays.
-- If you need pagination today, paginate client-side or request a contract endpoint that supports `limit/offset`.
-- When the gateway adopts pagination, it should align with the OpenAPI `limit/offset` pattern.
+- If an endpoint provides `pagination`, rely on it.
+- If an endpoint does not paginate, assume it may return large arrays and paginate client-side.

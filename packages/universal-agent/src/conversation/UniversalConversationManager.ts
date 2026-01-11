@@ -1,4 +1,4 @@
-import { UniversalConversationEngine, ConversationChannel, ConversationRequest, ConversationResponse, ConversationStartRequest, ChannelSyncRequest } from './UniversalConversationEngine';
+import { UniversalConversationEngine, ConversationChannel, ConversationRequest, ConversationResponse, ConversationStartRequest, ChannelSyncRequest, ConversationResponseChunk } from './UniversalConversationEngine';
 import { AlexaChannelAdapter } from './adapters/AlexaChannelAdapter';
 import { WebChatChannelAdapter } from './adapters/WebChatChannelAdapter';
 import { MobileVoiceChannelAdapter } from './adapters/MobileVoiceChannelAdapter';
@@ -96,7 +96,7 @@ export class UniversalConversationManager {
   /**
    * Stream conversation response
    */
-  async *streamResponse(request: ConversationRequest) {
+  async *streamResponse(request: ConversationRequest): AsyncIterableIterator<ConversationResponseChunk> {
     try {
       this.logger.info('Starting universal response stream', {
         requestId: request.requestId,

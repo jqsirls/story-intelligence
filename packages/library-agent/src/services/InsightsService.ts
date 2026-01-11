@@ -1,4 +1,3 @@
-import { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '@alexa-multi-agent/shared-types';
 import {
   LibraryInsights,
@@ -8,9 +7,10 @@ import {
   LibraryError,
   PermissionError
 } from '../types';
+import { LibrarySupabaseClient } from '../db/client';
 
 export class InsightsService {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  constructor(private supabase: LibrarySupabaseClient) {}
 
   async getLibraryInsights(
     libraryId: string,
@@ -131,7 +131,10 @@ export class InsightsService {
     // Extract story types from content
     const storyTypes: { [key: string]: number } = {};
     stories?.forEach(story => {
-      const storyType = story.content?.story_type || 'unknown';
+      const storyType =
+        story.content && typeof story.content === 'object' && 'story_type' in story.content
+          ? (story.content as any).story_type ?? 'unknown'
+          : 'unknown';
       storyTypes[storyType] = (storyTypes[storyType] || 0) + 1;
     });
 
@@ -328,6 +331,7 @@ export class InsightsService {
     // Count interactions by hour
     const hourCounts: { [hour: number]: number } = {};
     interactions.forEach(interaction => {
+      if (!interaction.created_at) return;
       const hour = new Date(interaction.created_at).getHours();
       hourCounts[hour] = (hourCounts[hour] || 0) + 1;
     });

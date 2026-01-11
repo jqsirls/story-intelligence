@@ -1,11 +1,12 @@
-import { SupabaseClient } from '@supabase/supabase-js';
-import { Database, MoodType } from '@alexa-multi-agent/shared-types';
+import { Database } from '@alexa-multi-agent/shared-types';
 import {
   LibraryOperationContext,
   EmotionalPattern,
   LibraryError,
-  PermissionError
+  PermissionError,
+  MoodType
 } from '../types';
+import { LibrarySupabaseClient } from '../db/client';
 
 export interface EmotionalCheckin {
   id: string;
@@ -15,7 +16,7 @@ export interface EmotionalCheckin {
   mood: MoodType;
   confidence: number;
   context: any;
-  created_at: string;
+  created_at: string | null;
 }
 
 export interface SubLibraryEmotionalPattern {
@@ -26,7 +27,7 @@ export interface SubLibraryEmotionalPattern {
 }
 
 export class EmotionalInsightsService {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  constructor(private supabase: LibrarySupabaseClient) {}
 
   async recordEmotionalCheckin(
     subLibraryId: string,
@@ -334,10 +335,10 @@ export class EmotionalInsightsService {
         p_agent_name: 'EmotionalInsightsService',
         p_action: action,
         p_payload: payload,
-        p_session_id: context.session_id || null,
-        p_correlation_id: context.correlation_id || null,
-        p_ip_address: context.ip_address || null,
-        p_user_agent: context.user_agent || null
+        p_session_id: context.session_id ?? undefined,
+        p_correlation_id: context.correlation_id ?? undefined,
+        p_ip_address: context.ip_address ?? undefined,
+        p_user_agent: context.user_agent ?? undefined
       });
     } catch (error) {
       console.error('Failed to log audit event:', error);

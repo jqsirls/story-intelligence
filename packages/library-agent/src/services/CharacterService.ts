@@ -1,4 +1,3 @@
-import { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '@alexa-multi-agent/shared-types';
 import { PermissionService } from './PermissionService';
 import {
@@ -10,10 +9,11 @@ import {
   PermissionError,
   CharacterNotFoundError
 } from '../types';
+import { LibrarySupabaseClient } from '../db/client';
 
 export class CharacterService {
   constructor(
-    private supabase: SupabaseClient<Database>,
+    private supabase: LibrarySupabaseClient,
     private permissionService: PermissionService
   ) {}
 
@@ -431,7 +431,7 @@ export class CharacterService {
           library_id
         )
       `)
-      .in('story_id', storyIds);
+      .in('story_id', storyIds) as any; // cast to avoid deep generic instantiation during chained filters
 
     // Add trait filters
     Object.entries(traits).forEach(([key, value]) => {
@@ -472,9 +472,13 @@ export class CharacterService {
     }
 
     const totalShares = shares?.length || 0;
-    const uniqueLibraries = new Set(shares?.map(s => s.target_library_id) || []).size;
-    const lastShared = shares?.length > 0 
-      ? shares.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0].created_at
+    const uniqueLibraries = new Set((shares || []).map(s => s.target_library_id).filter(Boolean)).size;
+
+    const sortedByDate = (shares || []).filter(s => s.created_at).sort((a, b) => {
+      return new Date(b.created_at as string).getTime() - new Date(a.created_at as string).getTime();
+    });
+    const lastShared = sortedByDate.length > 0
+      ? new Date(sortedByDate[0].created_at as string).toISOString()
       : null;
 
     const shareTypes: { [type: string]: number } = {};
@@ -501,10 +505,10 @@ export class CharacterService {
         p_agent_name: 'CharacterService',
         p_action: action,
         p_payload: payload,
-        p_session_id: context.session_id || null,
-        p_correlation_id: context.correlation_id || null,
-        p_ip_address: context.ip_address || null,
-        p_user_agent: context.user_agent || null
+        p_session_id: context.session_id ?? undefined,
+        p_correlation_id: context.correlation_id ?? undefined,
+        p_ip_address: context.ip_address ?? undefined,
+        p_user_agent: context.user_agent ?? undefined
       });
     } catch (error) {
       console.error('Failed to log audit event:', error);

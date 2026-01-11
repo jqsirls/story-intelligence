@@ -374,11 +374,13 @@ await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
 
 ## Debugging Tips
 
-### 1. Check Correlation ID
+### 1. Check Request ID
 
-Every response includes an `X-Correlation-ID` header. Use it to:
+The REST API supports request correlation via `X-Request-Id` (preferred). Use it to:
 - Search logs for request details
 - Reference in support requests
+
+**Note**: Some legacy docs/code may refer to `X-Correlation-ID`. For the product REST API contract, treat `X-Request-Id` as canonical (see `docs/api/REST_API_EXPERIENCE_MASTER.md`).
 
 ### 2. Validate Request Locally
 

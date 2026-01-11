@@ -1,6 +1,19 @@
 import { ChannelAdapter, UniversalMessage, UniversalResponse, ConversationSession, ChannelSwitchContext } from '../UniversalConversationEngine';
 import { Logger } from 'winston';
 
+type APIChannelState = {
+  webhookConfig?: { url?: string };
+  includeDebugInfo?: boolean;
+  streamingEnabled?: boolean;
+  rateLimitInfo?: unknown;
+  requestHistory?: unknown[];
+  clientInfo?: Record<string, unknown>;
+  apiVersion?: string;
+  responseFormat?: string;
+  includeMetadata?: boolean;
+  compressionEnabled?: boolean;
+};
+
 /**
  * API Channel Adapter - Handles direct API integrations and third-party services
  */
@@ -61,27 +74,45 @@ export class APIChannelAdapter extends ChannelAdapter {
   }
 
   async postprocessResponse(response: UniversalResponse, session: ConversationSession): Promise<UniversalResponse> {
-    const apiState = session.state.channelStates['api_direct'] || {};
-
-    // Add API-specific metadata and formatting
+    void session;
     return {
       ...response,
       metadata: {
-        ...response.metadata,
-        apiVersion: apiState.apiVersion,
-        responseFormat: apiState.responseFormat,
-        compressionUsed: apiState.compressionEnabled,
-        rateLimitInfo: apiState.rateLimitInfo,
-        debugInfo: apiState.includeDebugInfo ? this.generateDebugInfo(response, session) : undefined
+        confidence: response.metadata.confidence,
+        generationTime: response.metadata.generationTime,
+        agentsUsed: response.metadata.agentsUsed,
+        adaptedForChannel: true
       }
     };
   }
 
   async adaptResponse(response: UniversalResponse, session: ConversationSession): Promise<any> {
-    const apiState = session.state.channelStates['api_direct'] || {};
+    const apiState: APIChannelState = (session.state.channelStates['api_direct'] as APIChannelState) || {};
 
     // Create API-specific response format
-    const apiResponse = {
+    const apiResponse: {
+      success: boolean;
+      data: {
+        id: string;
+        type: UniversalResponse['type'];
+        content: any;
+        timestamp: string;
+        conversationState: any;
+        requiresInput: boolean;
+        suggestions: string[];
+        alternatives: any[];
+      };
+      metadata: {
+        responseTime: number;
+        confidence: number;
+        agentsUsed: string[];
+      };
+      links: any;
+      pagination: any;
+      webhook?: any;
+      debug?: any;
+      streaming?: any;
+    } = {
       success: true,
       data: {
         id: this.generateResponseId(),
@@ -94,11 +125,9 @@ export class APIChannelAdapter extends ChannelAdapter {
         alternatives: response.alternatives || []
       },
       metadata: {
-        responseTime: response.metadata.generationTime,
-        confidence: response.metadata.confidence,
-        agentsUsed: response.metadata.agentsUsed,
-        apiVersion: apiState.apiVersion,
-        rateLimitInfo: apiState.rateLimitInfo
+        responseTime: response.metadata?.generationTime,
+        confidence: response.metadata?.confidence,
+        agentsUsed: response.metadata?.agentsUsed
       },
       links: this.generateAPILinks(response, session),
       pagination: null // For future use with batch responses
@@ -140,7 +169,7 @@ export class APIChannelAdapter extends ChannelAdapter {
   }
 
   async exportState(session: ConversationSession): Promise<any> {
-    const apiState = session.state.channelStates['api_direct'] || {};
+    const apiState: APIChannelState = (session.state.channelStates['api_direct'] as APIChannelState) || {};
     
     return {
       apiVersion: apiState.apiVersion,
@@ -159,7 +188,7 @@ export class APIChannelAdapter extends ChannelAdapter {
       },
       rateLimitInfo: apiState.rateLimitInfo,
       webhookConfig: apiState.webhookConfig,
-      requestHistory: apiState.requestHistory?.slice(-10) || [] // Keep last 10 requests
+      requestHistory: Array.isArray(apiState.requestHistory) ? apiState.requestHistory.slice(-10) : [] // Keep last 10 requests
     };
   }
 
@@ -270,18 +299,8 @@ export class APIChannelAdapter extends ChannelAdapter {
   // Private helper methods
 
   private preprocessTextMessage(message: UniversalMessage, session: ConversationSession): UniversalMessage {
-    const apiState = session.state.channelStates['api_direct'] || {};
-    
-    // Add API-specific metadata
-    return {
-      ...message,
-      metadata: {
-        ...message.metadata,
-        apiProcessed: true,
-        clientInfo: apiState.clientInfo,
-        requestId: this.generateRequestId()
-      }
-    };
+    void session;
+    return message;
   }
 
   private preprocessFileMessage(message: UniversalMessage, session: ConversationSession): UniversalMessage {
@@ -292,9 +311,9 @@ export class APIChannelAdapter extends ChannelAdapter {
     
     return {
       ...message,
-      metadata: {
-        ...message.metadata,
-        apiFileProcessing: true,
+      metadata: message.metadata,
+      content: {
+        ...fileData,
         validation,
         processingRequired: validation.valid && this.requiresProcessing(fileData.type)
       }
@@ -307,10 +326,9 @@ export class APIChannelAdapter extends ChannelAdapter {
     // Validate and process API actions
     return {
       ...message,
-      metadata: {
-        ...message.metadata,
-        apiAction: true,
-        actionType: actionData.type,
+      metadata: message.metadata,
+      content: {
+        ...actionData,
         actionValidated: this.validateAction(actionData)
       }
     };

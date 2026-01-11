@@ -2,6 +2,9 @@
 
 > **🚨 IMPORTANT**: Critical age validation bug fixed (January 2025) - [See changelog](./CHANGELOG.md)
 
+> **REST API Contract Precedence (Product REST API)**: If you are integrating via the **product REST API**, treat `docs/api/REST_API_EXPERIENCE_MASTER.md` as the canonical contract.  
+> The `docs/api-reference/**` content includes legacy and multi-surface documentation and may not match the product REST gateway 1:1.
+
 Welcome to the Storytailor Universal Agent developer documentation. This comprehensive guide will help you integrate Storytailor's Story Intelligence™ powered storytelling capabilities into your applications across multiple platforms.
 
 ## 🔄 **Latest Updates**

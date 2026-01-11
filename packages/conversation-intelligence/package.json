@@ -11,7 +11,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@alexa-multi-agent/shared-types": "*",
+    "@alexa-multi-agent/shared-types": "workspace:*",
     "openai": "^4.0.0",
     "winston": "^3.8.2",
     "redis": "^4.6.0",
@@ -28,6 +28,8 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",
-    "setupFilesAfterEnv": ["<rootDir>/jest.setup.js"]
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.js"
+    ]
   }
 }
