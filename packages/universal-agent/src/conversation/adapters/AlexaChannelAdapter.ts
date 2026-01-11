@@ -1,4 +1,23 @@
-import { ChannelAdapter, UniversalMessage, UniversalResponse, ConversationSession, ChannelSwitchContext } from '../UniversalConversationEngine';
+type AlexaResponseShape = {
+  version: string;
+  sessionAttributes: Record<string, unknown>;
+  response: {
+    outputSpeech: any;
+    shouldEndSession: boolean;
+    directives: any[];
+    card?: any;
+    reprompt?: any;
+  };
+};
+type AlexaChannelState = {
+  sessionAttributes?: Record<string, unknown>;
+  voiceSettings?: {
+    voice?: string;
+    speed?: number;
+    emotion?: string;
+  };
+};
+import { ChannelAdapter, UniversalMessage, UniversalResponse, ConversationSession, ChannelSwitchContext, ChannelState } from '../UniversalConversationEngine';
 import { Logger } from 'winston';
 
 /**
@@ -35,28 +54,17 @@ export class AlexaChannelAdapter extends ChannelAdapter {
     // Alexa messages are typically voice-based, ensure proper handling
     if (message.type === 'voice' && typeof message.content === 'string') {
       // Voice content is already transcribed by Alexa
-      return {
-        ...message,
-        metadata: {
-          ...message.metadata,
-          alexaProcessed: true,
-          originalVoice: true
-        }
-      };
+      return message;
     }
 
     // Handle Alexa intents and slots
     if (message.metadata && (message.metadata as any).alexaIntent) {
       const alexaMetadata = message.metadata as any;
-      return {
-        ...message,
-        content: this.extractIntentContent(alexaMetadata.alexaIntent, alexaMetadata.slots),
-        metadata: {
-          ...message.metadata,
-          processedIntent: alexaMetadata.alexaIntent.name,
-          extractedSlots: alexaMetadata.slots
-        }
-      };
+        return {
+          ...message,
+          content: this.extractIntentContent(alexaMetadata.alexaIntent, alexaMetadata.slots),
+          metadata: message.metadata
+        };
     }
 
     return message;
@@ -71,11 +79,7 @@ export class AlexaChannelAdapter extends ChannelAdapter {
         ...response,
         type: 'voice',
         content: optimizedContent,
-        metadata: {
-          ...response.metadata,
-          optimizedForVoice: true,
-          originalContent: response.content
-        }
+        metadata: response.metadata
       };
     }
 
@@ -84,10 +88,7 @@ export class AlexaChannelAdapter extends ChannelAdapter {
       return {
         ...response,
         content: this.addSSMLTags(response.content.toString(), session),
-        metadata: {
-          ...response.metadata,
-          ssmlEnhanced: true
-        }
+        metadata: response.metadata
       };
     }
 
@@ -95,10 +96,10 @@ export class AlexaChannelAdapter extends ChannelAdapter {
   }
 
   async adaptResponse(response: UniversalResponse, session: ConversationSession): Promise<any> {
-    const alexaState = session.state.channelStates['alexa_plus'] || {};
+    const alexaState: AlexaChannelState = (session.state.channelStates['alexa_plus'] as AlexaChannelState) || {};
 
     // Create Alexa-specific response format
-    const alexaResponse = {
+    const alexaResponse: AlexaResponseShape = {
       version: '1.0',
       sessionAttributes: alexaState.sessionAttributes || {},
       response: {
@@ -249,8 +250,8 @@ export class AlexaChannelAdapter extends ChannelAdapter {
   }
 
   private addSSMLTags(content: string, session: ConversationSession): string {
-    const alexaState = session.state.channelStates['alexa_plus'] || {};
-    const voiceSettings = alexaState.voiceSettings || {};
+    const alexaState: AlexaChannelState = (session.state.channelStates['alexa_plus'] as AlexaChannelState) || {};
+    const voiceSettings: NonNullable<AlexaChannelState['voiceSettings']> = alexaState.voiceSettings || {};
 
     // Wrap in SSML speak tags
     let ssml = `<speak>`;

@@ -1,5 +1,38 @@
+type MobileResponseShape = {
+  id: string;
+  type: string;
+  timestamp: string;
+  content: any;
+  audio: any;
+  ui: {
+    showTranscript: boolean;
+    allowPlayback: boolean;
+    showWaveform: boolean;
+    hapticFeedback: boolean;
+  };
+  metadata: {
+    confidence: number;
+    agentsUsed: string[];
+    responseTime: number;
+  };
+  offline?: any;
+  pushNotification?: any;
+  visual?: any;
+  quickActions?: any;
+};
 import { ChannelAdapter, UniversalMessage, UniversalResponse, ConversationSession, ChannelSwitchContext } from '../UniversalConversationEngine';
 import { Logger } from 'winston';
+
+type MobileVoiceState = {
+  voiceSettings?: {
+    voice?: string;
+    speed?: number;
+    emotion?: string;
+    volume?: number;
+  };
+  audioQuality?: 'high' | 'medium' | 'low';
+  compressionEnabled?: boolean;
+};
 
 /**
  * Mobile Voice Channel Adapter - Handles mobile app voice interactions
@@ -25,7 +58,8 @@ export class MobileVoiceChannelAdapter extends ChannelAdapter {
       emotion: 'warm',
       volume: 0.8
     };
-    const userVoiceSettings = (session.preferences && session.preferences.voice) ? session.preferences.voice : {};
+    const userVoiceSettings: Partial<typeof defaultVoiceSettings> =
+      (session.preferences && (session.preferences as any).voice) ? (session.preferences as any).voice : {};
     session.state.channelStates['mobile_voice'] = {
       deviceInfo: {},
       voiceSettings: {
@@ -72,10 +106,10 @@ export class MobileVoiceChannelAdapter extends ChannelAdapter {
         ...response,
         content: this.optimizeForMobile(response.content.toString(), session),
         metadata: {
-          ...response.metadata,
-          optimizedForMobile: true,
-          compressionApplied: mobileState.compressionEnabled,
-          batteryOptimized: mobileState.batteryOptimization
+          confidence: response.metadata.confidence,
+          generationTime: response.metadata.generationTime,
+          agentsUsed: response.metadata.agentsUsed,
+          adaptedForChannel: true
         }
       };
     }
@@ -87,7 +121,7 @@ export class MobileVoiceChannelAdapter extends ChannelAdapter {
     const mobileState = session.state.channelStates['mobile_voice'] || {};
 
     // Create mobile-specific response format
-    const mobileResponse = {
+    const mobileResponse: MobileResponseShape = {
       id: this.generateResponseId(),
       type: 'mobile_voice_response',
       timestamp: new Date().toISOString(),
@@ -102,9 +136,7 @@ export class MobileVoiceChannelAdapter extends ChannelAdapter {
       metadata: {
         confidence: response.metadata.confidence,
         agentsUsed: response.metadata.agentsUsed,
-        responseTime: response.metadata.generationTime,
-        networkOptimized: mobileState.networkAdaptation,
-        batteryOptimized: mobileState.batteryOptimization
+        responseTime: response.metadata.generationTime
       }
     };
 
@@ -225,49 +257,19 @@ export class MobileVoiceChannelAdapter extends ChannelAdapter {
   // Private helper methods
 
   private preprocessVoiceMessage(message: UniversalMessage, session: ConversationSession): UniversalMessage {
-    const mobileState = session.state.channelStates['mobile_voice'] || {};
-    
-    // Handle mobile-specific voice processing
-    return {
-      ...message,
-      metadata: {
-        ...message.metadata,
-        mobileVoice: true,
-        deviceInfo: mobileState.deviceInfo,
-        audioQuality: mobileState.audioQuality,
-        compressionUsed: mobileState.compressionEnabled,
-        backgroundMode: mobileState.backgroundMode
-      }
-    };
+    void session;
+    return message;
   }
 
   private preprocessTextMessage(message: UniversalMessage, session: ConversationSession): UniversalMessage {
-    // Handle text input from mobile (typed while voice is primary)
-    return {
-      ...message,
-      metadata: {
-        ...message.metadata,
-        mobileText: true,
-        inputMethod: 'keyboard',
-        voiceAlternative: true // Suggest voice input
-      }
-    };
+    void session;
+    return message;
   }
 
   private preprocessImageMessage(message: UniversalMessage, session: ConversationSession): UniversalMessage {
     // Handle image capture from mobile camera
-    const imageData = message.content as any;
-    
-    return {
-      ...message,
-      metadata: {
-        ...message.metadata,
-        mobileImage: true,
-        captureMethod: imageData.captureMethod || 'camera',
-        location: imageData.location, // If available and permitted
-        timestamp: imageData.timestamp
-      }
-    };
+    void session;
+    return message;
   }
 
   private optimizeForMobile(content: string, session: ConversationSession): string {
@@ -309,8 +311,11 @@ export class MobileVoiceChannelAdapter extends ChannelAdapter {
   }
 
   private async generateAudioResponse(response: UniversalResponse, session: ConversationSession): Promise<any> {
-    const mobileState = session.state.channelStates['mobile_voice'] || {};
-    const voiceSettings = mobileState.voiceSettings || (session.preferences && session.preferences.voice ? session.preferences.voice : {}) || {};
+    const mobileState: MobileVoiceState = (session.state.channelStates['mobile_voice'] as MobileVoiceState) || {};
+    const voiceSettings: NonNullable<MobileVoiceState['voiceSettings']> =
+      mobileState.voiceSettings ||
+      (session.preferences && session.preferences.voice ? session.preferences.voice : {}) ||
+      {};
     
     if (response.type !== 'voice' && response.type !== 'text') {
       return null;

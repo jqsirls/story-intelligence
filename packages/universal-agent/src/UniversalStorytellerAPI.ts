@@ -9,13 +9,31 @@ import { Logger } from 'winston';
 interface KidCommunicationIntelligenceClient {
   initialize: () => Promise<void>;
   preprocessAudio: (audio: AudioInput, profile?: ChildProfile) => Promise<AudioInput>;
-  enhanceTranscription: (transcription: string, audio: AudioInput, profile?: ChildProfile) => Promise<string>;
+  enhanceTranscription: (
+    transcription: { text: string; confidence?: number },
+    audio: AudioInput,
+    profile?: ChildProfile,
+    context?: Record<string, unknown>
+  ) => Promise<{
+    text: string;
+    confidence: number;
+    inventedWords?: unknown[];
+    emotionalContext?: unknown;
+    developmentalStage?: unknown;
+  }>;
 }
 
-type KidCommunicationIntelligenceCtor = new (config: Record<string, unknown>) => KidCommunicationIntelligenceClient;
+type KidCommunicationIntelligenceCtor = new (
+  config: Record<string, unknown>,
+  logger?: Logger
+) => KidCommunicationIntelligenceClient;
 const KidCommunicationIntelligenceServiceCtor: KidCommunicationIntelligenceCtor | null = null;
 type KidAudioInput = AudioInput;
-type TranscriptionResult = unknown;
+type TranscriptionResult = {
+  text: string;
+  confidence: number;
+  language?: string;
+};
 type ChildProfile = Record<string, unknown>;
 
 import { FEATURES } from '@storytailor/api-contract';
@@ -130,7 +148,7 @@ export class UniversalStorytellerAPI {
           supabaseUrl,
           supabaseKey,
           redisUrl: process.env.REDIS_URL
-        }, this.logger);
+        });
         
         // Initialize the service
         await this.kidIntelligence.initialize();
@@ -171,7 +189,7 @@ export class UniversalStorytellerAPI {
 
     // Log session start
     await this.eventPublisher.publishEvent(
-      'com.storytailor.conversation.started',
+      'com.storytailor.system.agent-started',
       {
         sessionId,
         userId,
@@ -222,7 +240,7 @@ export class UniversalStorytellerAPI {
 
       // Log interaction
       await this.eventPublisher.publishEvent(
-        'com.storytailor.conversation.message',
+        'com.storytailor.system.health-check',
         {
           sessionId,
           userId: session.userId,
@@ -312,14 +330,7 @@ export class UniversalStorytellerAPI {
     let processedAudio: KidAudioInput = {
       data: audioData.data,
       sampleRate: audioData.sampleRate || 16000,
-      channels: 1,
-      format: 'pcm',
-      metadata: {
-        childId: session.userId,
-        age: childProfile?.age,
-        sessionId,
-        timestamp: new Date().toISOString()
-      }
+      format: 'pcm'
     };
 
     if (this.kidIntelligenceEnabled && this.kidIntelligence) {
@@ -339,12 +350,7 @@ export class UniversalStorytellerAPI {
       content: transcription.text,
       metadata: {
         timestamp: new Date().toISOString(),
-        platform: session.platform,
-        originalAudio: true as any, // Type assertion - originalAudio may not be in metadata type
-        confidence: transcription.confidence,
-        inventedWords: transcription.inventedWords,
-        emotionalContext: transcription.emotionalContext,
-        developmentalStage: transcription.developmentalStage
+        platform: session.platform
       }
     };
 
@@ -421,7 +427,7 @@ export class UniversalStorytellerAPI {
 
     // Log session end
     await this.eventPublisher.publishEvent(
-      'com.storytailor.conversation.ended',
+      'com.storytailor.system.agent-stopped',
       {
         sessionId,
         userId: session.userId,
