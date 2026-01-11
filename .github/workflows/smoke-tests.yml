@@ -143,8 +143,8 @@ jobs:
                 const controller = new AbortController();
                 const id = setTimeout(() => controller.abort(), test.timeout);
                 const res = await fetch(test.url, {
-                  method: test.method,
-                  headers: test.headers || {},
+                method: test.method,
+                headers: test.headers || {},
                   signal: controller.signal,
                 });
                 clearTimeout(id);
@@ -152,10 +152,10 @@ jobs:
               };
               
               const validateStatus = (status) => {
-                if (Array.isArray(test.expectedStatus)) {
-                  return test.expectedStatus.includes(status);
-                }
-                return status === test.expectedStatus;
+                  if (Array.isArray(test.expectedStatus)) {
+                    return test.expectedStatus.includes(status);
+                  }
+                  return status === test.expectedStatus;
               };
               
               if (test.repeat) {
