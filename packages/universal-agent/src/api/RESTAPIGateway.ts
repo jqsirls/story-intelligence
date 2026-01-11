@@ -5635,10 +5635,12 @@ export class RESTAPIGateway {
             limit
           );
 
+          const notificationsList = Array.isArray(paginationResponse.data) ? paginationResponse.data : [];
+
           res.json({
             ...paginationResponse,
             data: {
-              ...paginationResponse.data,
+              notifications: notificationsList,
               unreadCount: unreadCount || 0
             }
           });
@@ -11647,10 +11649,12 @@ export class RESTAPIGateway {
             limit
           );
 
+          const rewardsList = Array.isArray(paginationResponse.data) ? paginationResponse.data : [];
+
           res.json({
             ...paginationResponse,
             data: {
-              ...paginationResponse.data,
+              rewards: rewardsList,
               totalEarned,
               totalApplied,
               available: totalEarned - totalApplied
