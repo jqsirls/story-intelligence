@@ -5644,10 +5644,21 @@ export class RESTAPIGateway {
             limit
           );
 
+          if (!Array.isArray(paginationResponse.data)) {
+            this.logger.error('Invariant violated: notifications payload is not an array', {
+              computedType: typeof paginationResponse.data
+            });
+            return res.status(500).json({
+              success: false,
+              error: 'Notifications payload malformed',
+              code: 'NOTIFICATIONS_PAYLOAD_INVALID'
+            });
+          }
+
           res.json({
             ...paginationResponse,
             data: {
-              ...paginationResponse.data,
+              notifications: paginationResponse.data,
               unreadCount: unreadCount || 0
             }
           });
@@ -11656,10 +11667,21 @@ export class RESTAPIGateway {
             limit
           );
 
+          if (!Array.isArray(paginationResponse.data)) {
+            this.logger.error('Invariant violated: rewards payload is not an array', {
+              computedType: typeof paginationResponse.data
+            });
+            return res.status(500).json({
+              success: false,
+              error: 'Rewards payload malformed',
+              code: 'REWARDS_PAYLOAD_INVALID'
+            });
+          }
+
           res.json({
             ...paginationResponse,
             data: {
-              ...paginationResponse.data,
+              rewards: paginationResponse.data,
               totalEarned,
               totalApplied,
               available: totalEarned - totalApplied
