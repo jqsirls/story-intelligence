@@ -43,15 +43,19 @@ export class NetworkResilienceManager extends EventEmitter {
    * Initialize network monitoring and quality detection
    */
   private initializeNetworkMonitoring(): void {
+    const browserWindow = typeof globalThis === 'object'
+      ? (globalThis as { window?: { addEventListener?: (...args: unknown[]) => void } }).window
+      : undefined;
+
     // Monitor connection status
     this.connectionMonitor = setInterval(() => {
       this.checkConnectionQuality();
     }, 5000);
 
     // Listen for network events
-    if (typeof window !== 'undefined') {
-      window.addEventListener('online', () => this.handleOnlineEvent());
-      window.addEventListener('offline', () => this.handleOfflineEvent());
+    if (browserWindow?.addEventListener) {
+      browserWindow.addEventListener('online', () => this.handleOnlineEvent());
+      browserWindow.addEventListener('offline', () => this.handleOfflineEvent());
     }
   }
 
@@ -63,7 +67,6 @@ export class NetworkResilienceManager extends EventEmitter {
       const startTime = Date.now();
       const response = await fetch('/api/health', {
         method: 'HEAD',
-        cache: 'no-cache',
         signal: AbortSignal.timeout(this.config.connectionTimeoutMs)
       });
       
@@ -519,13 +522,17 @@ export class NetworkResilienceManager extends EventEmitter {
    * Clean up resources
    */
   destroy(): void {
+    const browserWindow = typeof globalThis === 'object'
+      ? (globalThis as { window?: { removeEventListener?: (...args: unknown[]) => void } }).window
+      : undefined;
+
     if (this.connectionMonitor) {
       clearInterval(this.connectionMonitor);
     }
     
-    if (typeof window !== 'undefined') {
-      window.removeEventListener('online', this.handleOnlineEvent);
-      window.removeEventListener('offline', this.handleOfflineEvent);
+    if (browserWindow?.removeEventListener) {
+      browserWindow.removeEventListener('online', this.handleOnlineEvent);
+      browserWindow.removeEventListener('offline', this.handleOfflineEvent);
     }
     
     this.removeAllListeners();
