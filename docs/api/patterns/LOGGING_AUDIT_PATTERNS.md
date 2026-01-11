@@ -86,11 +86,11 @@ import { v4 as uuidv4 } from 'uuid';
 
 function requestLogger(req: Request, res: Response, next: NextFunction) {
   // Generate or use existing correlation ID
-  const correlationId = req.headers['x-correlation-id'] as string || 
+  const correlationId = req.headers['x-request-id'] as string || 
                         `req_${uuidv4().replace(/-/g, '').substring(0, 16)}`;
   
   req.correlationId = correlationId;
-  res.setHeader('X-Correlation-ID', correlationId);
+  res.setHeader('X-Request-Id', correlationId);
   
   const startTime = Date.now();
   
