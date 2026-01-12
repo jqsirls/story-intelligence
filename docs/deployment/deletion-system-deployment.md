@@ -37,7 +37,7 @@
   - `DELETE /api/v1/stories/:id` - Request story deletion
   - `POST /api/v1/stories/:id/delete/cancel` - Cancel story deletion
   - `DELETE /api/v1/characters/:id` - Request character deletion
-  - `POST /api/v1/libraries/:id/members/:userId/remove` - Remove library member
+  - `DELETE /api/v1/libraries/:id/members/:userId/remove` - Remove library member
   - `POST /api/v1/conversations/:sessionId/assets/clear` - Clear conversation assets
   - `GET /api/v1/emails/:messageId/track` - Email tracking (opens/clicks)
 - **Integration**: All deletion services integrated (DeletionService, InactivityMonitorService, EmailService)

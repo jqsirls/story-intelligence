@@ -1309,6 +1309,26 @@ export class RESTAPIGateway {
       this.authMiddleware.requireAuth,
       async (req: AuthenticatedRequest, res: Response) => {
         try {
+          const createStorySchema = Joi.object({
+            title: Joi.string().min(1).required(),
+            content: Joi.object().optional(),
+            libraryId: Joi.string().optional(),
+            characterId: Joi.string().optional(),
+            storyIdea: Joi.string().optional(),
+            storyType: Joi.string().optional(),
+            themes: Joi.array().items(Joi.string()).optional(),
+            generateAssets: Joi.boolean().optional()
+          }).unknown(true);
+
+          const { error: validationError } = createStorySchema.validate(req.body);
+          if (validationError) {
+            return res.status(400).json({
+              success: false,
+              error: validationError.message,
+              code: 'INVALID_STORY_PAYLOAD'
+            });
+          }
+
           const userId = req.user!.id;
           const {
             characterId, libraryId, storyIdea, storyType, themes,

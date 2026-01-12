@@ -115,7 +115,7 @@
 - `DELETE /api/v1/stories/:id` - Delete story
 - `POST /api/v1/stories/:id/delete/cancel` - Cancel story deletion
 - `DELETE /api/v1/characters/:id` - Delete character
-- `POST /api/v1/libraries/:id/members/:userId/remove` - Remove library member
+- `DELETE /api/v1/libraries/:id/members/:userId/remove` - Remove library member
 - `POST /api/v1/conversations/:sessionId/assets/clear` - Clear conversation assets
 - `GET /api/v1/emails/:messageId/track` - Track email engagement
 

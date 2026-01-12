@@ -156,9 +156,9 @@ The handler:
 }
 ```
 
-## 5) Remove library member — `POST /api/v1/libraries/:id/members/:userId/remove`
+## 5) Remove library member — `DELETE /api/v1/libraries/:id/members/:userId/remove`
 
-Removes a member from a library via `DeletionService.removeLibraryMember`.
+Removes a member from a library. Requires bearer auth and owner/admin role. Params validated with Joi (`id`, `userId` as strings).
 
 ### Path parameters
 
@@ -172,7 +172,37 @@ Removes a member from a library via `DeletionService.removeLibraryMember`.
 ```json
 {
   "success": true,
-  "message": "Library member removed successfully"
+  "message": "Member removed"
+}
+```
+
+#### 401 Unauthorized
+
+```json
+{
+  "success": false,
+  "error": "Auth required",
+  "code": "AUTH_REQUIRED"
+}
+```
+
+#### 403 Forbidden
+
+```json
+{
+  "success": false,
+  "error": "Access denied",
+  "code": "ACCESS_DENIED"
+}
+```
+
+#### 404 Not Found
+
+```json
+{
+  "success": false,
+  "error": "Member not found",
+  "code": "NOT_FOUND"
 }
 ```
 

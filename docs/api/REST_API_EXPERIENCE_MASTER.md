@@ -1768,12 +1768,12 @@ When an endpoint returns **202**, the request is successful but work continues a
     - Query variants: none
     - Body variants: JSON body (varies by endpoint; see per-category notes)
   - Returns: `Response_PUT_api_v1_libraries_param_id`
-- **POST /api/v1/libraries/:id/members/:userId/remove**: Library member removal endpoint
+- **DELETE /api/v1/libraries/:id/members/:userId/remove**: Library member removal endpoint (auth required; Joi-validated params)
   - Inputs:
     - Path params: id, userId
     - Query variants: none
     - Body variants: JSON body (varies by endpoint; see per-category notes)
-  - Returns: `Response_POST_api_v1_libraries_param_id_members_param_userId_remove`
+  - Returns: `{ success: true, message: \"Member removed\" }`
 - **POST /api/v1/libraries/:libraryId/characters/:characterId/share**: Share character to another library
   - Inputs:
     - Path params: libraryId, characterId
@@ -2437,3 +2437,25 @@ When an endpoint returns **202**, the request is successful but work continues a
     - Query variants: none
     - Body: none
   - Returns: `HealthResponse`
+
+---
+
+## Launch blocker endpoints (A–J) — implementation parity
+
+| ID | Method | Path | Auth | Validation | Success shape | Error codes |
+| --- | --- | --- | --- | --- | --- | --- |
+| A | GET | `/api/v1/auth/me` | Bearer required | n/a (auth middleware) | `{ success, data: user }` | `AUTH_REQUIRED` (401) |
+| B | DELETE | `/api/v1/libraries/:id` | Bearer required | Joi params.id (string) | `{ success, message: 'Library deleted' }` | `AUTH_REQUIRED` (401), `ACCESS_DENIED` (403), `NOT_FOUND` (404) |
+| C | GET | `/api/v1/commerce/subscriptions` | Bearer required | n/a (auth middleware) | `{ success, data: { subscriptions: [], total } }` | `AUTH_REQUIRED` (401) |
+| D | DELETE | `/api/v1/libraries/:id/members/:userId/remove` | Bearer required | Joi params.id, params.userId (string) | `{ success, message: 'Member removed' }` | `AUTH_REQUIRED` (401), `ACCESS_DENIED` (403), `NOT_FOUND` (404) |
+| E | GET | `/api/v1/libraries/:id/stats` | Bearer required | Joi params.id (string) | `{ success, data: { totals, rates, recentActivity } }` | `AUTH_REQUIRED` (401), `ACCESS_DENIED` (403), `NOT_FOUND` (404) |
+| F | GET | `/api/v1/libraries/:libraryId/stories` | Bearer required | Joi params.libraryId (string); pagination query validated in helper | `{ success, data: { items, pagination } }` | `AUTH_REQUIRED` (401), `ACCESS_DENIED` (403) |
+| G | GET | `/api/v1/stories/:id/activities` | Bearer required | Joi params.id (string) | `{ success, data: { storyId, activities, count } }` | `AUTH_REQUIRED` (401), `ACCESS_DENIED` (403), `NOT_FOUND` (404) |
+| H | GET | `/api/v1/stories/:id/feedback` | Bearer required | Joi params.id (string) | `{ success, data: feedbackSummary }` | `AUTH_REQUIRED` (401), `ACCESS_DENIED` (403), `NOT_FOUND` (404) |
+| I | GET | `/api/v1/characters/:id/feedback` | Bearer required | Joi params.id (string) | `{ success, data: feedbackSummary }` | `AUTH_REQUIRED` (401), `ACCESS_DENIED` (403), `NOT_FOUND` (404) |
+| J | GET | `/api/v1/stories/:id/assets/stream` | Bearer required | Joi params.id (string), optional query.assetType (string) | `{ success, data: { id, assetType, url } }` | `AUTH_REQUIRED` (401), `ACCESS_DENIED` (403), `NOT_FOUND` (404) |
+
+Notes:
+- All endpoints return the standard envelope `{ success: boolean, data|error, code? }`.
+- Auth is enforced via `AuthMiddleware.requireAuth` for every row above.
+- Pagination helper enforces integer page/limit defaults for list endpoints.
