@@ -390,7 +390,10 @@ const buildDefaultFixtures = (
     data: [{ role: 'Owner' }]
   },
   subscriptions: {
-    data: { plan_id: 'pro', status: 'active' }
+    data: [
+      { id: 'sub_1', user_id: userId, plan_id: 'pro', status: 'active', created_at: '2024-01-01T00:00:00Z' }
+    ],
+    count: 1
   },
   stories: {
     data: [{ id: 'story_1', title: 'My Story', creator_user_id: userId }]

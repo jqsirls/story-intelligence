@@ -15,6 +15,7 @@ import serverlessHttp from 'serverless-http';
 import { UniversalStorytellerAPI } from '../UniversalStorytellerAPI';
 import { LibraryService } from '@alexa-multi-agent/library-agent';
 import { CommerceAgent } from '@alexa-multi-agent/commerce-agent';
+import Joi from 'joi';
 
 export class RESTAPIGateway {
   public app: Express;
@@ -260,6 +261,53 @@ export class RESTAPIGateway {
         }
       })
     });
+    
+    // Current authenticated user profile (must stay in the unified gateway)
+    this.app.get(
+      '/api/v1/auth/me',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        try {
+          const userId = req.user!.id;
+
+          const { data: user, error } = await this.supabase
+            .from('users')
+            .select('*')
+            .eq('id', userId)
+            .single();
+
+          if (error) {
+            this.logger.error('Failed to fetch current user', { userId, error: error.message });
+            return res.status(500).json({
+              success: false,
+              error: 'Failed to fetch user',
+              code: 'AUTH_ME_FAILED'
+            });
+          }
+
+          if (!user) {
+            return res.status(404).json({
+              success: false,
+              error: 'User not found',
+              code: 'USER_NOT_FOUND'
+            });
+          }
+
+          res.json({
+            success: true,
+            data: user
+          });
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          this.logger.error('auth/me unexpected error', { error: errorMessage });
+          res.status(500).json({
+            success: false,
+            error: errorMessage || 'Failed to fetch user',
+            code: 'AUTH_ME_FAILED'
+          });
+        }
+      }
+    );
     
     // Register auth routes
     this.app.use('/api/v1/auth', authRoutes.getRouter());
@@ -3369,6 +3417,121 @@ export class RESTAPIGateway {
             success: false,
             error: errorMessage || 'Failed to get library',
             code: 'GET_LIBRARY_FAILED'
+          });
+        }
+      }
+    );
+
+    // Delete library (owner only)
+    this.app.delete(
+      '/api/v1/libraries/:id',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const paramsSchema = Joi.object({
+          id: Joi.string().required()
+        });
+        const { error: validationError } = paramsSchema.validate(req.params);
+        if (validationError) {
+          return res.status(400).json({
+            success: false,
+            error: validationError.details[0].message,
+            code: 'INVALID_LIBRARY_ID'
+          });
+        }
+
+        try {
+          const userId = req.user!.id;
+          const libraryId = req.params.id;
+
+          const { data: library, error: fetchError } = await this.supabase
+            .from('libraries')
+            .select('id, owner')
+            .eq('id', libraryId)
+            .single();
+
+          if (fetchError) {
+            return res.status(404).json({
+              success: false,
+              error: 'Library not found',
+              code: 'LIBRARY_NOT_FOUND'
+            });
+          }
+
+          if (!library || library.owner !== userId) {
+            return res.status(403).json({
+              success: false,
+              error: 'Only library owner can delete library',
+              code: 'PERMISSION_DENIED'
+            });
+          }
+
+          const { error: deleteError } = await this.supabase
+            .from('libraries')
+            .delete()
+            .eq('id', libraryId)
+            .eq('owner', userId);
+
+          if (deleteError) {
+            this.logger.error('Failed to delete library', { libraryId, error: deleteError.message });
+            return res.status(500).json({
+              success: false,
+              error: 'Failed to delete library',
+              code: 'DELETE_LIBRARY_FAILED'
+            });
+          }
+
+          res.json({
+            success: true,
+            message: 'Library deleted'
+          });
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          this.logger.error('Delete library unexpected error', { error: errorMessage });
+          res.status(500).json({
+            success: false,
+            error: errorMessage || 'Failed to delete library',
+            code: 'DELETE_LIBRARY_FAILED'
+          });
+        }
+      }
+    );
+
+    // User subscriptions
+    this.app.get(
+      '/api/v1/commerce/subscriptions',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        try {
+          const userId = req.user!.id;
+          const { data: subscriptions, error } = await this.supabase
+            .from('subscriptions')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
+
+          if (error) {
+            this.logger.error('Failed to fetch subscriptions', { userId, error: error.message });
+            return res.status(500).json({
+              success: false,
+              error: 'Failed to fetch subscriptions',
+              code: 'FETCH_SUBSCRIPTIONS_FAILED'
+            });
+          }
+
+          res.json({
+            success: true,
+            data: {
+              subscriptions: subscriptions || [],
+              total: subscriptions?.length || 0
+            }
+          });
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          this.logger.error('subscriptions unexpected error', { error: errorMessage });
+          res.status(500).json({
+            success: false,
+            error: errorMessage || 'Failed to fetch subscriptions',
+            code: 'FETCH_SUBSCRIPTIONS_FAILED'
           });
         }
       }
