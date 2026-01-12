@@ -124,7 +124,7 @@ jobs:
           --filter "@alexa-multi-agent/commerce-agent" \
           --filter "@alexa-multi-agent/router" \
           --filter "@alexa-multi-agent/universal-agent" \
-          run --if-present test -- --passWithNoTests
+          run --if-present test --passWithNoTests
         env:
           NODE_ENV: test
           REDIS_URL: redis://localhost:6379

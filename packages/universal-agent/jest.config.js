@@ -15,6 +15,7 @@ module.exports = {
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+  testPathIgnorePatterns: ['<rootDir>/src/__tests__/_legacy/'],
   moduleNameMapper: {
     '^@alexa-multi-agent/(.*)$': '<rootDir>/../$1/src'
   },

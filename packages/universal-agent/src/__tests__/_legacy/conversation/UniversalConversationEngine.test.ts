@@ -359,7 +359,8 @@ describe('UniversalConversationManager', () => {
   beforeEach(() => {
     mockRouter = {
       handleRequest: jest.fn(),
-      supportsStreaming: false
+      supportsStreaming: false,
+      streamResponse: jest.fn()
     } as any;
 
     mockEventPublisher = {
@@ -619,7 +620,7 @@ describe('Channel Adapters', () => {
       const processedResponse = await adapter.postprocessResponse(response, session);
 
       expect(processedResponse.content).toContain('**Luna**');
-      expect(processedResponse.metadata.formattedForWeb).toBe(true);
+      expect((processedResponse as any).metadata.formattedForWeb).toBe(true);
     });
   });
 
