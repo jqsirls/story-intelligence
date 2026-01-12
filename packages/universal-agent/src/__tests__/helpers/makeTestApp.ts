@@ -387,7 +387,10 @@ const buildDefaultFixtures = (
     data: [{ id: 'lib_1', owner: userId }]
   },
   library_permissions: {
-    data: [{ role: 'Owner' }]
+    data: [{ role: 'Owner', user_id: userId, library_id: 'lib_1' }]
+  },
+  characters: {
+    data: [{ id: 'char_1', library_id: 'lib_1', owner: userId }]
   },
   subscriptions: {
     data: [
@@ -396,7 +399,19 @@ const buildDefaultFixtures = (
     count: 1
   },
   stories: {
-    data: [{ id: 'story_1', title: 'My Story', creator_user_id: userId }]
+    data: [{ id: 'story_1', title: 'My Story', creator_user_id: userId, library_id: 'lib_1', activities: ['act1'] }]
+  },
+  story_interactions: {
+    data: [{ story_id: 'story_1', interaction_type: 'completed' }]
+  },
+  media_assets: {
+    data: [
+      { id: 'asset_1', story_id: 'story_1', asset_type: 'audio', url: 'https://cdn.example.com/story_1/audio.mp3' }
+    ]
+  },
+  rpc: {
+    get_story_feedback_summary: () => ({ data: { total: 1, averageRating: 4.5, sentimentCounts: { positive: 1, neutral: 0, negative: 0 } }, error: null }),
+    get_character_feedback_summary: () => ({ data: { total: 1, averageRating: 4.0, sentimentCounts: { positive: 1, neutral: 0, negative: 0 } }, error: null })
   },
   users: {
     data: [
@@ -416,7 +431,6 @@ const buildDefaultFixtures = (
   asset_generation_jobs: {
     data: []
   },
-  rpc: {},
   ...(overrides || {})
 })
 

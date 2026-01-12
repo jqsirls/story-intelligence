@@ -2132,6 +2132,18 @@ export class RESTAPIGateway {
       '/api/v1/stories/:storyId/activities',
       this.authMiddleware.requireAuth,
       async (req: AuthenticatedRequest, res: Response) => {
+        const paramsSchema = Joi.object({
+          storyId: Joi.string().required()
+        });
+        const { error: validationError } = paramsSchema.validate(req.params);
+        if (validationError) {
+          return res.status(400).json({
+            success: false,
+            error: validationError.details[0].message,
+            code: 'INVALID_STORY_ID'
+          });
+        }
+
         try {
           const userId = req.user!.id;
           const { storyId } = req.params;
@@ -2165,7 +2177,7 @@ export class RESTAPIGateway {
               return res.status(403).json({
                 success: false,
                 error: 'Access denied',
-                code: 'ACCESS_DENIED'
+                code: 'PERMISSION_DENIED'
               });
             }
           }
@@ -2185,6 +2197,309 @@ export class RESTAPIGateway {
             success: false,
             error: errorMessage,
             code: 'GET_ACTIVITIES_FAILED'
+          });
+        }
+      }
+    );
+
+    // Get story assets (stream/presign via stored URL)
+    this.app.get(
+      '/api/v1/stories/:id/assets/stream',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const paramsSchema = Joi.object({
+          id: Joi.string().required()
+        });
+        const querySchema = Joi.object({
+          assetType: Joi.string().optional()
+        });
+        const paramsValidation = paramsSchema.validate(req.params);
+        if (paramsValidation.error) {
+          return res.status(400).json({
+            success: false,
+            error: paramsValidation.error.details[0].message,
+            code: 'INVALID_STORY_ID'
+          });
+        }
+        const queryValidation = querySchema.validate(req.query);
+        if (queryValidation.error) {
+          return res.status(400).json({
+            success: false,
+            error: queryValidation.error.details[0].message,
+            code: 'INVALID_ASSET_QUERY'
+          });
+        }
+
+        try {
+          const userId = req.user!.id;
+          const storyId = req.params.id;
+          const assetType = (req.query.assetType as string | undefined) || undefined;
+
+          const { data: story, error: storyError } = await this.supabase
+            .from('stories')
+            .select('id, library_id, libraries!inner(owner)')
+            .eq('id', storyId)
+            .single();
+
+          if (storyError || !story) {
+            return res.status(404).json({
+              success: false,
+              error: 'Story not found',
+              code: 'STORY_NOT_FOUND'
+            });
+          }
+
+          if ((story as any).libraries?.owner !== userId) {
+            const { data: permission } = await this.supabase
+              .from('library_permissions')
+              .select('role')
+              .eq('library_id', story.library_id)
+              .eq('user_id', userId)
+              .maybeSingle();
+
+            if (!permission) {
+              return res.status(403).json({
+                success: false,
+                error: 'Permission denied',
+                code: 'PERMISSION_DENIED'
+              });
+            }
+          }
+
+          let query = this.supabase
+            .from('media_assets')
+            .select('*')
+            .eq('story_id', storyId)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          if (assetType) {
+            query = query.eq('asset_type', assetType);
+          }
+
+          const { data: assets, error: assetError } = await query;
+
+          if (assetError) {
+            this.logger.error('Failed to fetch media assets', { storyId, error: assetError.message });
+            return res.status(500).json({
+              success: false,
+              error: 'Failed to fetch media asset',
+              code: 'ASSET_STREAM_FAILED'
+            });
+          }
+
+          const asset = Array.isArray(assets) ? assets[0] : assets;
+
+          if (!asset) {
+            return res.status(404).json({
+              success: false,
+              error: 'Asset not found',
+              code: 'ASSET_NOT_FOUND'
+            });
+          }
+
+          if (assetType && asset.asset_type !== assetType) {
+            return res.status(404).json({
+              success: false,
+              error: 'Asset not found',
+              code: 'ASSET_NOT_FOUND'
+            });
+          }
+
+          res.json({
+            success: true,
+            data: {
+              id: asset.id,
+              assetType: asset.asset_type,
+              url: asset.url
+            }
+          });
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          this.logger.error('Asset stream unexpected error', { error: errorMessage });
+          res.status(500).json({
+            success: false,
+            error: errorMessage || 'Failed to stream asset',
+            code: 'ASSET_STREAM_FAILED'
+          });
+        }
+      }
+    );
+
+    // Story feedback summary
+    this.app.get(
+      '/api/v1/stories/:id/feedback',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const paramsSchema = Joi.object({
+          id: Joi.string().required()
+        });
+        const { error: validationError } = paramsSchema.validate(req.params);
+        if (validationError) {
+          return res.status(400).json({
+            success: false,
+            error: validationError.details[0].message,
+            code: 'INVALID_STORY_ID'
+          });
+        }
+
+        try {
+          const userId = req.user!.id;
+          const storyId = req.params.id;
+
+          const { data: story, error: storyError } = await this.supabase
+            .from('stories')
+            .select('id, library_id, libraries!inner(owner)')
+            .eq('id', storyId)
+            .single();
+
+          if (storyError || !story) {
+            return res.status(404).json({
+              success: false,
+              error: 'Story not found',
+              code: 'STORY_NOT_FOUND'
+            });
+          }
+
+          if ((story as any).libraries?.owner !== userId) {
+            const { data: permission } = await this.supabase
+              .from('library_permissions')
+              .select('role')
+              .eq('library_id', story.library_id)
+              .eq('user_id', userId)
+              .maybeSingle();
+
+            if (!permission) {
+              return res.status(403).json({
+                success: false,
+                error: 'Permission denied',
+                code: 'PERMISSION_DENIED'
+              });
+            }
+          }
+
+          const { data: summary, error: feedbackError } = await this.supabase.rpc(
+            'get_story_feedback_summary',
+            { p_story_id: storyId }
+          );
+
+          if (feedbackError) {
+            this.logger.error('Failed to fetch story feedback', { storyId, error: feedbackError.message });
+            return res.status(500).json({
+              success: false,
+              error: 'Failed to fetch feedback',
+              code: 'STORY_FEEDBACK_FAILED'
+            });
+          }
+
+          res.json({
+            success: true,
+            data: summary || {}
+          });
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          this.logger.error('Story feedback unexpected error', { error: errorMessage });
+          res.status(500).json({
+            success: false,
+            error: errorMessage || 'Failed to fetch feedback',
+            code: 'STORY_FEEDBACK_FAILED'
+          });
+        }
+      }
+    );
+
+    // Character feedback summary
+    this.app.get(
+      '/api/v1/characters/:id/feedback',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const paramsSchema = Joi.object({
+          id: Joi.string().required()
+        });
+        const { error: validationError } = paramsSchema.validate(req.params);
+        if (validationError) {
+          return res.status(400).json({
+            success: false,
+            error: validationError.details[0].message,
+            code: 'INVALID_CHARACTER_ID'
+          });
+        }
+
+        try {
+          const userId = req.user!.id;
+          const characterId = req.params.id;
+
+          const { data: character, error: charError } = await this.supabase
+            .from('characters')
+            .select('id, library_id')
+            .eq('id', characterId)
+            .single();
+
+          if (charError || !character) {
+            return res.status(404).json({
+              success: false,
+              error: 'Character not found',
+              code: 'CHARACTER_NOT_FOUND'
+            });
+          }
+
+          // Check library ownership/permission
+          const { data: library, error: libraryError } = await this.supabase
+            .from('libraries')
+            .select('id, owner')
+            .eq('id', character.library_id)
+            .single();
+
+          if (libraryError || !library) {
+            return res.status(404).json({
+              success: false,
+              error: 'Library not found',
+              code: 'LIBRARY_NOT_FOUND'
+            });
+          }
+
+          if (library.owner !== userId) {
+            const { data: permission } = await this.supabase
+              .from('library_permissions')
+              .select('role')
+              .eq('library_id', character.library_id)
+              .eq('user_id', userId)
+              .maybeSingle();
+
+            if (!permission) {
+              return res.status(403).json({
+                success: false,
+                error: 'Permission denied',
+                code: 'PERMISSION_DENIED'
+              });
+            }
+          }
+
+          const { data: summary, error: feedbackError } = await this.supabase.rpc(
+            'get_character_feedback_summary',
+            { p_character_id: characterId }
+          );
+
+          if (feedbackError) {
+            this.logger.error('Failed to fetch character feedback', { characterId, error: feedbackError.message });
+            return res.status(500).json({
+              success: false,
+              error: 'Failed to fetch feedback',
+              code: 'CHARACTER_FEEDBACK_FAILED'
+            });
+          }
+
+          res.json({
+            success: true,
+            data: summary || {}
+          });
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          this.logger.error('Character feedback unexpected error', { error: errorMessage });
+          res.status(500).json({
+            success: false,
+            error: errorMessage || 'Failed to fetch feedback',
+            code: 'CHARACTER_FEEDBACK_FAILED'
           });
         }
       }
@@ -3491,6 +3806,304 @@ export class RESTAPIGateway {
             success: false,
             error: errorMessage || 'Failed to delete library',
             code: 'DELETE_LIBRARY_FAILED'
+          });
+        }
+      }
+    );
+
+    // Remove library member (owner/admin only)
+    this.app.delete(
+      '/api/v1/libraries/:id/members/:userId/remove',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const paramsSchema = Joi.object({
+          id: Joi.string().required(),
+          userId: Joi.string().required()
+        });
+        const { error: validationError } = paramsSchema.validate(req.params);
+        if (validationError) {
+          return res.status(400).json({
+            success: false,
+            error: validationError.details[0].message,
+            code: 'INVALID_LIBRARY_MEMBER_PARAMS'
+          });
+        }
+
+        try {
+          const adminUserId = req.user!.id;
+          const libraryId = req.params.id;
+          const memberUserId = req.params.userId;
+
+          // Verify caller permission
+          const { data: library, error: libraryError } = await this.supabase
+            .from('libraries')
+            .select('id, owner')
+            .eq('id', libraryId)
+            .single();
+
+          if (libraryError || !library) {
+            return res.status(404).json({
+              success: false,
+              error: 'Library not found',
+              code: 'LIBRARY_NOT_FOUND'
+            });
+          }
+
+          if (library.owner !== adminUserId) {
+            // Check library_permissions for admin/owner role
+            const { data: perms, error: permsError } = await this.supabase
+              .from('library_permissions')
+              .select('role')
+              .eq('library_id', libraryId)
+              .eq('user_id', adminUserId)
+              .maybeSingle();
+
+            if (permsError || !perms || !['Owner', 'Admin'].includes(perms.role)) {
+              return res.status(403).json({
+                success: false,
+                error: 'Permission denied',
+                code: 'PERMISSION_DENIED'
+              });
+            }
+          }
+
+          // Delete membership
+          const { data: memberRow, error: memberError } = await this.supabase
+            .from('library_permissions')
+            .select('user_id')
+            .eq('library_id', libraryId)
+            .eq('user_id', memberUserId)
+            .maybeSingle();
+
+          if (memberError || !memberRow) {
+            return res.status(404).json({
+              success: false,
+              error: 'Member not found',
+              code: 'MEMBER_NOT_FOUND'
+            });
+          }
+
+          const { error: deleteError } = await this.supabase
+            .from('library_permissions')
+            .delete()
+            .eq('library_id', libraryId)
+            .eq('user_id', memberUserId);
+
+          if (deleteError) {
+            this.logger.error('Failed to remove library member', { libraryId, memberUserId, error: deleteError.message });
+            return res.status(500).json({
+              success: false,
+              error: 'Failed to remove library member',
+              code: 'LIBRARY_MEMBER_REMOVAL_FAILED'
+            });
+          }
+
+          res.json({
+            success: true,
+            message: 'Member removed'
+          });
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          this.logger.error('Library member removal unexpected error', { error: errorMessage });
+          res.status(500).json({
+            success: false,
+            error: errorMessage || 'Failed to remove library member',
+            code: 'LIBRARY_MEMBER_REMOVAL_FAILED'
+          });
+        }
+      }
+    );
+
+    // Library stats
+    this.app.get(
+      '/api/v1/libraries/:id/stats',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const paramsSchema = Joi.object({
+          id: Joi.string().required()
+        });
+        const { error: validationError } = paramsSchema.validate(req.params);
+        if (validationError) {
+          return res.status(400).json({
+            success: false,
+            error: validationError.details[0].message,
+            code: 'INVALID_LIBRARY_ID'
+          });
+        }
+
+        try {
+          const userId = req.user!.id;
+          const libraryId = req.params.id;
+
+          const { data: library, error: libraryError } = await this.supabase
+            .from('libraries')
+            .select('id, owner')
+            .eq('id', libraryId)
+            .single();
+
+          if (libraryError || !library) {
+            return res.status(404).json({
+              success: false,
+              error: 'Library not found',
+              code: 'LIBRARY_NOT_FOUND'
+            });
+          }
+
+          if (library.owner !== userId) {
+            const { data: perms, error: permsError } = await this.supabase
+              .from('library_permissions')
+              .select('role')
+              .eq('library_id', libraryId)
+              .eq('user_id', userId)
+              .maybeSingle();
+
+            if (permsError || !perms) {
+              return res.status(403).json({
+                success: false,
+                error: 'Permission denied',
+                code: 'PERMISSION_DENIED'
+              });
+            }
+          }
+
+          const { data: storyList, count: totalStories } = await this.supabase
+            .from('stories')
+            .select('id', { count: 'exact' })
+            .eq('library_id', libraryId);
+
+          const { count: totalCharacters } = await this.supabase
+            .from('characters')
+            .select('*', { count: 'exact', head: true })
+            .eq('library_id', libraryId);
+
+          const storyIds = (storyList || []).map((s: any) => s.id);
+
+          const { data: completions, error: interactionsError } = storyIds.length > 0
+            ? await this.supabase
+                .from('story_interactions')
+                .select('story_id, interaction_type')
+                .eq('interaction_type', 'completed')
+                .in('story_id', storyIds)
+            : { data: [], error: null };
+
+          if (interactionsError) {
+            this.logger.warn('Failed to fetch interactions for stats', { libraryId, error: interactionsError.message });
+          }
+
+          const completedStoryIds = new Set((completions || []).map((c: any) => c.story_id));
+          const completionRate = totalStories && totalStories > 0 ? (completedStoryIds.size / totalStories) * 100 : 0;
+
+          res.json({
+            success: true,
+            data: {
+              totalStories: totalStories || 0,
+              totalCharacters: totalCharacters || 0,
+              completionRate,
+              completedStories: completedStoryIds.size
+            }
+          });
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          this.logger.error('Failed to get library stats', { error: errorMessage });
+          res.status(500).json({
+            success: false,
+            error: errorMessage || 'Failed to get library stats',
+            code: 'GET_LIBRARY_STATS_FAILED'
+          });
+        }
+      }
+    );
+
+    // List stories within a library
+    this.app.get(
+      '/api/v1/libraries/:libraryId/stories',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const paramsSchema = Joi.object({
+          libraryId: Joi.string().required()
+        });
+        const { error: validationError } = paramsSchema.validate(req.params);
+        if (validationError) {
+          return res.status(400).json({
+            success: false,
+            error: validationError.details[0].message,
+            code: 'INVALID_LIBRARY_ID'
+          });
+        }
+
+        try {
+          const userId = req.user!.id;
+          const libraryId = req.params.libraryId;
+          const { page, limit, offset } = this.parsePagination(req);
+
+          const { data: library, error: libraryError } = await this.supabase
+            .from('libraries')
+            .select('id, owner')
+            .eq('id', libraryId)
+            .single();
+
+          if (libraryError || !library) {
+            return res.status(404).json({
+              success: false,
+              error: 'Library not found',
+              code: 'LIBRARY_NOT_FOUND'
+            });
+          }
+
+          if (library.owner !== userId) {
+            const { data: perms, error: permsError } = await this.supabase
+              .from('library_permissions')
+              .select('role')
+              .eq('library_id', libraryId)
+              .eq('user_id', userId)
+              .maybeSingle();
+
+            if (permsError || !perms) {
+              return res.status(403).json({
+                success: false,
+                error: 'Permission denied',
+                code: 'PERMISSION_DENIED'
+              });
+            }
+          }
+
+          const [{ count: total }, { data: stories, error }] = await Promise.all([
+            this.supabase
+              .from('stories')
+              .select('*', { count: 'exact', head: true })
+              .eq('library_id', libraryId),
+            this.supabase
+              .from('stories')
+              .select('*')
+              .eq('library_id', libraryId)
+              .order('created_at', { ascending: false })
+              .range(offset, offset + limit - 1)
+          ]);
+
+          if (error) {
+            this.logger.error('Failed to list library stories', { libraryId, error: error.message });
+            return res.status(500).json({
+              success: false,
+              error: 'Failed to list stories',
+              code: 'LIST_LIBRARY_STORIES_FAILED'
+            });
+          }
+
+          res.json(
+            this.buildPaginationResponse(
+              stories || [],
+              total || 0,
+              page,
+              limit
+            )
+          );
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          this.logger.error('List library stories unexpected error', { error: errorMessage });
+          res.status(500).json({
+            success: false,
+            error: errorMessage || 'Failed to list stories',
+            code: 'LIST_LIBRARY_STORIES_FAILED'
           });
         }
       }
