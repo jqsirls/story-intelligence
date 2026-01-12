@@ -309,6 +309,10 @@ export interface SyncResult {
   syncedChannels: string[];
   conflicts: ConflictResolution[];
   errors: EdgeCaseError[];
+  totalActions?: number;
+  syncedActions?: number;
+  failedActions?: number;
+  conflictResolutions?: ConflictResolution[];
 }
 
 export interface ConflictResolution {
@@ -437,14 +441,6 @@ export interface OfflineState {
   queuedActionsCount: number;
   lastSyncTime: Date;
   pendingChanges: string[];
-}
-
-export interface SyncResult {
-  totalActions: number;
-  syncedActions: number;
-  failedActions: number;
-  conflicts: number;
-  conflictResolutions: any[];
 }
 
 export interface SystemHealth {

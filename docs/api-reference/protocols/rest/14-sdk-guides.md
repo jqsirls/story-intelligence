@@ -1,5 +1,7 @@
 # REST API — SDK / Client Guides — Exhaustive
 
+> **Contract Precedence (Product REST API)**: Treat `docs/api/REST_API_EXPERIENCE_MASTER.md` as canonical for the product REST API contract.
+
 This document provides client guidance for the production REST API (`/api/v1/*`) and the OpenAPI contract (`/v1/*`).
 
 ## 1) Base URL selection

@@ -1,5 +1,38 @@
+type WebChatResponseShape = {
+  id: string;
+  type: string;
+  timestamp: string;
+  content: any;
+  metadata: {
+    confidence: number;
+    agentsUsed: string[];
+    responseTime: number;
+  };
+  ui: {
+    showAvatar: boolean;
+    showTimestamp: boolean;
+    allowCopy: boolean;
+    allowShare: boolean;
+    theme: any;
+  };
+  quickReplies?: Array<{ id: string; text: string; payload: string }>;
+  expectsReply?: boolean;
+  inputHints?: any;
+  richContent?: any;
+  voicePlayback?: any;
+};
 import { ChannelAdapter, UniversalMessage, UniversalResponse, ConversationSession, ChannelSwitchContext } from '../UniversalConversationEngine';
 import { Logger } from 'winston';
+type WebChatState = {
+  showTimestamps?: boolean;
+  theme?: string;
+  voiceEnabled?: boolean;
+  chatHistory?: unknown[];
+  autoScroll?: boolean;
+  scrollPosition?: number;
+  expandedMessages?: unknown[];
+  temporaryFiles?: unknown[];
+};
 
 /**
  * Web Chat Channel Adapter - Handles web-based chat optimizations
@@ -19,13 +52,16 @@ export class WebChatChannelAdapter extends ChannelAdapter {
     });
 
     // Initialize web chat-specific session state
+    const theme =
+      (session.preferences as any)?.customization?.theme ||
+      'default';
     session.state.channelStates['web_chat'] = {
       chatHistory: [],
       typingIndicator: false,
       streamingEnabled: session.capabilities.supportsStreaming,
       voiceEnabled: session.capabilities.supportsVoice,
       fileUploadEnabled: session.capabilities.supportsFiles,
-      theme: session.preferences?.customization?.theme || 'default',
+      theme,
       messageFormat: 'markdown',
       autoScroll: true,
       showTimestamps: true,
@@ -34,7 +70,7 @@ export class WebChatChannelAdapter extends ChannelAdapter {
   }
 
   async preprocessMessage(message: UniversalMessage, session: ConversationSession): Promise<UniversalMessage> {
-    const webChatState = session.state.channelStates['web_chat'] || {};
+    const webChatState: WebChatState = (session.state.channelStates['web_chat'] as WebChatState) || {};
 
     // Handle different message types
     switch (message.type) {
@@ -56,7 +92,7 @@ export class WebChatChannelAdapter extends ChannelAdapter {
   }
 
   async postprocessResponse(response: UniversalResponse, session: ConversationSession): Promise<UniversalResponse> {
-    const webChatState = session.state.channelStates['web_chat'] || {};
+    const webChatState: WebChatState = (session.state.channelStates['web_chat'] as WebChatState) || {};
 
     // Format response for web display
     if (response.type === 'text') {
@@ -64,9 +100,10 @@ export class WebChatChannelAdapter extends ChannelAdapter {
         ...response,
         content: this.formatTextForWeb(response.content.toString()),
         metadata: {
-          ...response.metadata,
-          formattedForWeb: true,
-          supportsMarkdown: true
+          confidence: response.metadata.confidence,
+          generationTime: response.metadata.generationTime,
+          agentsUsed: response.metadata.agentsUsed,
+          adaptedForChannel: true
         }
       };
     }
@@ -84,8 +121,10 @@ export class WebChatChannelAdapter extends ChannelAdapter {
           }
         ],
         metadata: {
-          ...response.metadata,
-          hasTextAlternative: true
+          confidence: response.metadata.confidence,
+          generationTime: response.metadata.generationTime,
+          agentsUsed: response.metadata.agentsUsed,
+          adaptedForChannel: true
         }
       };
     }
@@ -94,10 +133,10 @@ export class WebChatChannelAdapter extends ChannelAdapter {
   }
 
   async adaptResponse(response: UniversalResponse, session: ConversationSession): Promise<any> {
-    const webChatState = session.state.channelStates['web_chat'] || {};
+    const webChatState: WebChatState = (session.state.channelStates['web_chat'] as WebChatState) || {};
 
     // Create web chat-specific response format
-    const webResponse = {
+    const webResponse: WebChatResponseShape = {
       id: this.generateMessageId(),
       type: 'bot_message',
       timestamp: new Date().toISOString(),
@@ -109,7 +148,7 @@ export class WebChatChannelAdapter extends ChannelAdapter {
       },
       ui: {
         showAvatar: true,
-        showTimestamp: webChatState.showTimestamps,
+        showTimestamp: webChatState.showTimestamps ?? true,
         allowCopy: true,
         allowShare: true,
         theme: webChatState.theme
@@ -158,7 +197,7 @@ export class WebChatChannelAdapter extends ChannelAdapter {
   }
 
   async exportState(session: ConversationSession): Promise<any> {
-    const webChatState = session.state.channelStates['web_chat'] || {};
+    const webChatState: WebChatState = (session.state.channelStates['web_chat'] as WebChatState) || {};
     
     return {
       chatHistory: webChatState.chatHistory?.slice(-20) || [], // Keep last 20 messages
@@ -238,62 +277,28 @@ export class WebChatChannelAdapter extends ChannelAdapter {
     const processedContent = this.processMarkdown(content);
     
     // Detect and extract mentions, hashtags, etc.
-    const entities = this.extractEntities(content);
-    
     return {
       ...message,
       content: processedContent,
-      metadata: {
-        ...message.metadata,
-        originalContent: content,
-        entities,
-        hasMarkdown: content !== processedContent
-      }
+      metadata: message.metadata
     };
   }
 
   private preprocessVoiceMessage(message: UniversalMessage, session: ConversationSession): UniversalMessage {
     // Voice messages in web chat are typically audio files that need transcription
-    return {
-      ...message,
-      metadata: {
-        ...message.metadata,
-        requiresTranscription: true,
-        webChatVoice: true
-      }
-    };
+    return message;
   }
 
   private preprocessImageMessage(message: UniversalMessage, session: ConversationSession): UniversalMessage {
     // Handle image uploads - extract metadata, validate format, etc.
-    const imageData = message.content as any;
-    
-    return {
-      ...message,
-      metadata: {
-        ...message.metadata,
-        imageProcessed: true,
-        dimensions: imageData.width && imageData.height ? `${imageData.width}x${imageData.height}` : undefined,
-        fileSize: imageData.size
-      }
-    };
+    void session;
+    return message;
   }
 
   private preprocessFileMessage(message: UniversalMessage, session: ConversationSession): UniversalMessage {
     // Handle file uploads - validate type, size, extract content if needed
-    const fileData = message.content as any;
-    
-    return {
-      ...message,
-      metadata: {
-        ...message.metadata,
-        fileProcessed: true,
-        fileName: fileData.name,
-        fileType: fileData.type,
-        fileSize: fileData.size,
-        requiresProcessing: this.requiresFileProcessing(fileData.type)
-      }
-    };
+    void session;
+    return message;
   }
 
   private formatTextForWeb(text: string): string {

@@ -1,5 +1,4 @@
-import { SupabaseClient } from '@supabase/supabase-js';
-import { Database, UserRole } from '@alexa-multi-agent/shared-types';
+import { Database } from '@alexa-multi-agent/shared-types';
 import {
   Library,
   LibraryCreateRequest,
@@ -12,11 +11,13 @@ import {
   LibraryError,
   LibraryNotFoundError,
   PermissionError,
-  COPPAComplianceError
+  COPPAComplianceError,
+  UserRole
 } from '../types';
+import { LibrarySupabaseClient } from '../db/client';
 
 export class LibraryService {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  constructor(private supabase: LibrarySupabaseClient) {}
 
   async createLibrary(
     request: LibraryCreateRequest,
@@ -468,10 +469,10 @@ export class LibraryService {
         p_agent_name: 'LibraryAgent',
         p_action: action,
         p_payload: payload,
-        p_session_id: context.session_id || null,
-        p_correlation_id: context.correlation_id || null,
-        p_ip_address: context.ip_address || null,
-        p_user_agent: context.user_agent || null
+        p_session_id: context.session_id ?? undefined,
+        p_correlation_id: context.correlation_id ?? undefined,
+        p_ip_address: context.ip_address ?? undefined,
+        p_user_agent: context.user_agent ?? undefined
       });
     } catch (error) {
       console.error('Failed to log audit event:', error);

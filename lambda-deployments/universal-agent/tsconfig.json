@@ -29,7 +29,8 @@
     }
   },
   "include": [
-    "src/**/*"
+    "src/api/RESTAPIGateway.ts",
+    "src/lambda.ts"
   ],
   "exclude": [
     "node_modules",

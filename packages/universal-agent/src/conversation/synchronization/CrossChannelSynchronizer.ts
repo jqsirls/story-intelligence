@@ -103,20 +103,6 @@ export class CrossChannelSynchronizer {
         }
       };
 
-      // Publish sync event
-      await this.eventPublisher.publishEvent(
-        'com.storytailor.conversation.channels_synchronized',
-        {
-          syncId,
-          sessionId: request.sessionId,
-          sourceChannel: request.sourceChannel,
-          targetChannels: request.targetChannels,
-          success: result.success,
-          conflictCount: conflicts.length,
-          duration: result.metadata.duration
-        }
-      );
-
       this.logger.info('Cross-channel synchronization completed', {
         syncId,
         success: result.success,

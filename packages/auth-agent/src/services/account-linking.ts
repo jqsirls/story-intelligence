@@ -264,8 +264,8 @@ export class AccountLinkingService {
         p_agent_name: 'AuthAgent',
         p_action: action,
         p_payload: payload,
-        p_session_id: null,
-        p_correlation_id: payload.correlationId || null,
+        p_session_id: undefined,
+        p_correlation_id: payload.correlationId ?? undefined,
       });
     } catch (error) {
       this.logger.error('Failed to log audit event', { error, userId, action });

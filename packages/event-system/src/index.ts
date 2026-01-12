@@ -1,11 +1,14 @@
+import type { EventType, CloudEvent } from './types';
+
 // Main exports for the event system package
-export { EventSystem, EventSystemConfig } from './EventSystem';
+export { EventSystem } from './EventSystem';
+export type { EventSystemConfig } from './EventSystem';
 export { EventPublisher } from './EventPublisher';
 export { EventSubscriber } from './EventSubscriber';
 export { EventStore } from './EventStore';
 
 // Types
-export {
+export type {
   CloudEvent,
   EventType,
   EventSource,
@@ -25,8 +28,10 @@ export {
 } from './types';
 
 // Monitoring
-export { OpenTelemetryTracer, TracingConfig } from './monitoring/OpenTelemetryTracer';
-export { MetricsCollector, MetricsConfig, SystemMetrics, AlertRule } from './monitoring/MetricsCollector';
+export { OpenTelemetryTracer } from './monitoring/OpenTelemetryTracer';
+export type { TracingConfig } from './monitoring/OpenTelemetryTracer';
+export { MetricsCollector } from './monitoring/MetricsCollector';
+export type { MetricsConfig, SystemMetrics, AlertRule } from './monitoring/MetricsCollector';
 
 // Utility functions
 export const createEventId = () => require('uuid').v4();

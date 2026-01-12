@@ -1,11 +1,13 @@
 # REST API — Story Endpoints — Exhaustive
 
+> **Contract Precedence (Product REST API)**: Treat `docs/api/REST_API_EXPERIENCE_MASTER.md` as canonical for the product REST API contract.
+
 Source of truth:
-- Story routes: [`packages/universal-agent/src/api/RESTAPIGateway.ts`](../../../../packages/universal-agent/src/api/RESTAPIGateway.ts)
+- Story routes: [`lambda-deployments/universal-agent/src/api/RESTAPIGateway.ts`](../../../../lambda-deployments/universal-agent/src/api/RESTAPIGateway.ts)
 - Deletion scheduling: `DeletionService` and related services (called by gateway)
 
 All story endpoints require:
-- `Authorization: Bearer [REDACTED_JWT]
+- `Authorization: Bearer [REDACTED_JWT]`
 
 ## 1) List stories — `GET /api/v1/stories`
 

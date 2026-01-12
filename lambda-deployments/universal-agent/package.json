@@ -9,7 +9,13 @@
     "package": "npm run build && zip -r universal-agent.zip dist/ node_modules/ package.json"
   },
   "dependencies": {
+    "@alexa-multi-agent/universal-agent": "workspace:*",
+    "@alexa-multi-agent/auth-agent": "workspace:*",
+    "@alexa-multi-agent/event-system": "workspace:*",
+    "@alexa-multi-agent/voice-synthesis": "workspace:*",
     "@supabase/supabase-js": "^2.39.0",
+    "@aws-sdk/client-s3": "^3.470.0",
+    "@aws-sdk/s3-request-presigner": "^3.470.0",
     "@aws-sdk/client-ses": "^3.470.0",
     "@aws-sdk/client-ssm": "^3.470.0",
     "@aws-sdk/client-transcribe": "^3.470.0",

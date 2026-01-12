@@ -1,4 +1,3 @@
-import { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '@alexa-multi-agent/shared-types';
 import { PermissionService } from './PermissionService';
 import {
@@ -9,19 +8,14 @@ import {
   DatabaseStoryUpdate,
   LibraryError,
   PermissionError,
-  StoryNotFoundError
+  StoryNotFoundError,
+  EmailService
 } from '../types';
-
-export interface EmailService {
-  sendStoryTransferRequestEmail(to: string, senderName: string, storyTitle: string, transferUrl: string, discountCode?: string): Promise<void>;
-  sendStoryTransferSentEmail(to: string, senderName: string, recipientEmail: string, storyTitle: string): Promise<void>;
-  sendStoryTransferAcceptedEmail(to: string, recipientName: string, storyTitle: string): Promise<void>;
-  sendStoryTransferRejectedEmail(to: string, recipientName: string, storyTitle: string): Promise<void>;
-}
+import { LibrarySupabaseClient } from '../db/client';
 
 export class StoryService {
   constructor(
-    private supabase: SupabaseClient<Database>,
+    private supabase: LibrarySupabaseClient,
     private permissionService: PermissionService,
     private emailService?: EmailService,
     private logger?: any
@@ -216,7 +210,7 @@ export class StoryService {
       .rpc('create_story_transfer_request', {
         p_story_id: request.story_id,
         p_to_library_id: request.target_library_id,
-        p_transfer_message: request.transfer_message || null
+        p_transfer_message: request.transfer_message ?? undefined
       });
 
     if (transferError) {
@@ -314,7 +308,7 @@ export class StoryService {
       .rpc('respond_to_story_transfer', {
         p_transfer_id: transferId,
         p_response: response,
-        p_response_message: responseMessage || null
+        p_response_message: responseMessage ?? undefined
       });
 
     if (error) {
@@ -556,10 +550,10 @@ export class StoryService {
           p_agent_name: 'StoryService',
           p_action: action,
           p_payload: payload,
-          p_session_id: context.session_id || null,
-          p_correlation_id: context.correlation_id || null,
-          p_ip_address: context.ip_address || null,
-          p_user_agent: context.user_agent || null
+          p_session_id: context.session_id ?? undefined,
+          p_correlation_id: context.correlation_id ?? undefined,
+          p_ip_address: context.ip_address ?? undefined,
+          p_user_agent: context.user_agent ?? undefined
         } as any);
       } catch (rpcError) {
         // RPC function may not exist, log to console instead

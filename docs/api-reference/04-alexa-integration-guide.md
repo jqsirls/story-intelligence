@@ -4,6 +4,9 @@
 
 This guide provides everything Amazon needs to integrate Alexa with the Storytailor Multi-Agent System.
 
+> **Note (separate from product REST API)**: This Alexa integration surface is deployment-specific.  
+> If you are integrating with the **product REST API**, use `docs/api/REST_API_EXPERIENCE_MASTER.md` and the base URLs `https://api.storytailor.dev/api/v1` / `https://staging-api.storytailor.dev/api/v1`.
+
 ---
 
 ## 🚀 **Quick Start for Amazon**

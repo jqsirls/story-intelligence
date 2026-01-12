@@ -1,13 +1,12 @@
 import { Logger } from 'winston';
 import { RESTAPIGateway } from './RESTAPIGateway';
-import { UniversalStorytellerAPI } from '../UniversalStorytellerAPI';
 
 export class UniversalAPIServer {
   private restApiGateway: RESTAPIGateway;
   private logger: Logger;
 
   constructor(
-    storytellerAPI: UniversalStorytellerAPI | null,
+    storytellerAPI: any | null,
     logger: Logger
   ) {
     this.logger = logger;

@@ -1,10 +1,12 @@
 # REST API — Library Endpoints — Exhaustive
 
+> **Contract Precedence (Product REST API)**: Treat `docs/api/REST_API_EXPERIENCE_MASTER.md` as canonical for the product REST API contract.
+
 Source of truth:
-- Library routes: [`packages/universal-agent/src/api/RESTAPIGateway.ts`](../../../../packages/universal-agent/src/api/RESTAPIGateway.ts)
+- Library routes: [`lambda-deployments/universal-agent/src/api/RESTAPIGateway.ts`](../../../../lambda-deployments/universal-agent/src/api/RESTAPIGateway.ts)
 
 All library endpoints require:
-- `Authorization: Bearer [REDACTED_JWT]
+- `Authorization: Bearer [REDACTED_JWT]`
 
 ## 1) List libraries — `GET /api/v1/libraries`
 

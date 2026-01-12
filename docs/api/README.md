@@ -10,7 +10,8 @@ This directory contains comprehensive documentation for the Storytailor REST API
 
 ## Quick Start
 
-- **Main Guide**: [REST_API_IMPLEMENTATION_GUIDE.md](./REST_API_IMPLEMENTATION_GUIDE.md)
+- **Canonical REST API Contract (Product)**: [REST_API_EXPERIENCE_MASTER.md](./REST_API_EXPERIENCE_MASTER.md)
+- **Implementation Notes / Guidance**: [REST_API_IMPLEMENTATION_GUIDE.md](./REST_API_IMPLEMENTATION_GUIDE.md)
 - **OpenAPI Spec**: [/packages/api-contract/src/schemas/storytailor-api.yaml](/packages/api-contract/src/schemas/storytailor-api.yaml)
 
 ---

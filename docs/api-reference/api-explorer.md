@@ -292,7 +292,7 @@ The explorer can simulate webhook events to test your endpoint:
 }
 ```
 
-**Try it now:** [Bulk Operations →](https://api.storytailor.com/explorer#/bulk)
+**Try it now (legacy link):** this explorer URL is not part of the current product REST gateway contract. Use the product REST API base URLs + endpoints in `docs/api/REST_API_EXPERIENCE_MASTER.md`.
 
 ## Code Generation
 
@@ -302,7 +302,7 @@ Export your tested requests as code in multiple languages:
 
 #### cURL
 ```bash
-curl -X POST "https://api.storytailor.com/v1/conversations" \
+curl -X POST "https://api.storytailor.dev/api/v1/conversations" \
   -H "Authorization: Bearer [REDACTED_JWT]" \
   -H "Content-Type: application/json" \
   -d '{
@@ -313,10 +313,10 @@ curl -X POST "https://api.storytailor.com/v1/conversations" \
 
 #### JavaScript/Node.js
 ```javascript
-const response = await fetch('https://api.storytailor.com/v1/conversations', {
+const response = await fetch('https://api.storytailor.dev/api/v1/conversations', {
   method: 'POST',
   headers: {
-    'Authorization': 'Bearer your-api-key',
+    'Authorization': 'Bearer <jwt_token>',
     'Content-Type': 'application/json'
   },
   body: JSON.stringify({
@@ -331,9 +331,9 @@ const response = await fetch('https://api.storytailor.com/v1/conversations', {
 import requests
 
 response = requests.post(
-    'https://api.storytailor.com/v1/conversations',
+    'https://api.storytailor.dev/api/v1/conversations',
     headers={
-        'Authorization': 'Bearer your-api-key',
+        'Authorization': 'Bearer <jwt_token>',
         'Content-Type': 'application/json'
     },
     json={
@@ -345,9 +345,9 @@ response = requests.post(
 
 #### PHP
 ```php
-$response = wp_remote_post('https://api.storytailor.com/v1/conversations', [
+$response = wp_remote_post('https://api.storytailor.dev/api/v1/conversations', [
     'headers' => [
-        'Authorization' => 'Bearer your-api-key',
+        'Authorization' => 'Bearer <jwt_token>',
         'Content-Type' => 'application/json'
     ],
     'body' => json_encode([
@@ -369,7 +369,15 @@ Export entire API collections for:
 
 ### Sandbox Environment
 
-Test safely without affecting production data:
+**Legacy / non-product surface**: The `sandbox-api.storytailor.com/v1` examples below are not part of the current product REST gateway contract.  
+For product REST API testing, use:
+
+```text
+Production: https://api.storytailor.dev/api/v1
+Staging:    https://staging-api.storytailor.dev/api/v1
+```
+
+Test safely without affecting production data (legacy sandbox docs):
 
 ```javascript
 // Sandbox base URL

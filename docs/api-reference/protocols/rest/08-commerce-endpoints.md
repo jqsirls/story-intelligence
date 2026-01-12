@@ -1,8 +1,10 @@
 # REST API — Commerce Endpoints — Exhaustive
 
+> **Contract Precedence (Product REST API)**: Treat `docs/api/REST_API_EXPERIENCE_MASTER.md` as canonical for the product REST API contract.
+
 ## Status (Production)
 
-The production REST gateway (`packages/universal-agent/src/api/RESTAPIGateway.ts`) does **not** currently register `/api/v1/commerce/*` routes.
+The production REST gateway (`lambda-deployments/universal-agent/src/api/RESTAPIGateway.ts`) does **not** currently register `/api/v1/commerce/*` routes.
 
 Commerce endpoints are currently defined at the **OpenAPI contract** layer:
 - [`api/openapi-specification.yaml`](../../../../api/openapi-specification.yaml)
@@ -18,7 +20,7 @@ OpenAPI contract paths:
 
 > Note: This differs from the gateway prefix `/api/v1/*`.
 
-## 1) List subscriptions — `GET /v1/commerce/subscriptions`
+## 1) List subscriptions — `GET /api/v1/commerce/subscriptions`
 
 ### Auth
 
@@ -52,7 +54,7 @@ OpenAPI contract paths:
 }
 ```
 
-## 2) Create subscription — `POST /v1/commerce/subscribe`
+## 2) Create subscription — `POST /api/v1/commerce/subscribe`
 
 ### Request body
 
@@ -111,7 +113,7 @@ Implementation details depend on the commerce agent/service and are not present 
 ### cURL — subscribe
 
 ```bash
-curl -sS -X POST "https://api.storytailor.dev/v1/commerce/subscribe" \
+curl -sS -X POST "https://api.storytailor.dev/api/v1/commerce/subscribe" \
   -H "Authorization: Bearer [REDACTED_JWT]" \
   -H "Content-Type: application/json" \
   -d '{

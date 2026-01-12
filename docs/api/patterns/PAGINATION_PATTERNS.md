@@ -4,6 +4,9 @@
 
 ---
 
+> **Contract Note (Product REST API)**: The product REST gateway currently uses a simple `page` + `limit` contract and returns `data: []` with top-level `pagination`.  
+> Treat `docs/api/REST_API_EXPERIENCE_MASTER.md` as canonical for what the product REST API actually accepts/returns today.
+
 ## Overview
 
 Storytailor supports two pagination strategies:
@@ -34,16 +37,14 @@ GET /api/v1/libraries/{libraryId}/stories?page=1&limit=20&sort=created_at&order=
 ```json
 {
   "success": true,
-  "data": {
-    "items": [...],
-    "pagination": {
-      "page": 1,
-      "limit": 20,
-      "total": 156,
-      "totalPages": 8,
-      "hasNext": true,
-      "hasPrev": false
-    }
+  "data": [ /* items */ ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 156,
+    "totalPages": 8,
+    "hasNext": true,
+    "hasPrevious": false
   }
 }
 ```
@@ -130,6 +131,9 @@ app.get('/api/v1/libraries/:libraryId/stories',
 
 ## Cursor-Based Pagination
 
+> **Status (Product REST API)**: Cursor-based pagination is **not currently used** by the product REST gateway.  
+> The canonical pagination contract for the product REST API is in `docs/api/REST_API_EXPERIENCE_MASTER.md`.
+
 ### Request Format
 
 ```http
@@ -149,13 +153,11 @@ GET /api/v1/notifications?limit=20&cursor=eyJpZCI6IjEyMyIsImNyZWF0ZWRfYXQiOiIyMD
 ```json
 {
   "success": true,
-  "data": {
-    "items": [...],
-    "pagination": {
-      "nextCursor": "eyJpZCI6IjQ1NiIsImNyZWF0ZWRfYXQiOiIyMDI0LTAxLTAyIn0",
-      "prevCursor": "eyJpZCI6IjEyMCIsImNyZWF0ZWRfYXQiOiIyMDI0LTAxLTAxIn0",
-      "hasMore": true
-    }
+  "data": [ /* items */ ],
+  "pagination": {
+    "nextCursor": "eyJpZCI6IjQ1NiIsImNyZWF0ZWRfYXQiOiIyMDI0LTAxLTAyIn0",
+    "prevCursor": "eyJpZCI6IjEyMCIsImNyZWF0ZWRfYXQiOiIyMDI0LTAxLTAxIn0",
+    "hasMore": true
   }
 }
 ```

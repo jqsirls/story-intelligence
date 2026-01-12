@@ -354,16 +354,20 @@ export class EdgeCaseOrchestrator extends EventEmitter {
           data.input,
           context
         );
+        const resolutionStrategy = resolution.resolution;
+        const resolvedValue = resolution.resolvedValue;
+        const resolutionText =
+          typeof resolvedValue === 'string'
+            ? resolvedValue
+            : "I've figured out what you meant! Let's continue.";
         
         return {
           success: true,
           type: 'user_input_conflict',
           action: 'contradiction_resolved',
-          message: resolution.strategy === 'clarify' 
-            ? resolution.resolution.text 
-            : "I've figured out what you meant! Let's continue.",
+          message: resolutionText,
           data: { resolution },
-          fallbackUsed: resolution.strategy
+          fallbackUsed: resolutionStrategy
         };
 
       case 'ambiguous_input':

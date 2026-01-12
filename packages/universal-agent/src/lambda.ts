@@ -632,32 +632,21 @@ async function initialize(needsRouter: boolean = true): Promise<void> {
       batchSize: 10
     };
     
-    // Try to load EventPublisher dynamically (try both package names)
-    let EventPublisher: any = null;
-      try {
-        // Try @alexa-multi-agent/event-system first (primary)
-      try {
-        const eventSystemModule: any = await import('@alexa-multi-agent/event-system');
-        EventPublisher = eventSystemModule.EventPublisher || eventSystemModule.default?.EventPublisher || eventSystemModule.default;
-      } catch (e1: any) {
-        // Fallback to @storytailor/event-system (alias)
-        try {
-          const eventSystemModule: any = await import('@storytailor/event-system');
-          EventPublisher = eventSystemModule.EventPublisher || eventSystemModule.default?.EventPublisher || eventSystemModule.default;
-        } catch (e2: any) {
-          // Both failed, EventPublisher will be null
-      }
-    }
-    
-    if (EventPublisher) {
-      eventPublisher = new EventPublisher(eventPublisherConfig, logger);
-      // Initialize the event publisher
-      if (eventPublisher.initialize) {
-        await eventPublisher.initialize();
-      }
-    } else {
-      logger.warn('EventPublisher not available, continuing without event publishing');
-        // Create a mock EventPublisher that matches the expected interface
+    // Try to load EventPublisher dynamically from the canonical package
+    try {
+      const eventSystemModule: any = await import('@alexa-multi-agent/event-system');
+      const EventPublisher =
+        eventSystemModule.EventPublisher ||
+        eventSystemModule.default?.EventPublisher ||
+        eventSystemModule.default;
+
+      if (EventPublisher) {
+        eventPublisher = new EventPublisher(eventPublisherConfig, logger);
+        if (eventPublisher.initialize) {
+          await eventPublisher.initialize();
+        }
+      } else {
+        logger.warn('EventPublisher not available, continuing without event publishing');
         eventPublisher = {
           publishEvent: async () => {},
           publish: async () => {},
@@ -667,7 +656,6 @@ async function initialize(needsRouter: boolean = true): Promise<void> {
       }
     } catch (error: any) {
       logger.warn('Failed to load EventPublisher, continuing without event publishing', { error: error.message });
-      // Create a mock EventPublisher that matches the expected interface
       eventPublisher = {
         publishEvent: async () => {},
         publish: async () => {},

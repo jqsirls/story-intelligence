@@ -382,8 +382,10 @@ jobs:
         options: >-
           --user root
           --entrypoint=""
-        command: >
-          bash -c "zap.sh -daemon -host 0.0.0.0 -port 8080 -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true"
+        entrypoint:
+          - bash
+          - -c
+          - zap.sh -daemon -host 0.0.0.0 -port 8080 -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true
     
     steps:
       - name: Checkout code
@@ -455,58 +457,4 @@ jobs:
           
           echo "✅ All smoke tests passed"
 
-  # Job 8: Deployment notification
-  notify:
-    name: Deployment Notification
-    runs-on: ubuntu-latest
-    needs: [infrastructure, database, integration-tests, load-tests, security-tests, smoke-tests]
-    if: always() && github.event_name != 'push' && (github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch')
-    
-    steps:
-      - name: Slack notifications disabled
-        if: ${{ secrets.SLACK_WEBHOOK_URL == '' }}
-        run: echo "SLACK_WEBHOOK_URL not set; skipping Slack notifications"
 
-      - name: Notify success
-        if: ${{ secrets.SLACK_WEBHOOK_URL != '' && needs.infrastructure.result == 'success' && needs.database.result == 'success' && needs.integration-tests.result == 'success' && needs.load-tests.result == 'success' && needs.security-tests.result == 'success' && needs.smoke-tests.result == 'success' }}
-        uses: 8398a7/action-slack@v3
-        with:
-          status: success
-          channel: '#deployments'
-          text: |
-            🚀 Staging deployment successful!
-            
-            📊 **Deployment Details:**
-            • Environment: Staging
-            • API Gateway: ${{ needs.infrastructure.outputs.api-gateway-url }}
-            • CDN: https://${{ needs.infrastructure.outputs.cloudfront-domain }}
-            • Build Hash: ${{ needs.pre-deploy.outputs.build-hash }}
-            
-            ✅ **Tests Passed:**
-            • Integration Tests
-            • Load Tests (P95 < 800ms)
-            • Security Scan
-            • Smoke Tests
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-
-      - name: Notify failure
-        if: ${{ secrets.SLACK_WEBHOOK_URL != '' && (needs.infrastructure.result == 'failure' || needs.database.result == 'failure' || needs.integration-tests.result == 'failure' || needs.load-tests.result == 'failure' || needs.security-tests.result == 'failure' || needs.smoke-tests.result == 'failure') }}
-        uses: 8398a7/action-slack@v3
-        with:
-          status: failure
-          channel: '#deployments'
-          text: |
-            ❌ Staging deployment failed!
-            
-            **Failed Jobs:**
-            ${{ needs.infrastructure.result == 'failure' && '• Infrastructure' || '' }}
-            ${{ needs.database.result == 'failure' && '• Database Migration' || '' }}
-            ${{ needs.integration-tests.result == 'failure' && '• Integration Tests' || '' }}
-            ${{ needs.load-tests.result == 'failure' && '• Load Tests' || '' }}
-            ${{ needs.security-tests.result == 'failure' && '• Security Tests' || '' }}
-            ${{ needs.smoke-tests.result == 'failure' && '• Smoke Tests' || '' }}
-            
-            Please check the workflow logs for details.
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

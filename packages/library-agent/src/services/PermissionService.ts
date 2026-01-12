@@ -1,5 +1,4 @@
-import { SupabaseClient } from '@supabase/supabase-js';
-import { Database, UserRole } from '@alexa-multi-agent/shared-types';
+import { Database } from '@alexa-multi-agent/shared-types';
 import {
   LibraryPermission,
   PermissionGrantRequest,
@@ -12,9 +11,11 @@ import {
   PermissionError,
   COPPAComplianceError
 } from '../types';
+import { UserRole } from '../types';
+import { LibrarySupabaseClient } from '../db/client';
 
 export class PermissionService {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  constructor(private supabase: LibrarySupabaseClient) {}
 
   async grantPermission(
     libraryId: string,
@@ -51,7 +52,7 @@ export class PermissionService {
     // Check COPPA compliance for the target user
     const { data: targetUser, error: userError } = await this.supabase
       .from('users')
-      .select('age, parent_consent_verified')
+      .select('is_minor, parent_consent_verified')
       .eq('id', request.user_id)
       .single();
 
@@ -70,7 +71,7 @@ export class PermissionService {
       throw new LibraryError(`Failed to get library info: ${libraryError.message}`, 'LIBRARY_CHECK_FAILED');
     }
 
-    if (library.parent_library && targetUser.age && targetUser.age < 13 && !targetUser.parent_consent_verified) {
+    if (library.parent_library && targetUser.is_minor && !targetUser.parent_consent_verified) {
       throw new COPPAComplianceError('Parent consent required for users under 13 accessing sub-libraries');
     }
 
@@ -234,7 +235,7 @@ export class PermissionService {
     // Check if new owner exists
     const { data: newOwner, error: userError } = await this.supabase
       .from('users')
-      .select('id, age, parent_consent_verified')
+      .select('id, is_minor, parent_consent_verified')
       .eq('id', newOwnerId)
       .single();
 
@@ -253,7 +254,7 @@ export class PermissionService {
       throw new LibraryError(`Failed to get library info: ${libraryError.message}`, 'LIBRARY_CHECK_FAILED');
     }
 
-    if (library.parent_library && newOwner.age && newOwner.age < 13 && !newOwner.parent_consent_verified) {
+    if (library.parent_library && newOwner.is_minor && !newOwner.parent_consent_verified) {
       throw new COPPAComplianceError('Parent consent required for users under 13 to own sub-libraries');
     }
 
@@ -450,10 +451,10 @@ export class PermissionService {
         p_agent_name: 'PermissionService',
         p_action: action,
         p_payload: payload,
-        p_session_id: context.session_id || null,
-        p_correlation_id: context.correlation_id || null,
-        p_ip_address: context.ip_address || null,
-        p_user_agent: context.user_agent || null
+        p_session_id: context.session_id ?? undefined,
+        p_correlation_id: context.correlation_id ?? undefined,
+        p_ip_address: context.ip_address ?? undefined,
+        p_user_agent: context.user_agent ?? undefined
       });
     } catch (error) {
       console.error('Failed to log audit event:', error);
