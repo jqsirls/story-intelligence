@@ -304,7 +304,52 @@ export class CommerceAgent {
   // Private helper methods for webhook handling
 
   private async handleCheckoutCompleted(session: Stripe.Checkout.Session): Promise<void> {
-    const { userId, planId, accountType, organizationName, seatCount } = session.metadata!;
+    const metadata = session.metadata || {};
+    const purchaseType = (metadata as any).purchaseType;
+
+    // Deterministic user mapping: we require metadata.userId (or a compatible equivalent).
+    // If it is missing, we fail loudly and do not write any entitlements.
+    const userId = (metadata as any).userId as string | undefined;
+    if (!userId || typeof userId !== 'string' || userId.trim().length === 0) {
+      throw new Error('STRIPE_EVENT_UNMAPPED_USER');
+    }
+
+    // One-time purchase: story pack fulfillment (writes entitlements immediately).
+    if (purchaseType === 'story_pack') {
+      const packType = String((metadata as any).packType || '').trim();
+      const storiesRemaining =
+        packType === '5_pack' ? 5 :
+        packType === '10_pack' ? 10 :
+        packType === '25_pack' ? 25 :
+        null;
+
+      if (!storiesRemaining) {
+        throw new Error('INVALID_PACK_TYPE');
+      }
+
+      const nowIso = new Date().toISOString();
+
+      const { error } = await this.supabase
+        .from('story_packs')
+        .insert({
+          user_id: userId,
+          pack_type: packType,
+          stories_remaining: storiesRemaining,
+          purchased_at: nowIso,
+          stripe_checkout_session_id: session.id,
+          stripe_payment_intent_id: (session.payment_intent as string | null) || null,
+          updated_at: nowIso
+        });
+
+      if (error) {
+        this.logger.error('Error creating story pack entitlement', { error });
+        throw error;
+      }
+
+      return;
+    }
+
+    const { planId, accountType, organizationName, seatCount } = metadata as any;
 
     if (accountType === 'organization') {
       // Create organization account
