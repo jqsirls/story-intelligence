@@ -16,6 +16,7 @@ import { UniversalStorytellerAPI } from '../UniversalStorytellerAPI';
 import { LibraryService } from '@alexa-multi-agent/library-agent';
 import { CommerceAgent } from '@alexa-multi-agent/commerce-agent';
 import Joi from 'joi';
+import Stripe from 'stripe';
 
 export class RESTAPIGateway {
   public app: Express;
@@ -25,6 +26,7 @@ export class RESTAPIGateway {
   private emailService: EmailService;
   private plgNudgeService: PLGNudgeService | null = null;
   private commerceAgent: CommerceAgent | null = null;
+  private stripe: Stripe | null = null;
   private authMiddleware: AuthMiddleware;
   private authAgent: AuthAgent;
   private webhookDeliverySystem: WebhookDeliverySystem;
@@ -61,6 +63,22 @@ export class RESTAPIGateway {
       emailService: this.emailService,
       logger: this.logger
     });
+
+    // Stripe API client (used for one-time purchases like story packs)
+    const stripeSecretKey = (process.env.STRIPE_SECRET_KEY || '').trim()
+    const stripeSecretKeyIsPlaceholder =
+      stripeSecretKey.length === 0 ||
+      stripeSecretKey.includes('placeholder') ||
+      !stripeSecretKey.startsWith('sk_')
+
+    if (stripeSecretKeyIsPlaceholder) {
+      this.logger.error('STRIPE_SECRET_KEY_PLACEHOLDER', {
+        code: 'STRIPE_SECRET_KEY_PLACEHOLDER',
+        ssmParameter: '/storytailor-production/stripe/secret-key'
+      })
+    } else {
+      this.stripe = new Stripe(stripeSecretKey, { apiVersion: '2023-08-16' })
+    }
 
     // Stripe Webhooks: fail-fast if the webhook secret is not configured.
     // This prevents a "looks live but silently rejects every event" failure mode.
@@ -182,7 +200,20 @@ export class RESTAPIGateway {
             })
           }
 
-          const bodyBuffer = Buffer.isBuffer(req.body) ? req.body : Buffer.from(String(req.body || ''), 'utf8')
+          // Use the original Lambda event body when available to preserve the exact raw payload bytes.
+          // This avoids signature verification failures caused by intermediate JSON parsing/re-serialization.
+          const reqAny = req as any
+          const lambdaEventBody =
+            typeof reqAny?.lambdaEvent?.body === 'string' ? (reqAny.lambdaEvent.body as string) : null
+          const bodyBuffer = lambdaEventBody
+            ? Buffer.from(
+                lambdaEventBody,
+                reqAny?.lambdaEvent?.isBase64Encoded ? 'base64' : 'utf8'
+              )
+            : Buffer.isBuffer(req.body)
+              ? req.body
+              : Buffer.from(String(req.body || ''), 'utf8')
+
           const payload = bodyBuffer.toString('utf8')
 
           await this.commerceAgent.handleWebhook(payload, signature)
@@ -191,6 +222,30 @@ export class RESTAPIGateway {
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error)
           this.logger.warn('Stripe webhook handling failed', { error: errorMessage })
+          if (
+            errorMessage.includes('No signatures found matching the expected signature for payload') ||
+            errorMessage.includes('Unable to extract timestamp and signatures from header')
+          ) {
+            return res.status(400).json({
+              success: false,
+              error: errorMessage,
+              code: 'STRIPE_SIGNATURE_INVALID'
+            })
+          }
+          if (errorMessage === 'STRIPE_EVENT_UNMAPPED_USER') {
+            return res.status(400).json({
+              success: false,
+              error: 'Unable to map Stripe event to a user (missing metadata.userId)',
+              code: 'STRIPE_EVENT_UNMAPPED_USER'
+            })
+          }
+          if (errorMessage === 'INVALID_PACK_TYPE') {
+            return res.status(400).json({
+              success: false,
+              error: 'Invalid pack type in Stripe event metadata',
+              code: 'INVALID_PACK_TYPE'
+            })
+          }
           return res.status(400).json({
             success: false,
             error: errorMessage,
@@ -665,6 +720,487 @@ export class RESTAPIGateway {
   }
 
   private setupRoutes(): void {
+    // ------------------------------------------------------------------------
+    // Commerce Surface Minimum (checkout, subscription mgmt, story packs, gift cards)
+    // ------------------------------------------------------------------------
+    const getStripe = (res: Response) => {
+      if (!this.stripe) {
+        res.status(503).json({
+          success: false,
+          error: 'Stripe is not configured',
+          code: 'STRIPE_NOT_CONFIGURED'
+        })
+        return null
+      }
+      return this.stripe
+    }
+
+    const assertCommerceAgent = (res: Response) => {
+      if (!this.commerceAgent) {
+        res.status(500).json({
+          success: false,
+          error: 'CommerceAgent not initialized',
+          code: 'COMMERCE_AGENT_UNAVAILABLE'
+        })
+        return null
+      }
+      return this.commerceAgent
+    }
+
+    // POST /api/v1/checkout/individual
+    this.app.post(
+      '/api/v1/checkout/individual',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const schema = Joi.object({
+          planId: Joi.string().required(),
+          discountCode: Joi.string().optional()
+        }).unknown(true)
+
+        const { error } = schema.validate(req.body)
+        if (error) {
+          return res.status(400).json({
+            success: false,
+            error: error.message,
+            code: 'MISSING_PLAN_ID'
+          })
+        }
+
+        const commerce = assertCommerceAgent(res)
+        if (!commerce) return
+
+        try {
+          const userId = req.user!.id
+          const { planId, discountCode } = req.body as any
+          const session = await commerce.createIndividualCheckout(userId, planId, discountCode)
+          return res.json({
+            success: true,
+            data: { url: session.url, sessionId: session.sessionId, expiresAt: session.expiresAt }
+          })
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          return res.status(400).json({
+            success: false,
+            error: msg || 'Checkout failed',
+            code: 'CHECKOUT_FAILED'
+          })
+        }
+      }
+    )
+
+    // POST /api/v1/checkout/organization
+    this.app.post(
+      '/api/v1/checkout/organization',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const schema = Joi.object({
+          organizationName: Joi.string().min(1).required(),
+          seatCount: Joi.number().integer().min(1).max(10000).required(),
+          planId: Joi.string().required(),
+          interval: Joi.string().valid('month', 'year').optional()
+        }).unknown(true)
+
+        const { error } = schema.validate(req.body)
+        if (error) {
+          return res.status(400).json({
+            success: false,
+            error: error.message,
+            code: 'INVALID_INPUT'
+          })
+        }
+
+        const commerce = assertCommerceAgent(res)
+        if (!commerce) return
+
+        try {
+          const userId = req.user!.id
+          const { organizationName, seatCount, planId } = req.body as any
+          const session = await commerce.createOrganizationCheckout(userId, organizationName, seatCount, planId)
+          return res.json({
+            success: true,
+            data: { url: session.url, sessionId: session.sessionId, expiresAt: session.expiresAt }
+          })
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          return res.status(400).json({
+            success: false,
+            error: msg || 'Checkout failed',
+            code: 'CHECKOUT_FAILED'
+          })
+        }
+      }
+    )
+
+    // GET /api/v1/subscription + GET /api/v1/subscriptions/me
+    const subscriptionHandler = async (req: AuthenticatedRequest, res: Response) => {
+      const commerce = assertCommerceAgent(res)
+      if (!commerce) return
+      try {
+        const userId = req.user!.id
+        const sub = await commerce.getSubscriptionStatus(userId)
+        return res.json({
+          success: true,
+          data: { plan: sub }
+        })
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        return res.status(400).json({
+          success: false,
+          error: msg || 'Failed to load subscription',
+          code: 'GET_SUBSCRIPTION_FAILED'
+        })
+      }
+    }
+
+    this.app.get('/api/v1/subscription', this.authMiddleware.requireAuth, subscriptionHandler)
+    this.app.get('/api/v1/subscriptions/me', this.authMiddleware.requireAuth, subscriptionHandler)
+
+    // POST /api/v1/subscription/cancel
+    this.app.post(
+      '/api/v1/subscription/cancel',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const schema = Joi.object({ immediate: Joi.boolean().optional() }).unknown(true)
+        const { error } = schema.validate(req.body || {})
+        if (error) {
+          return res.status(400).json({ success: false, error: error.message, code: 'INVALID_INPUT' })
+        }
+
+        const commerce = assertCommerceAgent(res)
+        if (!commerce) return
+
+        try {
+          const userId = req.user!.id
+          const { immediate } = (req.body || {}) as any
+          const result = await commerce.cancelSubscription(userId, immediate === true)
+          if (!result.success) {
+            return res.status(400).json({
+              success: false,
+              error: result.error || 'Cancel failed',
+              code: 'CANCEL_SUBSCRIPTION_FAILED'
+            })
+          }
+          return res.json({ success: true, data: { cancelled: true } })
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          return res.status(400).json({ success: false, error: msg || 'Cancel failed', code: 'CANCEL_SUBSCRIPTION_FAILED' })
+        }
+      }
+    )
+
+    // POST /api/v1/subscription/upgrade
+    this.app.post(
+      '/api/v1/subscription/upgrade',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const schema = Joi.object({ planId: Joi.string().required() }).unknown(true)
+        const { error } = schema.validate(req.body)
+        if (error) {
+          return res.status(400).json({ success: false, error: error.message, code: 'MISSING_PLAN_ID' })
+        }
+
+        const commerce = assertCommerceAgent(res)
+        if (!commerce) return
+
+        try {
+          const userId = req.user!.id
+          const { planId } = req.body as any
+          const result = await commerce.changePlan(userId, planId)
+          if (!result.success) {
+            return res.status(400).json({
+              success: false,
+              error: result.error || 'Change plan failed',
+              code: 'CHANGE_PLAN_FAILED'
+            })
+          }
+          return res.json({ success: true, data: { planChanged: true } })
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          return res.status(400).json({ success: false, error: msg || 'Change plan failed', code: 'CHANGE_PLAN_FAILED' })
+        }
+      }
+    )
+
+    // GET /api/v1/subscription/usage (derived from the same sources as story creation quota enforcement)
+    this.app.get(
+      '/api/v1/subscription/usage',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        try {
+          const userId = req.user!.id
+          const testMode = req.headers['x-test-mode'] === 'true'
+
+          const { data: testUser } = await this.supabase
+            .from('users')
+            .select('test_mode_authorized')
+            .eq('id', userId)
+            .single()
+
+          const bypassQuota = testMode && testUser?.test_mode_authorized === true
+
+          const { data: subscription } = await this.supabase
+            .from('subscriptions')
+            .select('plan_id, status')
+            .eq('user_id', userId)
+            .eq('status', 'active')
+            .single()
+
+          const hasSub = subscription && subscription.plan_id !== 'free'
+
+          let packCredits = 0
+          if (!hasSub) {
+            const { data: packs } = await this.supabase
+              .from('story_packs')
+              .select('stories_remaining')
+              .eq('user_id', userId)
+              .gt('stories_remaining', 0)
+              .is('expires_at', null)
+
+            packCredits = packs?.reduce((sum: number, p: any) => sum + (p.stories_remaining || 0), 0) || 0
+          }
+
+          const { count: storyCount } = await this.supabase
+            .from('stories')
+            .select('*', { count: 'exact', head: true })
+            .eq('creator_user_id', userId)
+
+          const { data: user } = await this.supabase
+            .from('users')
+            .select('available_story_credits, lifetime_stories_created')
+            .eq('id', userId)
+            .single()
+
+          const storiesUsed = (storyCount ?? user?.lifetime_stories_created ?? 0) as number
+
+          return res.json({
+            success: true,
+            data: {
+              subscription: bypassQuota ? { tier: 'test_mode', unlimited: true } : hasSub ? { tier: subscription.plan_id, unlimited: true } : null,
+              usage: hasSub || bypassQuota ? { unlimited: true } : packCredits > 0 ? { tier: 'story_pack', packCreditsRemaining: packCredits } : { tier: 'free', used: storiesUsed, limit: 2 }
+            }
+          })
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          return res.status(400).json({ success: false, error: msg || 'Usage failed', code: 'GET_USAGE_FAILED' })
+        }
+      }
+    )
+
+    // GET /api/v1/users/me/story-packs
+    this.app.get(
+      '/api/v1/users/me/story-packs',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        try {
+          const userId = req.user!.id
+          const { data: packs } = await this.supabase
+            .from('story_packs')
+            .select('id, pack_type, stories_remaining, expires_at, purchased_at')
+            .eq('user_id', userId)
+            .gt('stories_remaining', 0)
+
+          const totalAvailable = (packs || []).reduce((sum: number, p: any) => sum + (p.stories_remaining || 0), 0)
+          return res.json({
+            success: true,
+            data: { summary: packs || [], totalAvailable }
+          })
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          return res.status(400).json({ success: false, error: msg || 'Failed to load story packs', code: 'GET_STORY_PACKS_FAILED' })
+        }
+      }
+    )
+
+    // POST /api/v1/story-packs/buy (Stripe Checkout Session, one-time payment)
+    this.app.post(
+      '/api/v1/story-packs/buy',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const schema = Joi.object({
+          packType: Joi.string().valid('5_pack', '10_pack', '25_pack').required()
+        }).unknown(true)
+
+        const { error } = schema.validate(req.body)
+        if (error) {
+          return res.status(400).json({ success: false, error: error.message, code: 'INVALID_PACK_TYPE' })
+        }
+
+        const stripe = getStripe(res)
+        if (!stripe) return
+
+        const packType = (req.body as any).packType as string
+        const envKey =
+          packType === '5_pack'
+            ? 'STRIPE_STORY_PACK_5_PRICE_ID'
+            : packType === '10_pack'
+              ? 'STRIPE_STORY_PACK_10_PRICE_ID'
+              : 'STRIPE_STORY_PACK_25_PRICE_ID'
+
+        const priceId = (process.env as any)[envKey]
+        if (typeof priceId !== 'string' || priceId.trim().length === 0) {
+          return res.status(503).json({
+            success: false,
+            error: `Missing Stripe price id for ${packType}`,
+            code: 'STRIPE_PRICE_NOT_CONFIGURED',
+            envKey
+          })
+        }
+
+        try {
+          const userId = req.user!.id
+          const { data: user } = await this.supabase.from('users').select('email').eq('id', userId).single()
+          const customerEmail = user?.email || req.user?.email
+
+          const base = process.env.FRONTEND_URL || process.env.APP_URL || 'https://storytailor.com'
+          const session = await stripe.checkout.sessions.create({
+            customer_email: customerEmail,
+            payment_method_types: ['card'],
+            line_items: [{ price: priceId.trim(), quantity: 1 }],
+            mode: 'payment',
+            success_url: `${base}/story-packs/success?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${base}/story-packs/cancel`,
+            client_reference_id: userId,
+            metadata: { userId, purchaseType: 'story_pack', packType }
+          })
+
+          return res.json({ success: true, data: { url: session.url, sessionId: session.id } })
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          return res.status(400).json({ success: false, error: msg || 'Story pack checkout failed', code: 'CHECKOUT_FAILED' })
+        }
+      }
+    )
+
+    // GET /api/v1/gift-cards/:code/validate
+    this.app.get('/api/v1/gift-cards/:code/validate', async (req: Request, res: Response) => {
+      try {
+        const code = String(req.params.code || '').trim()
+        if (!code) {
+          return res.status(400).json({ success: false, error: 'Gift card code is required', code: 'MISSING_CODE' })
+        }
+
+        const { data: card } = await this.supabase
+          .from('gift_cards')
+          .select('id, code, type, status, expires_at, redeemed_at, value_months')
+          .eq('code', code)
+          .single()
+
+        if (!card) {
+          return res.status(404).json({ success: false, error: 'Gift card not found', code: 'GIFT_CARD_NOT_FOUND' })
+        }
+
+        const expired = card.expires_at ? new Date(card.expires_at).getTime() < Date.now() : false
+        const redeemed = !!card.redeemed_at || card.status === 'redeemed'
+
+        return res.json({
+          success: true,
+          data: {
+            valid: !expired && !redeemed,
+            type: card.type,
+            valueMonths: card.value_months,
+            expiresAt: card.expires_at,
+            redeemedAt: card.redeemed_at
+          }
+        })
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        return res.status(400).json({ success: false, error: msg || 'Validate failed', code: 'VALIDATE_FAILED' })
+      }
+    })
+
+    // POST /api/v1/gift-cards/redeem
+    this.app.post(
+      '/api/v1/gift-cards/redeem',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const schema = Joi.object({ code: Joi.string().min(1).required() }).unknown(true)
+        const { error } = schema.validate(req.body)
+        if (error) {
+          return res.status(400).json({ success: false, error: error.message, code: 'MISSING_CODE' })
+        }
+
+        try {
+          const userId = req.user!.id
+          const code = String((req.body as any).code || '').trim()
+
+          const { data: card } = await this.supabase
+            .from('gift_cards')
+            .select('*')
+            .eq('code', code)
+            .single()
+
+          if (!card) {
+            return res.status(404).json({ success: false, error: 'Gift card not found', code: 'GIFT_CARD_NOT_FOUND' })
+          }
+
+          const expired = card.expires_at ? new Date(card.expires_at).getTime() < Date.now() : false
+          if (expired) {
+            return res.status(400).json({ success: false, error: 'Gift card expired', code: 'GIFT_CARD_EXPIRED' })
+          }
+
+          const alreadyRedeemed = !!card.redeemed_at || card.status === 'redeemed'
+          if (alreadyRedeemed) {
+            return res.status(409).json({ success: false, error: 'Gift card already redeemed', code: 'GIFT_CARD_ALREADY_REDEEMED' })
+          }
+
+          const monthsAdded = Number(card.value_months || 0)
+          if (!Number.isFinite(monthsAdded) || monthsAdded <= 0) {
+            return res.status(400).json({ success: false, error: 'Invalid gift card value', code: 'INVALID_GIFT_CARD_VALUE' })
+          }
+
+          const now = new Date()
+          const { data: existingSub } = await this.supabase
+            .from('subscriptions')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('status', 'active')
+            .maybeSingle()
+
+          const currentEnd = existingSub?.current_period_end ? new Date(existingSub.current_period_end) : now
+          const baseDate = currentEnd.getTime() > now.getTime() ? currentEnd : now
+          const newEnd = new Date(baseDate)
+          newEnd.setMonth(newEnd.getMonth() + monthsAdded)
+
+          if (existingSub?.id) {
+            await this.supabase
+              .from('subscriptions')
+              .update({ current_period_end: newEnd.toISOString(), updated_at: new Date().toISOString() })
+              .eq('id', existingSub.id)
+          } else {
+            await this.supabase.from('subscriptions').insert({
+              user_id: userId,
+              plan_id: 'pro_individual',
+              status: 'active',
+              current_period_start: now.toISOString(),
+              current_period_end: newEnd.toISOString(),
+              updated_at: new Date().toISOString()
+            })
+          }
+
+          await this.supabase
+            .from('gift_cards')
+            .update({ redeemed_at: now.toISOString(), redeemed_by: userId, status: 'redeemed', updated_at: now.toISOString() })
+            .eq('id', card.id)
+
+          await this.supabase.from('gift_card_redemptions').insert({
+            gift_card_id: card.id,
+            user_id: userId,
+            months_added: monthsAdded,
+            redeemed_at: now.toISOString(),
+            subscription_extended_to: newEnd.toISOString()
+          })
+
+          return res.json({
+            success: true,
+            data: { redeemed: true, monthsAdded, subscriptionExtendedTo: newEnd.toISOString() }
+          })
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          return res.status(400).json({ success: false, error: msg || 'Redeem failed', code: 'REDEEM_FAILED' })
+        }
+      }
+    )
+
     // Account deletion endpoints
     this.app.post(
       '/api/v1/account/delete',
