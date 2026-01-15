@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import crypto from 'crypto';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { createClient as createRedisClient, RedisClientType } from 'redis';
 import { 
@@ -84,14 +85,17 @@ export class CommerceAgent {
         mode: 'subscription',
         success_url: `${process.env.FRONTEND_URL}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${process.env.FRONTEND_URL}/subscription/cancel`,
+        client_reference_id: userId,
         metadata: {
           userId,
+          user_id: userId,
           planId,
           accountType: 'individual'
         },
         subscription_data: {
           metadata: {
             userId,
+            user_id: userId,
             planId,
             accountType: 'individual'
           }
@@ -164,8 +168,10 @@ export class CommerceAgent {
         mode: 'subscription',
         success_url: `${process.env.FRONTEND_URL}/organization/success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${process.env.FRONTEND_URL}/organization/cancel`,
+        client_reference_id: userId,
         metadata: {
           userId,
+          user_id: userId,
           planId,
           accountType: 'organization',
           organizationName,
@@ -174,6 +180,7 @@ export class CommerceAgent {
         subscription_data: {
           metadata: {
             userId,
+            user_id: userId,
             planId,
             accountType: 'organization',
             organizationName,
@@ -230,7 +237,7 @@ export class CommerceAgent {
           break;
         
         default:
-          console.log(`Unhandled event type: ${event.type}`);
+          console.log('STRIPE_UNHANDLED_EVENT', { type: event.type, id: event.id });
       }
     } catch (error) {
       console.error('Webhook handling error:', error);
@@ -302,16 +309,53 @@ export class CommerceAgent {
   }
 
   // Private helper methods for webhook handling
+  private async resolveUserIdFromStripe(
+    metadata: Record<string, any> | null | undefined,
+    clientReferenceId?: string | null,
+    customerId?: string | null
+  ): Promise<string | null> {
+    const direct = metadata?.userId || metadata?.user_id
+    if (typeof direct === 'string' && direct.trim().length > 0) {
+      return direct
+    }
+
+    if (typeof clientReferenceId === 'string' && clientReferenceId.trim().length > 0) {
+      return clientReferenceId
+    }
+
+    if (typeof customerId === 'string' && customerId.trim().length > 0) {
+      const { data: user } = await this.supabase
+        .from('users')
+        .select('id')
+        .eq('stripe_customer_id', customerId)
+        .single()
+
+      if (user?.id) {
+        return user.id
+      }
+    }
+
+    return null
+  }
 
   private async handleCheckoutCompleted(session: Stripe.Checkout.Session): Promise<void> {
     const metadata = session.metadata || {};
     const purchaseType = (metadata as any).purchaseType;
 
-    // Deterministic user mapping: we require metadata.userId (or a compatible equivalent).
-    // If it is missing, we fail loudly and do not write any entitlements.
-    const userId = (metadata as any).userId as string | undefined;
-    if (!userId || typeof userId !== 'string' || userId.trim().length === 0) {
+    const customerId =
+      typeof session.customer === 'string'
+        ? session.customer
+        : session.customer?.id || null
+    const userId = await this.resolveUserIdFromStripe(metadata as any, session.client_reference_id, customerId)
+    if (!userId) {
       throw new Error('STRIPE_EVENT_UNMAPPED_USER');
+    }
+
+    if (customerId) {
+      await this.supabase
+        .from('users')
+        .update({ stripe_customer_id: customerId })
+        .eq('id', userId)
     }
 
     // One-time purchase: story pack fulfillment (writes entitlements immediately).
@@ -347,6 +391,45 @@ export class CommerceAgent {
       }
 
       return;
+    }
+
+    // One-time purchase: gift card fulfillment (creates gift card code for redemption).
+    if (purchaseType === 'gift_card') {
+      const giftCardType = String((metadata as any).giftCardType || (metadata as any).gift_card_type || '').trim()
+      const valueMonths =
+        giftCardType === '1_month' ? 1 :
+        giftCardType === '3_month' ? 3 :
+        giftCardType === '6_month' ? 6 :
+        giftCardType === '12_month' ? 12 :
+        null
+
+      if (!valueMonths) {
+        throw new Error('INVALID_GIFT_CARD_TYPE')
+      }
+
+      const nowIso = new Date().toISOString()
+      const code = `GC-${crypto.randomBytes(6).toString('hex').toUpperCase()}`
+
+      const { error } = await this.supabase
+        .from('gift_cards')
+        .insert({
+          code,
+          type: giftCardType,
+          status: 'active',
+          value_months: valueMonths,
+          purchased_at: nowIso,
+          purchased_by: userId,
+          stripe_checkout_session_id: session.id,
+          stripe_payment_intent_id: (session.payment_intent as string | null) || null,
+          updated_at: nowIso
+        })
+
+      if (error) {
+        this.logger.error('Error creating gift card', { error })
+        throw error
+      }
+
+      return
     }
 
     const { planId, accountType, organizationName, seatCount } = metadata as any;
@@ -406,7 +489,17 @@ export class CommerceAgent {
   }
 
   private async handleSubscriptionCreated(subscription: Stripe.Subscription): Promise<void> {
-    const { userId, planId, accountType } = subscription.metadata;
+    const metadata = subscription.metadata || {}
+    const customerId =
+      typeof subscription.customer === 'string'
+        ? subscription.customer
+        : subscription.customer?.id || null
+    const userId = await this.resolveUserIdFromStripe(metadata as any, null, customerId)
+    if (!userId) {
+      throw new Error('STRIPE_EVENT_UNMAPPED_USER')
+    }
+    const planId = (metadata as any).planId || (metadata as any).plan_id
+    const accountType = (metadata as any).accountType
 
     const subscriptionData = {
       user_id: userId,
@@ -427,7 +520,9 @@ export class CommerceAgent {
     }
 
     // Update user permissions immediately
-    await this.updateUserPermissions(userId, planId, 'active');
+    if (planId) {
+      await this.updateUserPermissions(userId, planId, 'active');
+    }
   }
 
   private async handleSubscriptionUpdated(subscription: Stripe.Subscription): Promise<void> {
@@ -454,8 +549,19 @@ export class CommerceAgent {
     }
 
     // Update user permissions based on new status
-    const { userId, planId } = subscription.metadata;
-    await this.updateUserPermissions(userId, planId, subscription.status);
+    const metadata = subscription.metadata || {}
+    const customerId =
+      typeof subscription.customer === 'string'
+        ? subscription.customer
+        : subscription.customer?.id || null
+    const userId = await this.resolveUserIdFromStripe(metadata as any, null, customerId)
+    if (!userId) {
+      throw new Error('STRIPE_EVENT_UNMAPPED_USER')
+    }
+    const planId = (metadata as any).planId || (metadata as any).plan_id
+    if (planId) {
+      await this.updateUserPermissions(userId, planId, subscription.status);
+    }
     
     // Send upgrade/downgrade email if plan changed
     if (this.emailService && previousSubscription && planId && previousSubscription.plan_id !== planId) {
@@ -510,8 +616,19 @@ export class CommerceAgent {
     }
 
     // Remove user permissions
-    const { userId, planId } = subscription.metadata;
-    await this.updateUserPermissions(userId, planId, 'canceled');
+    const metadata = subscription.metadata || {}
+    const customerId =
+      typeof subscription.customer === 'string'
+        ? subscription.customer
+        : subscription.customer?.id || null
+    const userId = await this.resolveUserIdFromStripe(metadata as any, null, customerId)
+    if (!userId) {
+      throw new Error('STRIPE_EVENT_UNMAPPED_USER')
+    }
+    const planId = (metadata as any).planId || (metadata as any).plan_id
+    if (planId) {
+      await this.updateUserPermissions(userId, planId, 'canceled');
+    }
     
     // Send cancellation email
     if (this.emailService) {
@@ -548,7 +665,11 @@ export class CommerceAgent {
       let userId: string | undefined;
       if (invoice.subscription) {
         const subscription = await this.stripe.subscriptions.retrieve(invoice.subscription as string);
-        userId = subscription.metadata?.userId;
+        const customerId =
+          typeof subscription.customer === 'string'
+            ? subscription.customer
+            : subscription.customer?.id || null
+        userId = await this.resolveUserIdFromStripe(subscription.metadata as any, null, customerId) || undefined
       }
       
       if (userId) {
@@ -577,7 +698,11 @@ export class CommerceAgent {
       let userId: string | undefined;
       if (invoice.subscription) {
         const subscription = await this.stripe.subscriptions.retrieve(invoice.subscription as string);
-        userId = subscription.metadata?.userId;
+        const customerId =
+          typeof subscription.customer === 'string'
+            ? subscription.customer
+            : subscription.customer?.id || null
+        userId = await this.resolveUserIdFromStripe(subscription.metadata as any, null, customerId) || undefined
       }
       
       if (userId) {
