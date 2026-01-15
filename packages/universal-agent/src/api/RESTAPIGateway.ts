@@ -747,46 +747,47 @@ export class RESTAPIGateway {
       return this.commerceAgent
     }
 
-    // POST /api/v1/checkout/individual
-    this.app.post(
-      '/api/v1/checkout/individual',
-      this.authMiddleware.requireAuth,
-      async (req: AuthenticatedRequest, res: Response) => {
-        const schema = Joi.object({
-          planId: Joi.string().required(),
-          discountCode: Joi.string().optional()
-        }).unknown(true)
+    const checkoutIndividualHandler = async (req: AuthenticatedRequest, res: Response) => {
+      const schema = Joi.object({
+        planId: Joi.string().required(),
+        discountCode: Joi.string().optional()
+      }).unknown(true)
 
-        const { error } = schema.validate(req.body)
-        if (error) {
-          return res.status(400).json({
-            success: false,
-            error: error.message,
-            code: 'MISSING_PLAN_ID'
-          })
-        }
-
-        const commerce = assertCommerceAgent(res)
-        if (!commerce) return
-
-        try {
-          const userId = req.user!.id
-          const { planId, discountCode } = req.body as any
-          const session = await commerce.createIndividualCheckout(userId, planId, discountCode)
-          return res.json({
-            success: true,
-            data: { url: session.url, sessionId: session.sessionId, expiresAt: session.expiresAt }
-          })
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e)
-          return res.status(400).json({
-            success: false,
-            error: msg || 'Checkout failed',
-            code: 'CHECKOUT_FAILED'
-          })
-        }
+      const { error } = schema.validate(req.body)
+      if (error) {
+        return res.status(400).json({
+          success: false,
+          error: error.message,
+          code: 'MISSING_PLAN_ID'
+        })
       }
-    )
+
+      const commerce = assertCommerceAgent(res)
+      if (!commerce) return
+
+      try {
+        const userId = req.user!.id
+        const { planId, discountCode } = req.body as any
+        const session = await commerce.createIndividualCheckout(userId, planId, discountCode)
+        return res.json({
+          success: true,
+          data: { url: session.url, sessionId: session.sessionId, expiresAt: session.expiresAt }
+        })
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        return res.status(400).json({
+          success: false,
+          error: msg || 'Checkout failed',
+          code: 'CHECKOUT_FAILED'
+        })
+      }
+    }
+
+    // POST /api/v1/checkout (alias for individual)
+    this.app.post('/api/v1/checkout', this.authMiddleware.requireAuth, checkoutIndividualHandler)
+
+    // POST /api/v1/checkout/individual
+    this.app.post('/api/v1/checkout/individual', this.authMiddleware.requireAuth, checkoutIndividualHandler)
 
     // POST /api/v1/checkout/organization
     this.app.post(
@@ -1060,7 +1061,7 @@ export class RESTAPIGateway {
             success_url: `${base}/story-packs/success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${base}/story-packs/cancel`,
             client_reference_id: userId,
-            metadata: { userId, purchaseType: 'story_pack', packType }
+            metadata: { userId, user_id: userId, purchaseType: 'story_pack', packType }
           })
 
           return res.json({ success: true, data: { url: session.url, sessionId: session.id } })
@@ -1107,6 +1108,68 @@ export class RESTAPIGateway {
         return res.status(400).json({ success: false, error: msg || 'Validate failed', code: 'VALIDATE_FAILED' })
       }
     })
+
+    // POST /api/v1/gift-cards/purchase (Stripe Checkout Session, one-time payment)
+    this.app.post(
+      '/api/v1/gift-cards/purchase',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const schema = Joi.object({
+          giftCardType: Joi.string().valid('1_month', '3_month', '6_month', '12_month').required()
+        }).unknown(true)
+
+        const { error } = schema.validate(req.body)
+        if (error) {
+          return res.status(400).json({ success: false, error: error.message, code: 'INVALID_GIFT_CARD_TYPE' })
+        }
+
+        const stripe = getStripe(res)
+        if (!stripe) return
+
+        const giftCardType = (req.body as any).giftCardType as string
+        const envKey =
+          giftCardType === '1_month'
+            ? 'STRIPE_GIFT_CARD_1_MONTH_PRICE_ID'
+            : giftCardType === '3_month'
+              ? 'STRIPE_GIFT_CARD_3_MONTH_PRICE_ID'
+              : giftCardType === '6_month'
+                ? 'STRIPE_GIFT_CARD_6_MONTH_PRICE_ID'
+                : 'STRIPE_GIFT_CARD_12_MONTH_PRICE_ID'
+
+        const priceId = (process.env as any)[envKey]
+        if (typeof priceId !== 'string' || priceId.trim().length === 0) {
+          return res.status(503).json({
+            success: false,
+            error: `Missing Stripe price id for ${giftCardType}`,
+            code: 'STRIPE_PRICE_NOT_CONFIGURED',
+            envKey
+          })
+        }
+
+        try {
+          const userId = req.user!.id
+          const { data: user } = await this.supabase.from('users').select('email').eq('id', userId).single()
+          const customerEmail = user?.email || req.user?.email
+
+          const base = process.env.FRONTEND_URL || process.env.APP_URL || 'https://storytailor.com'
+          const session = await stripe.checkout.sessions.create({
+            customer_email: customerEmail,
+            payment_method_types: ['card'],
+            line_items: [{ price: priceId.trim(), quantity: 1 }],
+            mode: 'payment',
+            success_url: `${base}/gift-cards/success?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${base}/gift-cards/cancel`,
+            client_reference_id: userId,
+            metadata: { userId, user_id: userId, purchaseType: 'gift_card', giftCardType }
+          })
+
+          return res.json({ success: true, data: { url: session.url, sessionId: session.id } })
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          return res.status(400).json({ success: false, error: msg || 'Gift card checkout failed', code: 'GIFT_CARD_PURCHASE_FAILED' })
+        }
+      }
+    )
 
     // POST /api/v1/gift-cards/redeem
     this.app.post(
@@ -2883,29 +2946,127 @@ export class RESTAPIGateway {
     );
 
     // Story feedback summary
-    this.app.get(
+    const storyFeedbackSummaryHandler = async (req: AuthenticatedRequest, res: Response) => {
+      const paramsSchema = Joi.object({
+        id: Joi.string().required()
+      });
+      const { error: validationError } = paramsSchema.validate(req.params);
+      if (validationError) {
+        return res.status(400).json({
+          success: false,
+          error: validationError.details[0].message,
+          code: 'INVALID_STORY_ID'
+        });
+      }
+
+      try {
+        const userId = req.user!.id;
+        const storyId = req.params.id;
+
+        const { data: story, error: storyError } = await this.supabase
+          .from('stories')
+          .select('id, library_id, libraries!inner(owner)')
+          .eq('id', storyId)
+          .single();
+
+        if (storyError || !story) {
+          return res.status(404).json({
+            success: false,
+            error: 'Story not found',
+            code: 'STORY_NOT_FOUND'
+          });
+        }
+
+        if ((story as any).libraries?.owner !== userId) {
+          const { data: permission } = await this.supabase
+            .from('library_permissions')
+            .select('role')
+            .eq('library_id', story.library_id)
+            .eq('user_id', userId)
+            .maybeSingle();
+
+          if (!permission) {
+            return res.status(403).json({
+              success: false,
+              error: 'Permission denied',
+              code: 'PERMISSION_DENIED'
+            });
+          }
+        }
+
+        const { data: summary, error: feedbackError } = await this.supabase.rpc(
+          'get_story_feedback_summary',
+          { p_story_id: storyId }
+        );
+
+        if (feedbackError) {
+          this.logger.error('Failed to fetch story feedback', { storyId, error: feedbackError.message });
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to fetch feedback',
+            code: 'STORY_FEEDBACK_FAILED'
+          });
+        }
+
+        res.json({
+          success: true,
+          data: summary || {}
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger.error('Story feedback unexpected error', { error: errorMessage });
+        res.status(500).json({
+          success: false,
+          error: errorMessage || 'Failed to fetch feedback',
+          code: 'STORY_FEEDBACK_FAILED'
+        });
+      }
+    };
+
+    this.app.get('/api/v1/stories/:id/feedback', this.authMiddleware.requireAuth, storyFeedbackSummaryHandler);
+    this.app.get('/api/v1/stories/:id/feedback/summary', this.authMiddleware.requireAuth, storyFeedbackSummaryHandler);
+
+    // POST /api/v1/stories/:id/feedback
+    this.app.post(
       '/api/v1/stories/:id/feedback',
       this.authMiddleware.requireAuth,
       async (req: AuthenticatedRequest, res: Response) => {
         const paramsSchema = Joi.object({
           id: Joi.string().required()
         });
-        const { error: validationError } = paramsSchema.validate(req.params);
-        if (validationError) {
+        const bodySchema = Joi.object({
+          rating: Joi.number().integer().min(1).max(5).optional(),
+          sentiment: Joi.string().valid('positive', 'neutral', 'negative').required(),
+          message: Joi.string().max(5000).optional().allow('')
+        }).unknown(true);
+
+        const { error: paramsError } = paramsSchema.validate(req.params);
+        if (paramsError) {
           return res.status(400).json({
             success: false,
-            error: validationError.details[0].message,
+            error: paramsError.details[0].message,
             code: 'INVALID_STORY_ID'
+          });
+        }
+
+        const { error: bodyError } = bodySchema.validate(req.body);
+        if (bodyError) {
+          return res.status(400).json({
+            success: false,
+            error: bodyError.details[0].message,
+            code: 'INVALID_FEEDBACK_PAYLOAD'
           });
         }
 
         try {
           const userId = req.user!.id;
           const storyId = req.params.id;
+          const { rating, sentiment, message } = req.body as any;
 
+          // Verify story exists
           const { data: story, error: storyError } = await this.supabase
             .from('stories')
-            .select('id, library_id, libraries!inner(owner)')
+            .select('id')
             .eq('id', storyId)
             .single();
 
@@ -2917,77 +3078,180 @@ export class RESTAPIGateway {
             });
           }
 
-          if ((story as any).libraries?.owner !== userId) {
-            const { data: permission } = await this.supabase
-              .from('library_permissions')
-              .select('role')
-              .eq('library_id', story.library_id)
-              .eq('user_id', userId)
-              .maybeSingle();
+          const { data: feedback, error: insertError } = await this.supabase
+            .from('story_feedback')
+            .insert({
+              story_id: storyId,
+              user_id: userId,
+              rating: rating || null,
+              sentiment,
+              message: message || null
+            })
+            .select()
+            .single();
 
-            if (!permission) {
-              return res.status(403).json({
-                success: false,
-                error: 'Permission denied',
-                code: 'PERMISSION_DENIED'
-              });
-            }
-          }
-
-          const { data: summary, error: feedbackError } = await this.supabase.rpc(
-            'get_story_feedback_summary',
-            { p_story_id: storyId }
-          );
-
-          if (feedbackError) {
-            this.logger.error('Failed to fetch story feedback', { storyId, error: feedbackError.message });
+          if (insertError) {
+            this.logger.error('Failed to create story feedback', { storyId, error: insertError.message });
             return res.status(500).json({
               success: false,
-              error: 'Failed to fetch feedback',
-              code: 'STORY_FEEDBACK_FAILED'
+              error: 'Failed to submit feedback',
+              code: 'FEEDBACK_SUBMIT_FAILED'
             });
           }
 
-          res.json({
+          res.status(201).json({
             success: true,
-            data: summary || {}
+            data: feedback
           });
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
-          this.logger.error('Story feedback unexpected error', { error: errorMessage });
-          res.status(500).json({
+          this.logger.error('Story feedback submit unexpected error', { error: errorMessage });
+          return res.status(500).json({
             success: false,
-            error: errorMessage || 'Failed to fetch feedback',
-            code: 'STORY_FEEDBACK_FAILED'
+            error: errorMessage || 'Failed to submit feedback',
+            code: 'FEEDBACK_SUBMIT_FAILED'
           });
         }
       }
     );
 
     // Character feedback summary
-    this.app.get(
+    const characterFeedbackSummaryHandler = async (req: AuthenticatedRequest, res: Response) => {
+      const paramsSchema = Joi.object({
+        id: Joi.string().required()
+      });
+      const { error: validationError } = paramsSchema.validate(req.params);
+      if (validationError) {
+        return res.status(400).json({
+          success: false,
+          error: validationError.details[0].message,
+          code: 'INVALID_CHARACTER_ID'
+        });
+      }
+
+      try {
+        const userId = req.user!.id;
+        const characterId = req.params.id;
+
+        const { data: character, error: charError } = await this.supabase
+          .from('characters')
+          .select('id, library_id')
+          .eq('id', characterId)
+          .single();
+
+        if (charError || !character) {
+          return res.status(404).json({
+            success: false,
+            error: 'Character not found',
+            code: 'CHARACTER_NOT_FOUND'
+          });
+        }
+
+        // Check library ownership/permission
+        const { data: library, error: libraryError } = await this.supabase
+          .from('libraries')
+          .select('id, owner')
+          .eq('id', character.library_id)
+          .single();
+
+        if (libraryError || !library) {
+          return res.status(404).json({
+            success: false,
+            error: 'Library not found',
+            code: 'LIBRARY_NOT_FOUND'
+          });
+        }
+
+        if (library.owner !== userId) {
+          const { data: permission } = await this.supabase
+            .from('library_permissions')
+            .select('role')
+            .eq('library_id', character.library_id)
+            .eq('user_id', userId)
+            .maybeSingle();
+
+          if (!permission) {
+            return res.status(403).json({
+              success: false,
+              error: 'Permission denied',
+              code: 'PERMISSION_DENIED'
+            });
+          }
+        }
+
+        const { data: summary, error: feedbackError } = await this.supabase.rpc(
+          'get_character_feedback_summary',
+          { p_character_id: characterId }
+        );
+
+        if (feedbackError) {
+          this.logger.error('Failed to fetch character feedback', { characterId, error: feedbackError.message });
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to fetch feedback',
+            code: 'CHARACTER_FEEDBACK_FAILED'
+          });
+        }
+
+        res.json({
+          success: true,
+          data: summary || {}
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger.error('Character feedback unexpected error', { error: errorMessage });
+        res.status(500).json({
+          success: false,
+          error: errorMessage || 'Failed to fetch feedback',
+          code: 'CHARACTER_FEEDBACK_FAILED'
+        });
+      }
+    };
+
+    this.app.get('/api/v1/characters/:id/feedback', this.authMiddleware.requireAuth, characterFeedbackSummaryHandler);
+    this.app.get('/api/v1/characters/:id/feedback/summary', this.authMiddleware.requireAuth, characterFeedbackSummaryHandler);
+
+    // POST /api/v1/characters/:id/feedback
+    this.app.post(
       '/api/v1/characters/:id/feedback',
       this.authMiddleware.requireAuth,
       async (req: AuthenticatedRequest, res: Response) => {
         const paramsSchema = Joi.object({
           id: Joi.string().required()
         });
-        const { error: validationError } = paramsSchema.validate(req.params);
-        if (validationError) {
+        const bodySchema = Joi.object({
+          rating: Joi.number().integer().min(1).max(5).optional(),
+          sentiment: Joi.string().valid('positive', 'neutral', 'negative').required(),
+          message: Joi.string().max(5000).optional().allow('')
+        }).unknown(true);
+
+        const { error: paramsError } = paramsSchema.validate(req.params);
+        if (paramsError) {
           return res.status(400).json({
             success: false,
-            error: validationError.details[0].message,
+            error: paramsError.details[0].message,
             code: 'INVALID_CHARACTER_ID'
+          });
+        }
+
+        const { error: bodyError } = bodySchema.validate(req.body);
+        if (bodyError) {
+          return res.status(400).json({
+            success: false,
+            error: bodyError.details[0].message,
+            code: 'INVALID_FEEDBACK_PAYLOAD'
           });
         }
 
         try {
           const userId = req.user!.id;
           const characterId = req.params.id;
+          const { rating, sentiment, message } = req.body as any;
 
+          // Verify character exists
           const { data: character, error: charError } = await this.supabase
             .from('characters')
-            .select('id, library_id')
+            .select('id')
             .eq('id', characterId)
             .single();
 
@@ -2999,63 +3263,38 @@ export class RESTAPIGateway {
             });
           }
 
-          // Check library ownership/permission
-          const { data: library, error: libraryError } = await this.supabase
-            .from('libraries')
-            .select('id, owner')
-            .eq('id', character.library_id)
+          const { data: feedback, error: insertError } = await this.supabase
+            .from('character_feedback')
+            .insert({
+              character_id: characterId,
+              user_id: userId,
+              rating: rating || null,
+              sentiment,
+              message: message || null
+            })
+            .select()
             .single();
 
-          if (libraryError || !library) {
-            return res.status(404).json({
-              success: false,
-              error: 'Library not found',
-              code: 'LIBRARY_NOT_FOUND'
-            });
-          }
-
-          if (library.owner !== userId) {
-            const { data: permission } = await this.supabase
-              .from('library_permissions')
-              .select('role')
-              .eq('library_id', character.library_id)
-              .eq('user_id', userId)
-              .maybeSingle();
-
-            if (!permission) {
-              return res.status(403).json({
-                success: false,
-                error: 'Permission denied',
-                code: 'PERMISSION_DENIED'
-              });
-            }
-          }
-
-          const { data: summary, error: feedbackError } = await this.supabase.rpc(
-            'get_character_feedback_summary',
-            { p_character_id: characterId }
-          );
-
-          if (feedbackError) {
-            this.logger.error('Failed to fetch character feedback', { characterId, error: feedbackError.message });
+          if (insertError) {
+            this.logger.error('Failed to create character feedback', { characterId, error: insertError.message });
             return res.status(500).json({
               success: false,
-              error: 'Failed to fetch feedback',
-              code: 'CHARACTER_FEEDBACK_FAILED'
+              error: 'Failed to submit feedback',
+              code: 'FEEDBACK_SUBMIT_FAILED'
             });
           }
 
-          res.json({
+          res.status(201).json({
             success: true,
-            data: summary || {}
+            data: feedback
           });
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
-          this.logger.error('Character feedback unexpected error', { error: errorMessage });
-          res.status(500).json({
+          this.logger.error('Character feedback submit unexpected error', { error: errorMessage });
+          return res.status(500).json({
             success: false,
-            error: errorMessage || 'Failed to fetch feedback',
-            code: 'CHARACTER_FEEDBACK_FAILED'
+            error: errorMessage || 'Failed to submit feedback',
+            code: 'FEEDBACK_SUBMIT_FAILED'
           });
         }
       }
