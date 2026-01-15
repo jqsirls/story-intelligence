@@ -33,12 +33,7 @@ export class CommerceAgent {
     this.emailService = this.config.emailService;
     
     this.stripe = new Stripe(this.config.stripeSecretKey, {
-      // NOTE: This package is compiled in two contexts:
-      // - commerce-agent itself (Stripe v14 types)
-      // - universal-agent tests via workspace moduleNameMapper (Stripe v13 types)
-      // Stripe v13's LatestApiVersion literal can be narrower than v14's, so we
-      // intentionally quarantine this typing here without changing runtime behavior.
-      apiVersion: ('2023-10-16' as any),
+      apiVersion: '2023-10-16',
     });
 
     this.supabase = createClient<Database>(
@@ -823,13 +818,10 @@ export class CommerceAgent {
     try {
       // This would integrate with the LibraryAgent to get organization-specific libraries
       // For now, we'll return a placeholder
-      // Typing quarantine (TS2589): avoid deep generic instantiation on Supabase query builder
-      // when this file is compiled via universal-agent's ts-jest + workspace module mapping.
-      const sb: any = this.supabase as any
-      const { data: libraries, error } = await sb
+      const { data: libraries, error } = await this.supabase
         .from('libraries')
         .select('*')
-        .eq('organization_id', organizationId)
+        .eq('organization_id', organizationId);
 
       if (error) {
         throw error;

@@ -1,14 +1,23 @@
 // Jest setup file for universal-agent package
 
-// Keep real console output for receipt-grade failures and debugging.
+// Mock console methods to reduce noise in tests
+global.console = {
+  ...console,
+  log: jest.fn(),
+  debug: jest.fn(),
+  info: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(),
+};
 
-// Use real timers for supertest/Express integration tests.
-// Fake timers can cause requests/promises to stall and produce non-actionable failures.
-jest.useRealTimers();
+// Mock timers
+jest.useFakeTimers();
 
 // Setup test environment
 beforeEach(() => {
   jest.clearAllMocks();
 });
 
-afterEach(() => {});
+afterEach(() => {
+  jest.clearAllTimers();
+});

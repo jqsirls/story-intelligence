@@ -12,17 +12,6 @@ type MakeTestAppOptions = {
     role?: string
   } | null
   supabaseFixtures?: SupabaseFixtures
-  stripeMock?: Partial<StripeMockState>
-  commerceAgentStub?: {
-    handleWebhook?: (payload: string, signature: string) => Promise<any>
-    createIndividualCheckout?: (userId: string, planId: string, discountCode?: string) => Promise<any>
-    createOrganizationCheckout?: (userId: string, organizationName: string, seatCount: number, planId: string, interval: string) => Promise<any>
-    getSubscriptionStatus?: (userId: string) => Promise<any>
-    cancelSubscription?: (userId: string, immediate: boolean) => Promise<any>
-    changePlan?: (userId: string, newPlanId: string) => Promise<any>
-    getStoryPackInventory?: (userId: string) => Promise<any>
-    redeemGiftCard?: (userId: string, code: string) => Promise<any>
-  }
 }
 
 export const defaultAuthedUser = {
@@ -34,50 +23,6 @@ export const defaultAuthedUser = {
 let currentFixtures: SupabaseFixtures = {}
 let currentAuthedUser: MakeTestAppOptions['authedUser'] = defaultAuthedUser
 let lastSupabaseClient: SupabaseClient | null = null
-
-type StripeMockState = {
-  lastCheckoutSessionCreateParams: any | null
-  checkoutSessionCreateResult: any
-  lastWebhookConstructArgs: { payload: string; signature: string; secret: string } | null
-  webhookEvent: any
-  lastSubscriptionUpdateArgs: any | null
-  subscriptionUpdateResult: any
-  lastSubscriptionCancelArgs: any | null
-  subscriptionCancelResult: any
-  subscriptionRetrieveResult: any
-}
-
-let stripeMockState: StripeMockState = {
-  lastCheckoutSessionCreateParams: null,
-  checkoutSessionCreateResult: {
-    id: 'cs_test_123',
-    url: 'https://checkout.example.test/session/cs_test_123',
-    expires_at: 1700000000
-  },
-  lastWebhookConstructArgs: null,
-  webhookEvent: {
-    type: 'checkout.session.completed',
-    data: { object: { id: 'cs_test_123', metadata: { userId: defaultAuthedUser.id, planId: 'pro_individual', accountType: 'individual' } } }
-  },
-  lastSubscriptionUpdateArgs: null,
-  subscriptionUpdateResult: { id: 'sub_test_123', status: 'active', current_period_start: 1700000000, current_period_end: 1700003600, metadata: { userId: defaultAuthedUser.id, planId: 'pro_individual' } },
-  lastSubscriptionCancelArgs: null,
-  subscriptionCancelResult: { id: 'sub_test_123', status: 'canceled' },
-  subscriptionRetrieveResult: { items: { data: [{ id: 'si_test_123' }] } }
-}
-
-let currentCommerceAgentStub: MakeTestAppOptions['commerceAgentStub'] | null = null
-
-export const getStripeMockState = () => stripeMockState
-export const resetStripeMockState = () => {
-  stripeMockState = {
-    ...stripeMockState,
-    lastCheckoutSessionCreateParams: null,
-    lastWebhookConstructArgs: null,
-    lastSubscriptionUpdateArgs: null,
-    lastSubscriptionCancelArgs: null
-  }
-}
 
 type QueryState = {
   table: string
@@ -256,39 +201,6 @@ const buildSupabaseClient = (): SupabaseClient => {
     from(table: string) {
       return makeBuilder(table)
     },
-    auth: {
-      signUp: async (params: any) => {
-        const authFixtures = currentFixtures.auth || {}
-        if (typeof authFixtures.signUp === 'function') {
-          return authFixtures.signUp(params)
-        }
-        return {
-          data: {
-            user: { id: 'user_new_123', email: params?.email, user_metadata: params?.options?.data || {} },
-            session: { access_token: 'access_new', refresh_token: 'refresh_new', expires_in: 3600 }
-          },
-          error: null
-        }
-      },
-      signInWithPassword: async (params: any) => {
-        const authFixtures = currentFixtures.auth || {}
-        if (typeof authFixtures.signInWithPassword === 'function') {
-          return authFixtures.signInWithPassword(params)
-        }
-        return {
-          data: {
-            user: {
-              id: currentAuthedUser?.id || defaultAuthedUser.id,
-              email: params?.email,
-              user_metadata: { first_name: 'Test', last_name: 'User' },
-              email_confirmed_at: new Date().toISOString()
-            },
-            session: { access_token: 'access_123', refresh_token: 'refresh_123', expires_in: 3600 }
-          },
-          error: null
-        }
-      }
-    },
     rpc(name: string, args?: any) {
       const state: QueryState = {
         table: 'rpc',
@@ -327,15 +239,6 @@ jest.mock('@alexa-multi-agent/auth-agent', () => {
           isMinor: false
         }
       }
-      async refreshToken(_refreshToken: string) {
-        return { success: true, accessToken: 'access_refreshed', refreshToken: 'refresh_refreshed', expiresIn: 3600 }
-      }
-      async revokeToken(_refreshToken: string) {
-        return
-      }
-      async initiatePasswordReset(_email: string) {
-        return { success: true }
-      }
     }
   }
 })
@@ -346,106 +249,14 @@ jest.mock('@alexa-multi-agent/library-agent', () => ({
   }
 }))
 
-// Mock CommerceAgent to allow stubbing handleWebhook and other methods
 jest.mock('@alexa-multi-agent/commerce-agent', () => ({
   CommerceAgent: class {
-    async handleWebhook(payload: string, signature: string) {
-      if (currentCommerceAgentStub?.handleWebhook) {
-        return currentCommerceAgentStub.handleWebhook(payload, signature)
-      }
-      // Default stub behavior: just accept the webhook
-      return undefined
+    constructor() {}
+    async handleWebhook() {
+      return { received: true }
     }
-    async createIndividualCheckout(userId: string, planId: string, discountCode?: string) {
-      if (currentCommerceAgentStub?.createIndividualCheckout) {
-        return currentCommerceAgentStub.createIndividualCheckout(userId, planId, discountCode)
-      }
-      return { sessionId: 'cs_test_123', url: 'https://checkout.stripe.com', expiresAt: new Date().toISOString() }
-    }
-    async createOrganizationCheckout(userId: string, organizationName: string, seatCount: number, planId: string, interval: string) {
-      if (currentCommerceAgentStub?.createOrganizationCheckout) {
-        return currentCommerceAgentStub.createOrganizationCheckout(userId, organizationName, seatCount, planId, interval)
-      }
-      return { sessionId: 'cs_test_org_123', url: 'https://checkout.stripe.com/org', expiresAt: new Date().toISOString() }
-    }
-    async getSubscriptionStatus(userId: string) {
-      if (currentCommerceAgentStub?.getSubscriptionStatus) {
-        return currentCommerceAgentStub.getSubscriptionStatus(userId)
-      }
-      return null
-    }
-    async cancelSubscription(userId: string, immediate: boolean) {
-      if (currentCommerceAgentStub?.cancelSubscription) {
-        return currentCommerceAgentStub.cancelSubscription(userId, immediate)
-      }
-      return { success: true }
-    }
-    async changePlan(userId: string, newPlanId: string) {
-      if (currentCommerceAgentStub?.changePlan) {
-        return currentCommerceAgentStub.changePlan(userId, newPlanId)
-      }
-      return { success: true }
-    }
-    async getStoryPackInventory(userId: string) {
-      if (currentCommerceAgentStub?.getStoryPackInventory) {
-        return currentCommerceAgentStub.getStoryPackInventory(userId)
-      }
-      return { summary: { totalAvailable: 0 }, packs: [] }
-    }
-    async redeemGiftCard(userId: string, code: string) {
-      if (currentCommerceAgentStub?.redeemGiftCard) {
-        return currentCommerceAgentStub.redeemGiftCard(userId, code)
-      }
-      return { success: true }
-    }
-    constructor(_config: any) {}
   }
 }))
-
-// Stripe is used by CommerceAgent and by any UA Stripe wrappers.
-// We mock it at the module level to keep tests offline + deterministic.
-jest.mock('stripe', () => {
-  class StripeMock {
-    public webhooks = {
-      constructEvent: (payload: string, signature: string, secret: string) => {
-        stripeMockState.lastWebhookConstructArgs = { payload, signature, secret }
-        return stripeMockState.webhookEvent
-      }
-    }
-
-    public checkout = {
-      sessions: {
-        create: async (params: any) => {
-          stripeMockState.lastCheckoutSessionCreateParams = params
-          return stripeMockState.checkoutSessionCreateResult
-        }
-      }
-    }
-
-    public coupons = {
-      create: async (_params: any) => ({ id: 'coupon_test_123' })
-    }
-
-    public subscriptions = {
-      update: async (...args: any[]) => {
-        stripeMockState.lastSubscriptionUpdateArgs = args
-        return stripeMockState.subscriptionUpdateResult
-      },
-      retrieve: async (_id: string) => stripeMockState.subscriptionRetrieveResult,
-      cancel: async (...args: any[]) => {
-        stripeMockState.lastSubscriptionCancelArgs = args
-        return stripeMockState.subscriptionCancelResult
-      }
-    }
-
-    constructor(_key: string, _opts?: any) {}
-  }
-
-  return {
-    __esModule: true,
-    default: StripeMock
-  }
-})
 
 jest.mock('../../services/DeletionService', () => ({
   DeletionService: class {
@@ -606,9 +417,6 @@ const buildDefaultFixtures = (
     data: [
       {
         id: userId,
-        email: currentAuthedUser?.email || defaultAuthedUser.email,
-        first_name: 'Test',
-        last_name: 'User',
         available_story_credits: 3,
         profile_completed: true,
         smart_home_connected: true,
@@ -631,47 +439,28 @@ export const resetSupabaseFixtures = () => {
 }
 
 export const makeTestApp = async (options: MakeTestAppOptions = {}) => {
-  try {
-    currentAuthedUser =
-      options.authedUser === undefined ? defaultAuthedUser : options.authedUser
-    currentFixtures = buildDefaultFixtures(
-      currentAuthedUser?.id || defaultAuthedUser.id,
-      options.supabaseFixtures
-    )
+  currentAuthedUser =
+    options.authedUser === undefined ? defaultAuthedUser : options.authedUser
+  currentFixtures = buildDefaultFixtures(
+    currentAuthedUser?.id || defaultAuthedUser.id,
+    options.supabaseFixtures
+  )
 
-    if (options.stripeMock) {
-      stripeMockState = { ...stripeMockState, ...options.stripeMock }
-    }
+  process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'http://localhost:54321'
+  process.env.SUPABASE_SERVICE_ROLE_KEY =
+    process.env.SUPABASE_SERVICE_ROLE_KEY || 'service-role-key'
 
-    if (options.commerceAgentStub) {
-      currentCommerceAgentStub = options.commerceAgentStub
-    } else {
-      currentCommerceAgentStub = null
-    }
+  const logger = winston.createLogger({
+    level: 'error',
+    transports: [new winston.transports.Console({ silent: true })]
+  })
 
-    process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'http://localhost:54321'
-    process.env.SUPABASE_SERVICE_ROLE_KEY =
-      process.env.SUPABASE_SERVICE_ROLE_KEY || 'service-role-key'
-    process.env.STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || 'sk_test_123'
-    process.env.STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test_123'
-    process.env.FRONTEND_URL = process.env.FRONTEND_URL || 'https://storytailor.example.test'
+  const { RESTAPIGateway } = await import('../../api/RESTAPIGateway')
+  const gateway = new RESTAPIGateway(null, logger)
 
-    const logger = winston.createLogger({
-      level: 'error',
-      transports: [new winston.transports.Console({ silent: true })]
-    })
-
-    const { RESTAPIGateway } = await import('../../api/RESTAPIGateway')
-    const gateway = new RESTAPIGateway(null, logger)
-
-    return {
-      app: gateway.app as Express,
-      supabaseStub: lastSupabaseClient
-    }
-  } catch (e) {
-    const msg = e instanceof Error ? (e.stack || e.message) : String(e)
-    process.stderr.write(`makeTestApp_failed: ${msg}\n`)
-    throw e
+  return {
+    app: gateway.app as Express,
+    supabaseStub: lastSupabaseClient
   }
 }
 
