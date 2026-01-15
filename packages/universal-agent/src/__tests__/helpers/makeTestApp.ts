@@ -12,6 +12,21 @@ type MakeTestAppOptions = {
     role?: string
   } | null
   supabaseFixtures?: SupabaseFixtures
+  authStub?: {
+    signUp?: (payload: any) => Promise<any>
+    signInWithPassword?: (payload: any) => Promise<any>
+    getUser?: () => Promise<any>
+  }
+  commerceAgentStub?: {
+    handleWebhook?: (payload: string, signature: string) => Promise<any>
+    createIndividualCheckout?: (userId: string, planId: string, discountCode?: string) => Promise<any>
+    createOrganizationCheckout?: (userId: string, organizationName: string, seatCount: number, planId: string, interval: string) => Promise<any>
+    getSubscriptionStatus?: (userId: string) => Promise<any>
+    cancelSubscription?: (userId: string, immediate: boolean) => Promise<any>
+    changePlan?: (userId: string, newPlanId: string) => Promise<any>
+    getStoryPackInventory?: (userId: string) => Promise<any>
+    redeemGiftCard?: (userId: string, code: string) => Promise<any>
+  }
 }
 
 export const defaultAuthedUser = {
@@ -23,6 +38,8 @@ export const defaultAuthedUser = {
 let currentFixtures: SupabaseFixtures = {}
 let currentAuthedUser: MakeTestAppOptions['authedUser'] = defaultAuthedUser
 let lastSupabaseClient: SupabaseClient | null = null
+let currentCommerceAgentStub: MakeTestAppOptions['commerceAgentStub'] | null = null
+let currentAuthStub: MakeTestAppOptions['authStub'] | null = null
 
 type QueryState = {
   table: string
@@ -147,6 +164,14 @@ const buildSupabaseClient = (): SupabaseClient => {
         state.filters.push({ op: 'in', column, value })
         return builder
       },
+      contains(column: string, value: any) {
+        state.filters.push({ op: 'contains', column, value })
+        return builder
+      },
+      or(condition: string) {
+        state.filters.push({ op: 'or', column: '__or__', value: condition })
+        return builder
+      },
       is(column: string, value: any) {
         state.filters.push({ op: 'is', column, value })
         return builder
@@ -201,6 +226,53 @@ const buildSupabaseClient = (): SupabaseClient => {
     from(table: string) {
       return makeBuilder(table)
     },
+    auth: {
+      async signUp({ email, password }: any) {
+        if (currentAuthStub?.signUp) {
+          return currentAuthStub.signUp({ email, password })
+        }
+        return {
+          data: {
+            user: { id: 'user_123', email },
+            session: {
+              access_token: 'access_token_123',
+              refresh_token: 'refresh_token_123',
+              expires_in: 3600
+            }
+          },
+          error: null
+        }
+      },
+      async signInWithPassword({ email, password }: any) {
+        if (currentAuthStub?.signInWithPassword) {
+          return currentAuthStub.signInWithPassword({ email, password })
+        }
+        return {
+          data: {
+            user: { id: 'user_123', email },
+            session: {
+              access_token: 'access_token_123',
+              refresh_token: 'refresh_token_123',
+              expires_in: 3600
+            }
+          },
+          error: null
+        }
+      },
+      async getUser() {
+        if (currentAuthStub?.getUser) {
+          return currentAuthStub.getUser()
+        }
+        return {
+          data: {
+            user: currentAuthedUser
+              ? { id: currentAuthedUser.id, email: currentAuthedUser.email }
+              : { id: 'user_123', email: 'test@storytailor.dev' }
+          },
+          error: null
+        }
+      }
+    },
     rpc(name: string, args?: any) {
       const state: QueryState = {
         table: 'rpc',
@@ -239,6 +311,17 @@ jest.mock('@alexa-multi-agent/auth-agent', () => {
           isMinor: false
         }
       }
+      async refreshToken() {
+        return {
+          success: true,
+          accessToken: 'access_token_123',
+          refreshToken: 'refresh_token_123',
+          expiresIn: 3600
+        }
+      }
+      async revokeToken() {
+        return { revoked: true }
+      }
     }
   }
 })
@@ -252,8 +335,53 @@ jest.mock('@alexa-multi-agent/library-agent', () => ({
 jest.mock('@alexa-multi-agent/commerce-agent', () => ({
   CommerceAgent: class {
     constructor() {}
-    async handleWebhook() {
+    async handleWebhook(payload: string, signature: string) {
+      if (currentCommerceAgentStub?.handleWebhook) {
+        return currentCommerceAgentStub.handleWebhook(payload, signature)
+      }
       return { received: true }
+    }
+    async createIndividualCheckout(userId: string, planId: string, discountCode?: string) {
+      if (currentCommerceAgentStub?.createIndividualCheckout) {
+        return currentCommerceAgentStub.createIndividualCheckout(userId, planId, discountCode)
+      }
+      return { sessionId: 'cs_test_default', url: 'https://checkout.example.test/session/cs_test_default' }
+    }
+    async createOrganizationCheckout(userId: string, organizationName: string, seatCount: number, planId: string, interval: string) {
+      if (currentCommerceAgentStub?.createOrganizationCheckout) {
+        return currentCommerceAgentStub.createOrganizationCheckout(userId, organizationName, seatCount, planId, interval)
+      }
+      return { sessionId: 'cs_test_org', url: 'https://checkout.example.test/session/cs_test_org' }
+    }
+    async getSubscriptionStatus(userId: string) {
+      if (currentCommerceAgentStub?.getSubscriptionStatus) {
+        return currentCommerceAgentStub.getSubscriptionStatus(userId)
+      }
+      return null
+    }
+    async cancelSubscription(userId: string, immediate: boolean) {
+      if (currentCommerceAgentStub?.cancelSubscription) {
+        return currentCommerceAgentStub.cancelSubscription(userId, immediate)
+      }
+      return { canceled: true }
+    }
+    async changePlan(userId: string, newPlanId: string) {
+      if (currentCommerceAgentStub?.changePlan) {
+        return currentCommerceAgentStub.changePlan(userId, newPlanId)
+      }
+      return { changed: true }
+    }
+    async getStoryPackInventory(userId: string) {
+      if (currentCommerceAgentStub?.getStoryPackInventory) {
+        return currentCommerceAgentStub.getStoryPackInventory(userId)
+      }
+      return { packs: [], totalRemaining: 0 }
+    }
+    async redeemGiftCard(userId: string, code: string) {
+      if (currentCommerceAgentStub?.redeemGiftCard) {
+        return currentCommerceAgentStub.redeemGiftCard(userId, code)
+      }
+      return { redeemed: true }
     }
   }
 }))
@@ -445,6 +573,8 @@ export const makeTestApp = async (options: MakeTestAppOptions = {}) => {
     currentAuthedUser?.id || defaultAuthedUser.id,
     options.supabaseFixtures
   )
+  currentCommerceAgentStub = options.commerceAgentStub ?? null
+  currentAuthStub = options.authStub ?? null
 
   process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'http://localhost:54321'
   process.env.SUPABASE_SERVICE_ROLE_KEY =

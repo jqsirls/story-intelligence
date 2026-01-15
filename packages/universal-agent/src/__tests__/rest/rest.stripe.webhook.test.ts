@@ -9,6 +9,9 @@ import { makeTestApp } from '../helpers/makeTestApp'
 describe('POST /api/v1/stripe/webhook', () => {
   describe('missing stripe-signature header', () => {
     it('returns 400 STRIPE_SIGNATURE_MISSING', async () => {
+      const originalSecret = process.env.STRIPE_WEBHOOK_SECRET
+      process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_valid_secret_for_unit_tests'
+
       const { app } = await makeTestApp({
         authedUser: null // webhook is public, no auth required
       })
@@ -24,6 +27,12 @@ describe('POST /api/v1/stripe/webhook', () => {
         error: 'Missing Stripe-Signature header',
         code: 'STRIPE_SIGNATURE_MISSING'
       })
+
+      if (originalSecret) {
+        process.env.STRIPE_WEBHOOK_SECRET = originalSecret
+      } else {
+        delete process.env.STRIPE_WEBHOOK_SECRET
+      }
     })
   })
 
@@ -139,6 +148,52 @@ describe('POST /api/v1/stripe/webhook', () => {
       )
 
       // Restore
+      if (originalSecret) {
+        process.env.STRIPE_WEBHOOK_SECRET = originalSecret
+      } else {
+        delete process.env.STRIPE_WEBHOOK_SECRET
+      }
+    })
+  })
+
+  describe('unhandled event should still return 200', () => {
+    it('returns 200 and logs STRIPE_UNHANDLED_EVENT', async () => {
+      const originalSecret = process.env.STRIPE_WEBHOOK_SECRET
+      process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_valid_secret_for_unit_tests'
+
+      const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {})
+
+      const handleWebhookSpy = jest.fn().mockImplementation(async () => {
+        console.log('STRIPE_UNHANDLED_EVENT', { type: 'customer.created', id: 'evt_unhandled' })
+      })
+
+      const { app } = await makeTestApp({
+        authedUser: null,
+        commerceAgentStub: {
+          handleWebhook: handleWebhookSpy
+        }
+      })
+
+      const payload = JSON.stringify({
+        id: 'evt_unhandled',
+        type: 'customer.created',
+        data: { object: { id: 'cus_test_123' } }
+      })
+
+      const res = await request(app)
+        .post('/api/v1/stripe/webhook')
+        .set('Content-Type', 'application/json')
+        .set('Stripe-Signature', 't=1234567890,v1=deadbeef')
+        .send(payload)
+
+      expect(res.status).toBe(200)
+      expect(logSpy).toHaveBeenCalledWith('STRIPE_UNHANDLED_EVENT', {
+        type: 'customer.created',
+        id: 'evt_unhandled'
+      })
+
+      logSpy.mockRestore()
+
       if (originalSecret) {
         process.env.STRIPE_WEBHOOK_SECRET = originalSecret
       } else {

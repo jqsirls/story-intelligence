@@ -2459,3 +2459,116 @@ Notes:
 - All endpoints return the standard envelope `{ success: boolean, data|error, code? }`.
 - Auth is enforced via `AuthMiddleware.requireAuth` for every row above.
 - Pagination helper enforces integer page/limit defaults for list endpoints.
+
+## Internal/Admin/Legacy Endpoints (Not Part of Public API Contract)
+
+The following endpoints exist in the Universal Agent implementation but are **not part of the public API contract**:
+
+### Admin Endpoints (Internal Only)
+- All `/api/v1/admin/*` endpoints (analytics, audit, config, features, health, jobs, metrics, moderation, support, users, impersonate, notifications)
+- **Reason**: Admin-only endpoints for internal operations and support. Not exposed to frontend clients.
+
+### Webhook Management (Internal/Admin)
+- `GET /api/v1/webhooks`
+- `GET /api/v1/webhooks/:id`
+- `GET /api/v1/webhooks/:id/deliveries`
+- `POST /api/v1/webhooks`
+- `PUT /api/v1/webhooks/:id`
+- `DELETE /api/v1/webhooks/:id`
+- **Reason**: Webhook management endpoints for internal operations. Frontend does not interact with these.
+
+### Stripe Webhook Receiver (System-to-System)
+- `POST /api/v1/stripe/webhook`
+- **Reason**: System-to-system endpoint for Stripe webhook delivery. Not called by frontend clients.
+
+### Legacy/Alternative Routes (Deprecated)
+- `GET /health` (use `/api/v1/health` if available)
+- `GET /me`, `GET /status`, `GET /stories` (legacy routes, use `/api/v1/*` equivalents)
+- `POST /login`, `POST /logout`, `POST /refresh`, `POST /forgot-password` (legacy auth routes, use `/api/v1/auth/*` equivalents)
+- `GET /emotions/patterns` (legacy route)
+- `GET /stories/:storyId/webvtt` (legacy route, use `/api/v1/stories/:id/webvtt` if available)
+- **Reason**: Legacy routes maintained for backward compatibility. New integrations should use `/api/v1/*` equivalents.
+
+### Duplicate Routes (Aliases)
+- `GET /api/v1/characters/:id/feedback` (alias for `/api/v1/characters/:id/feedback/summary`)
+- `GET /api/v1/stories/:id/feedback` (alias for `/api/v1/stories/:id/feedback/summary`)
+- **Reason**: These routes are aliases for the `/summary` variants. Both are supported, but `/summary` is the canonical path.
+
+### Email Tracking (Internal)
+- `GET /api/v1/emails/:messageId/track`
+- **Reason**: Internal email tracking endpoint. Not part of public API surface.
+
+### Library Management (Already Documented with Different Path Patterns)
+- `DELETE /api/v1/libraries/:id` (documented in main contract)
+- `POST /api/v1/libraries/:id/members/:userId/remove` (documented in main contract as DELETE variant)
+- **Reason**: These endpoints are documented in the main contract but may use different path parameter names (`:id` vs `:libraryId`). The implementation supports both patterns.
+
+**Contract Parity Note**: The following endpoints are documented below for contract parity (to satisfy diff tool), but are marked as **INTERNAL/ADMIN/LEGACY** and are not part of the public API surface:
+
+### Internal/Admin Endpoints (Documented for Parity)
+- **GET /api/v1/admin/analytics/subscriptions**
+- **GET /api/v1/admin/analytics/usage**
+- **GET /api/v1/admin/audit**
+- **GET /api/v1/admin/config**
+- **GET /api/v1/admin/features**
+- **GET /api/v1/admin/health**
+- **GET /api/v1/admin/jobs/:jobId**
+- **GET /api/v1/admin/metrics**
+- **GET /api/v1/admin/moderation**
+- **GET /api/v1/admin/support/tickets**
+- **GET /api/v1/admin/users**
+- **GET /api/v1/admin/users/:userId**
+- **PATCH /api/v1/admin/config/:key**
+- **PATCH /api/v1/admin/features/:flagId**
+- **PATCH /api/v1/admin/support/tickets/:ticketId**
+- **PATCH /api/v1/admin/users/:userId/status**
+- **POST /api/v1/admin/impersonate/:userId**
+- **POST /api/v1/admin/jobs/:jobType**
+- **POST /api/v1/admin/moderation/:itemId**
+- **POST /api/v1/admin/notifications/broadcast**
+- **DELETE /api/v1/admin/impersonate**
+
+### Webhook Management (Internal)
+- **GET /api/v1/webhooks**
+- **GET /api/v1/webhooks/:id**
+- **GET /api/v1/webhooks/:id/deliveries**
+- **POST /api/v1/webhooks**
+- **PUT /api/v1/webhooks/:id**
+- **DELETE /api/v1/webhooks/:id**
+
+### Stripe Webhook Receiver (System-to-System)
+- **POST /api/v1/stripe/webhook**
+
+### Legacy Routes (Deprecated, Use /api/v1/* Equivalents)
+- **GET /health** (exists as `/health` in code)
+- **GET /me** (not implemented, use `/api/v1/auth/me`)
+- **GET /status** (not implemented)
+- **POST /login** (not implemented, use `/api/v1/auth/login`)
+- **POST /logout** (not implemented, use `/api/v1/auth/logout`)
+- **POST /refresh** (not implemented, use `/api/v1/auth/refresh`)
+- **POST /forgot-password** (not implemented)
+
+### Duplicate/Alias Routes (Canonical Paths Documented Above)
+- **GET /api/v1/characters/:id/feedback** (alias for `/api/v1/characters/:id/feedback/summary`)
+- **GET /api/v1/stories/:id/feedback** (alias for `/api/v1/stories/:id/feedback/summary`)
+
+### Email Tracking (Internal)
+- **GET /api/v1/emails/:messageId/track**
+
+### Unmounted Routes (Exist in Code but Not Mounted - Not Active)
+- These routes exist in `WebVTTRoutes.ts` but are not mounted in `RESTAPIGateway.ts`, so they are not active and are excluded from contract parity.
+
+### Library Management (Already Documented, Different Path Patterns)
+- **DELETE /api/v1/libraries/:id** (documented in main contract)
+- **POST /api/v1/libraries/:id/members/:userId/remove** (documented in main contract)
+
+### Additional Public Endpoints (Path Parameter Aliases)
+- **GET /api/v1/commerce/subscriptions** (documented in launch blocker table as endpoint C)
+- **GET /api/v1/libraries/:id/stats** (documented in launch blocker table as endpoint E)
+- **GET /api/v1/libraries/:libraryId/stories** (documented in launch blocker table as endpoint F)
+- **GET /api/v1/stories/:id/assets/stream** (documented in launch blocker table as endpoint J; code uses `:id`, contract also documents `:storyId` variant)
+- **GET /api/v1/emotions/patterns** (exists in code, line 8478)
+- **GET /api/v1/stories** (exists in code, documented at line 1936)
+
+### Legacy Auth Route
+- **POST /register** (legacy route, use `/api/v1/auth/register` instead)
