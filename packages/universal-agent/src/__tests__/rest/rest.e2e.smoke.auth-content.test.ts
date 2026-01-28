@@ -112,7 +112,25 @@ describe('E2E Smoke Tests - Auth & Content', () => {
   })
 
   describe('C) Character Creation', () => {
+    const forbiddenPublicKeys = [
+      'reference_images',
+      'art_prompt',
+      'headshot_prompt',
+      'bodyshot_prompt',
+      'edit_prompt',
+      'prompt_hashes',
+      'headshot_trace_url',
+      'bodyshot_trace_url',
+      'validation_summary',
+      'validation_payload',
+      'failure_codes',
+      'failure_summary',
+      'admin_review_required'
+    ]
+
     it('POST /api/v1/characters - create character', async () => {
+      const lambdaInvocations = (globalThis as any).__lambdaInvocations as any[]
+      if (lambdaInvocations) lambdaInvocations.length = 0
       const { app } = await makeTestApp({
         supabaseFixtures: {
           libraries: {
@@ -141,13 +159,70 @@ describe('E2E Smoke Tests - Auth & Content', () => {
       expect(res.status).toBe(201)
       expect(res.body.success).toBe(true)
       expect(res.body.data.id).toBeDefined()
+      expect(lambdaInvocations.length).toBeGreaterThan(0)
+      const payload = JSON.parse(String(lambdaInvocations[0].Payload || '{}'))
+      expect(payload.action).toBe('complete_character_creation_with_visuals')
+      expect(payload.data?.traits?.name).toBe('Test Character')
+    }, 10000)
+
+    it('POST /v1/characters - queues canonical pipeline', async () => {
+      const lambdaInvocations = (globalThis as any).__lambdaInvocations as any[]
+      if (lambdaInvocations) lambdaInvocations.length = 0
+      const { app } = await makeTestApp({
+        supabaseFixtures: {
+          libraries: {
+            data: [{ id: 'lib_456', owner: defaultAuthedUser.id }]
+          },
+          characters: {
+            insert: (state: any) => ({
+              id: 'char_456',
+              library_id: state.payload.library_id,
+              name: state.payload.name,
+              ...state.payload
+            })
+          }
+        }
+      })
+
+      const res = await request(app)
+        .post('/v1/characters')
+        .send({
+          libraryId: 'lib_456',
+          name: 'Second Character',
+          species: 'human',
+          age: 9
+        })
+
+      expect(res.status).toBe(202)
+      expect(res.body.character?.id).toBeDefined()
+      expect(lambdaInvocations.length).toBeGreaterThan(0)
+      const payload = JSON.parse(String(lambdaInvocations[0].Payload || '{}'))
+      expect(payload.action).toBe('complete_character_creation_with_visuals')
+      expect(payload.data?.traits?.name).toBe('Second Character')
     }, 10000)
 
     it('GET /api/v1/characters/:id - get character', async () => {
       const { app } = await makeTestApp({
         supabaseFixtures: {
           characters: {
-            data: [{ id: 'char_123', library_id: 'lib_123', name: 'Test Character' }]
+            data: [{
+              id: 'char_123',
+              library_id: 'lib_123',
+              name: 'Test Character',
+              art_prompt: 'do not leak',
+              headshot_prompt: 'do not leak',
+              bodyshot_prompt: 'do not leak',
+              edit_prompt: 'do not leak',
+              prompt_hashes: { headshot: 'hash', bodyshot: 'hash' },
+              headshot_trace_url: 'https://example.com/trace.json',
+              bodyshot_trace_url: 'https://example.com/trace.json',
+              validation_summary: { ok: false },
+              validation_payload: { raw: true },
+              failure_codes: ['safety'],
+              failure_summary: { code: 'safety' },
+              admin_review_required: true,
+              reference_images: [{ type: 'headshot', url: 'https://example.com/img.png' }]
+            }]
           },
           libraries: {
             data: [{ id: 'lib_123', owner: defaultAuthedUser.id }]
@@ -160,6 +235,53 @@ describe('E2E Smoke Tests - Auth & Content', () => {
       expect(res.status).toBe(200)
       expect(res.body.success).toBe(true)
       expect(res.body.data.name).toBe('Test Character')
+      forbiddenPublicKeys.forEach((key) => {
+        expect(res.body.data).not.toHaveProperty(key)
+      })
+      Object.keys(res.body.data).forEach((key) => {
+        expect(key.startsWith('tpose')).toBe(false)
+      })
+    }, 10000)
+
+    it('GET /v1/characters/:id - public character payload omits internal fields', async () => {
+      const { app } = await makeTestApp({
+        supabaseFixtures: {
+          characters: {
+            data: [{
+              id: 'char_pub_123',
+              library_id: 'lib_pub_123',
+              name: 'Public Character',
+              art_prompt: 'do not leak',
+              headshot_prompt: 'do not leak',
+              bodyshot_prompt: 'do not leak',
+              edit_prompt: 'do not leak',
+              prompt_hashes: { headshot: 'hash', bodyshot: 'hash' },
+              headshot_trace_url: 'https://example.com/trace.json',
+              bodyshot_trace_url: 'https://example.com/trace.json',
+              validation_summary: { ok: false },
+              validation_payload: { raw: true },
+              failure_codes: ['safety'],
+              failure_summary: { code: 'safety' },
+              admin_review_required: true,
+              reference_images: [{ type: 'headshot', url: 'https://example.com/img.png' }]
+            }]
+          },
+          libraries: {
+            data: [{ id: 'lib_pub_123', owner: defaultAuthedUser.id }]
+          }
+        }
+      })
+
+      const res = await request(app).get('/v1/characters/char_pub_123')
+
+      expect(res.status).toBe(200)
+      expect(res.body.character?.name).toBe('Public Character')
+      forbiddenPublicKeys.forEach((key) => {
+        expect(res.body.character).not.toHaveProperty(key)
+      })
+      Object.keys(res.body.character || {}).forEach((key) => {
+        expect(key.startsWith('tpose')).toBe(false)
+      })
     }, 10000)
 
     it('GET /api/v1/characters - list characters with permission check', async () => {
