@@ -1,14 +1,15 @@
 // Extends existing EventSystem with self-healing capabilities
 import { EventPublisher } from './EventPublisher';
 import { EventSubscriber } from './EventSubscriber';
-import { 
-  IncidentPattern, 
-  HealingAction, 
-  IncidentRecord, 
+import {
+  IncidentPattern,
+  HealingAction,
+  IncidentRecord,
   SelfHealingConfig,
   EnhancedErrorContext,
-  SelfHealingEventType 
+  SelfHealingEventType
 } from '@alexa-multi-agent/shared-types';
+import { CloudEvent, EventSubscription, EventType } from './types';
 import { Logger } from 'winston';
 
 export class SelfHealingEventHandler {
@@ -18,32 +19,64 @@ export class SelfHealingEventHandler {
   private config: SelfHealingConfig;
   private knownPatterns: Map<string, IncidentPattern> = new Map();
   private activeIncidents: Map<string, IncidentRecord> = new Map();
+  private queueUrl?: string;
 
   constructor(
     eventPublisher: EventPublisher,
     eventSubscriber: EventSubscriber,
     logger: Logger,
-    config: SelfHealingConfig
+    config: SelfHealingConfig,
+    queueUrl?: string
   ) {
     this.eventPublisher = eventPublisher;
     this.eventSubscriber = eventSubscriber;
     this.logger = logger;
     this.config = config;
+    this.queueUrl = queueUrl;
     
     this.setupEventHandlers();
   }
 
   private setupEventHandlers(): void {
+    if (!this.queueUrl) {
+      this.logger.warn('Self-healing queueUrl not provided; healing subscriptions disabled');
+      return;
+    }
     // Listen to existing agent error events
-    this.eventSubscriber.subscribe('com.storytailor.agent.error', this.handleAgentError.bind(this));
-    this.eventSubscriber.subscribe('com.storytailor.api.timeout', this.handleApiTimeout.bind(this));
-    this.eventSubscriber.subscribe('com.storytailor.database.error', this.handleDatabaseError.bind(this));
+    this.eventSubscriber.subscribe(
+      'com.storytailor.agent.error',
+      this.createSubscription('com.storytailor.agent.error', this.handleAgentError.bind(this)),
+      this.queueUrl
+    );
+    this.eventSubscriber.subscribe(
+      'com.storytailor.api.timeout',
+      this.createSubscription('com.storytailor.api.timeout', this.handleApiTimeout.bind(this)),
+      this.queueUrl
+    );
+    this.eventSubscriber.subscribe(
+      'com.storytailor.database.error',
+      this.createSubscription('com.storytailor.database.error', this.handleDatabaseError.bind(this)),
+      this.queueUrl
+    );
     
     // Listen to existing performance events
-    this.eventSubscriber.subscribe('com.storytailor.performance.degraded', this.handlePerformanceDegradation.bind(this));
+    this.eventSubscriber.subscribe(
+      'com.storytailor.performance.degraded',
+      this.createSubscription('com.storytailor.performance.degraded', this.handlePerformanceDegradation.bind(this)),
+      this.queueUrl
+    );
   }
 
-  async handleAgentError(event: any): Promise<void> {
+  private createSubscription(eventType: EventType, handler: (event: CloudEvent) => Promise<void>): EventSubscription {
+    return {
+      eventTypes: [eventType],
+      handler: {
+        handle: async (event: CloudEvent) => handler(event)
+      }
+    };
+  }
+
+  async handleAgentError(event: CloudEvent): Promise<void> {
     if (!this.config.enabled) return;
 
     const errorContext: EnhancedErrorContext = {
@@ -53,7 +86,7 @@ export class SelfHealingEventHandler {
       storyId: event.data.storyId,
       activeConversation: event.data.activeConversation || false,
       errorCount: event.data.errorCount || 1,
-      lastOccurrence: event.timestamp,
+      lastOccurrence: event.time,
       relatedIncidents: []
     };
 

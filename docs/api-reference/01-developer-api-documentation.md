@@ -65,22 +65,20 @@
 
 ## 🚀 **Quick Start**
 
+> **Product REST API contract**: Treat `docs/api/REST_API_EXPERIENCE_MASTER.md` as canonical.  
+> The `execute-api` base URL and `/v1/...` examples in this file are legacy and may not match the current product REST gateway.
+
 ### **Base URL**
 ```
-https://sxjwfwffz7.execute-api.us-east-1.amazonaws.com/staging
+https://staging-api.storytailor.dev/api/v1
 ```
 
-### **Get Your API Key**
+### **Create an account / get JWT**
 ```bash
-curl -X POST https://sxjwfwffz7.execute-api.us-east-1.amazonaws.com/staging/v1/auth/register \
+curl -X POST https://staging-api.storytailor.dev/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "developer@yourcompany.com",
-    "password": "SecurePassword123!",
-    "firstName": "Developer",
-    "lastName": "Name",
-    "age": 30,
-    "userType": "parent"
+    "...": "See docs/api/REST_API_EXPERIENCE_MASTER.md for the exact request body"
   }'
 ```
 
@@ -103,7 +101,7 @@ curl -X POST https://sxjwfwffz7.execute-api.us-east-1.amazonaws.com/staging/v1/a
 ### **Test Your Connection**
 ```bash
 curl -H "Authorization: Bearer [REDACTED_JWT]" \
-  https://sxjwfwffz7.execute-api.us-east-1.amazonaws.com/staging/health
+  https://staging-api.storytailor.dev/health
 ```
 
 ---
@@ -112,8 +110,7 @@ curl -H "Authorization: Bearer [REDACTED_JWT]" \
 
 ### **Authentication Methods**
 - **Bearer Token**: JWT-based authentication (recommended)
-- **API Key**: For server-to-server communication
-- **OAuth 2.0**: For third-party integrations
+> Note: the product REST gateway uses JWT bearer tokens. Any “API key” phrasing in legacy docs refers to older surfaces and should not be used as the product REST contract.
 
 ### **Headers Required**
 ```http
@@ -126,7 +123,7 @@ User-Agent: YourApp/1.0.0
 
 #### **Refresh Token**
 ```bash
-curl -X POST /v1/auth/refresh \
+curl -X POST /api/v1/auth/refresh \
   -H "Content-Type: application/json" \
   -d '{"refreshToken": "YOUR_REFRESH_TOKEN"}'
 ```

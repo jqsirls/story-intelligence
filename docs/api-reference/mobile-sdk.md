@@ -2,6 +2,9 @@
 
 Integrate Storytailor's Story Intelligence™ powered storytelling into your mobile applications with our native iOS, Android, and React Native SDKs.
 
+> **Product REST API note**: SDK keys/configuration in this guide are not the product REST API contract.  
+> For product REST (JWT auth, `/api/v1` routes), use `docs/api/REST_API_EXPERIENCE_MASTER.md`.
+
 ## Platform Support
 
 - **iOS**: Native Swift SDK for iOS 13.0+

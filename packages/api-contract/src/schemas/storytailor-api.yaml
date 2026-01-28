@@ -495,9 +495,15 @@ components:
           $ref: '#/components/schemas/CharacterTraits'
         artUrls:
           type: array
+          description: |
+            Public CDN URLs for character artwork (headshot, bodyshot, etc.).
+            All URLs must be publicly accessible via CloudFront CDN (assets.storytailor.dev or cdn.storytailor.dev).
+            Private S3 URLs or presigned URLs are NOT allowed in user-facing responses.
           items:
             type: string
             format: uri
+            pattern: '^https://(assets|cdn)\.storytailor\.dev/'
+            example: 'https://assets.storytailor.dev/characters/abc123/headshot-123.png'
         poweredBy:
           type: string
           default: "Story Intelligence™"
@@ -604,9 +610,19 @@ components:
         imageUrl:
           type: string
           format: uri
+          description: |
+            Public CDN URL for generated artwork.
+            Must be accessible to frontend (assets.storytailor.dev or cdn.storytailor.dev).
+          pattern: '^https://(assets|cdn)\.storytailor\.dev/'
+          example: 'https://assets.storytailor.dev/stories/abc123/cover-123.png'
         thumbnailUrl:
           type: string
           format: uri
+          description: |
+            Public CDN URL for thumbnail version.
+            Must be accessible to frontend (assets.storytailor.dev or cdn.storytailor.dev).
+          pattern: '^https://(assets|cdn)\.storytailor\.dev/'
+          example: 'https://assets.storytailor.dev/stories/abc123/cover-thumb-123.png'
         prompt:
           type: string
         style:

@@ -12,10 +12,11 @@ import { AuthRoutes } from './AuthRoutes';
 import { WebhookDeliverySystem } from '../webhooks/WebhookDeliverySystem';
 // @ts-ignore - serverless-http is ES module
 import serverlessHttp from 'serverless-http';
-import { A2AAdapter } from '@alexa-multi-agent/a2a-adapter';
 import { UniversalStorytellerAPI } from '../UniversalStorytellerAPI';
-import { LibraryService } from '@alexa-multi-agent/library-agent/dist/services/LibraryService';
+import { LibraryService } from '@alexa-multi-agent/library-agent';
 import { CommerceAgent } from '@alexa-multi-agent/commerce-agent';
+import Joi from 'joi';
+import Stripe from 'stripe';
 
 export class RESTAPIGateway {
   public app: Express;
@@ -25,13 +26,13 @@ export class RESTAPIGateway {
   private emailService: EmailService;
   private plgNudgeService: PLGNudgeService | null = null;
   private commerceAgent: CommerceAgent | null = null;
+  private stripe: Stripe | null = null;
   private authMiddleware: AuthMiddleware;
   private authAgent: AuthAgent;
   private webhookDeliverySystem: WebhookDeliverySystem;
   private libraryService: LibraryService;
   private logger: Logger;
   private serverlessHandler: ReturnType<typeof serverlessHttp> | null = null;
-  private a2aAdapter: A2AAdapter | null = null;
 
   constructor(
     private storytellerAPI: UniversalStorytellerAPI | null,
@@ -63,6 +64,22 @@ export class RESTAPIGateway {
       logger: this.logger
     });
 
+    // Stripe API client (used for one-time purchases like story packs)
+    const stripeSecretKey = (process.env.STRIPE_SECRET_KEY || '').trim()
+    const stripeSecretKeyIsPlaceholder =
+      stripeSecretKey.length === 0 ||
+      stripeSecretKey.includes('placeholder') ||
+      !stripeSecretKey.startsWith('sk_')
+
+    if (stripeSecretKeyIsPlaceholder) {
+      this.logger.error('STRIPE_SECRET_KEY_PLACEHOLDER', {
+        code: 'STRIPE_SECRET_KEY_PLACEHOLDER',
+        ssmParameter: '/storytailor-production/stripe/secret-key'
+      })
+    } else {
+      this.stripe = new Stripe(stripeSecretKey, { apiVersion: '2023-08-16' })
+    }
+
     // Stripe Webhooks: fail-fast if the webhook secret is not configured.
     // This prevents a "looks live but silently rejects every event" failure mode.
     const stripeWebhookSecret = (process.env.STRIPE_WEBHOOK_SECRET || '').trim()
@@ -83,7 +100,7 @@ export class RESTAPIGateway {
     this.libraryService = new LibraryService(this.supabase);
     
     // Initialize WebhookDeliverySystem
-    this.webhookDeliverySystem = new WebhookDeliverySystem(this.logger, this.supabase);
+    this.webhookDeliverySystem = new WebhookDeliverySystem(this.logger);
     
     // Initialize auth middleware
     // Create minimal AuthAgent config (AuthAgent requires full config, but we only need validateToken)
@@ -125,10 +142,10 @@ export class RESTAPIGateway {
     // Initialize AuthAgent (required before use)
     // Note: This is async but we can't await in constructor, so we'll initialize lazily
     // AuthRoutes will handle initialization check
-    this.authMiddleware = new AuthMiddleware(authAgent, this.logger, this.supabase);
+    this.authMiddleware = new AuthMiddleware(authAgent, this.logger);
     
     // Initialize AuthRoutes (pass supabase client for user_type lookup)
-    const authRoutes = new AuthRoutes(authAgent, this.logger, this.emailService, this.supabase);
+    const authRoutes = new AuthRoutes(authAgent, this.supabase, this.logger, this.emailService);
     
     // Store authAgent for potential async initialization
     this.authAgent = authAgent;
@@ -183,7 +200,20 @@ export class RESTAPIGateway {
             })
           }
 
-          const bodyBuffer = Buffer.isBuffer(req.body) ? req.body : Buffer.from(String(req.body || ''), 'utf8')
+          // Use the original Lambda event body when available to preserve the exact raw payload bytes.
+          // This avoids signature verification failures caused by intermediate JSON parsing/re-serialization.
+          const reqAny = req as any
+          const lambdaEventBody =
+            typeof reqAny?.lambdaEvent?.body === 'string' ? (reqAny.lambdaEvent.body as string) : null
+          const bodyBuffer = lambdaEventBody
+            ? Buffer.from(
+                lambdaEventBody,
+                reqAny?.lambdaEvent?.isBase64Encoded ? 'base64' : 'utf8'
+              )
+            : Buffer.isBuffer(req.body)
+              ? req.body
+              : Buffer.from(String(req.body || ''), 'utf8')
+
           const payload = bodyBuffer.toString('utf8')
 
           await this.commerceAgent.handleWebhook(payload, signature)
@@ -192,6 +222,30 @@ export class RESTAPIGateway {
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error)
           this.logger.warn('Stripe webhook handling failed', { error: errorMessage })
+          if (
+            errorMessage.includes('No signatures found matching the expected signature for payload') ||
+            errorMessage.includes('Unable to extract timestamp and signatures from header')
+          ) {
+            return res.status(400).json({
+              success: false,
+              error: errorMessage,
+              code: 'STRIPE_SIGNATURE_INVALID'
+            })
+          }
+          if (errorMessage === 'STRIPE_EVENT_UNMAPPED_USER') {
+            return res.status(400).json({
+              success: false,
+              error: 'Unable to map Stripe event to a user (missing metadata.userId)',
+              code: 'STRIPE_EVENT_UNMAPPED_USER'
+            })
+          }
+          if (errorMessage === 'INVALID_PACK_TYPE') {
+            return res.status(400).json({
+              success: false,
+              error: 'Invalid pack type in Stripe event metadata',
+              code: 'INVALID_PACK_TYPE'
+            })
+          }
           return res.status(400).json({
             success: false,
             error: errorMessage,
@@ -263,14 +317,58 @@ export class RESTAPIGateway {
       })
     });
     
+    // Current authenticated user profile (must stay in the unified gateway)
+    this.app.get(
+      '/api/v1/auth/me',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        try {
+          const userId = req.user!.id;
+
+          const { data: user, error } = await this.supabase
+            .from('users')
+            .select('*')
+            .eq('id', userId)
+            .single();
+
+          if (error) {
+            this.logger.error('Failed to fetch current user', { userId, error: error.message });
+            return res.status(500).json({
+              success: false,
+              error: 'Failed to fetch user',
+              code: 'AUTH_ME_FAILED'
+            });
+          }
+
+          if (!user) {
+            return res.status(404).json({
+              success: false,
+              error: 'User not found',
+              code: 'USER_NOT_FOUND'
+            });
+          }
+
+          res.json({
+            success: true,
+            data: user
+          });
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          this.logger.error('auth/me unexpected error', { error: errorMessage });
+          res.status(500).json({
+            success: false,
+            error: errorMessage || 'Failed to fetch user',
+            code: 'AUTH_ME_FAILED'
+          });
+        }
+      }
+    );
+    
     // Register auth routes
     this.app.use('/api/v1/auth', authRoutes.getRouter());
     
     // Setup routes
     this.setupRoutes();
-    
-    // Setup A2A routes
-    this.setupA2ARoutes();
     
     // Error handler (must be last)
     this.app.use((err: Error & { status?: number; code?: string }, req: Request, res: Response, next: NextFunction) => {
@@ -622,6 +720,550 @@ export class RESTAPIGateway {
   }
 
   private setupRoutes(): void {
+    // ------------------------------------------------------------------------
+    // Commerce Surface Minimum (checkout, subscription mgmt, story packs, gift cards)
+    // ------------------------------------------------------------------------
+    const getStripe = (res: Response) => {
+      if (!this.stripe) {
+        res.status(503).json({
+          success: false,
+          error: 'Stripe is not configured',
+          code: 'STRIPE_NOT_CONFIGURED'
+        })
+        return null
+      }
+      return this.stripe
+    }
+
+    const assertCommerceAgent = (res: Response) => {
+      if (!this.commerceAgent) {
+        res.status(500).json({
+          success: false,
+          error: 'CommerceAgent not initialized',
+          code: 'COMMERCE_AGENT_UNAVAILABLE'
+        })
+        return null
+      }
+      return this.commerceAgent
+    }
+
+    const checkoutIndividualHandler = async (req: AuthenticatedRequest, res: Response) => {
+      const schema = Joi.object({
+        planId: Joi.string().required(),
+        discountCode: Joi.string().optional()
+      }).unknown(true)
+
+      const { error } = schema.validate(req.body)
+      if (error) {
+        return res.status(400).json({
+          success: false,
+          error: error.message,
+          code: 'MISSING_PLAN_ID'
+        })
+      }
+
+      const commerce = assertCommerceAgent(res)
+      if (!commerce) return
+
+      try {
+        const userId = req.user!.id
+        const { planId, discountCode } = req.body as any
+        const session = await commerce.createIndividualCheckout(userId, planId, discountCode)
+        return res.json({
+          success: true,
+          data: { url: session.url, sessionId: session.sessionId, expiresAt: session.expiresAt }
+        })
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        return res.status(400).json({
+          success: false,
+          error: msg || 'Checkout failed',
+          code: 'CHECKOUT_FAILED'
+        })
+      }
+    }
+
+    // POST /api/v1/checkout (alias for individual)
+    this.app.post('/api/v1/checkout', this.authMiddleware.requireAuth, checkoutIndividualHandler)
+
+    // POST /api/v1/checkout/individual
+    this.app.post('/api/v1/checkout/individual', this.authMiddleware.requireAuth, checkoutIndividualHandler)
+
+    // POST /api/v1/checkout/organization
+    this.app.post(
+      '/api/v1/checkout/organization',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const schema = Joi.object({
+          organizationName: Joi.string().min(1).required(),
+          seatCount: Joi.number().integer().min(1).max(10000).required(),
+          planId: Joi.string().required(),
+          interval: Joi.string().valid('month', 'year').optional()
+        }).unknown(true)
+
+        const { error } = schema.validate(req.body)
+        if (error) {
+          return res.status(400).json({
+            success: false,
+            error: error.message,
+            code: 'INVALID_INPUT'
+          })
+        }
+
+        const commerce = assertCommerceAgent(res)
+        if (!commerce) return
+
+        try {
+          const userId = req.user!.id
+          const { organizationName, seatCount, planId } = req.body as any
+          const session = await commerce.createOrganizationCheckout(userId, organizationName, seatCount, planId)
+          return res.json({
+            success: true,
+            data: { url: session.url, sessionId: session.sessionId, expiresAt: session.expiresAt }
+          })
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          return res.status(400).json({
+            success: false,
+            error: msg || 'Checkout failed',
+            code: 'CHECKOUT_FAILED'
+          })
+        }
+      }
+    )
+
+    // GET /api/v1/subscription + GET /api/v1/subscriptions/me
+    const subscriptionHandler = async (req: AuthenticatedRequest, res: Response) => {
+      const commerce = assertCommerceAgent(res)
+      if (!commerce) return
+      try {
+        const userId = req.user!.id
+        const sub = await commerce.getSubscriptionStatus(userId)
+        return res.json({
+          success: true,
+          data: { plan: sub }
+        })
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        return res.status(400).json({
+          success: false,
+          error: msg || 'Failed to load subscription',
+          code: 'GET_SUBSCRIPTION_FAILED'
+        })
+      }
+    }
+
+    this.app.get('/api/v1/subscription', this.authMiddleware.requireAuth, subscriptionHandler)
+    this.app.get('/api/v1/subscriptions/me', this.authMiddleware.requireAuth, subscriptionHandler)
+
+    // POST /api/v1/subscription/cancel
+    this.app.post(
+      '/api/v1/subscription/cancel',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const schema = Joi.object({ immediate: Joi.boolean().optional() }).unknown(true)
+        const { error } = schema.validate(req.body || {})
+        if (error) {
+          return res.status(400).json({ success: false, error: error.message, code: 'INVALID_INPUT' })
+        }
+
+        const commerce = assertCommerceAgent(res)
+        if (!commerce) return
+
+        try {
+          const userId = req.user!.id
+          const { immediate } = (req.body || {}) as any
+          const result = await commerce.cancelSubscription(userId, immediate === true)
+          if (!result.success) {
+            return res.status(400).json({
+              success: false,
+              error: result.error || 'Cancel failed',
+              code: 'CANCEL_SUBSCRIPTION_FAILED'
+            })
+          }
+          return res.json({ success: true, data: { cancelled: true } })
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          return res.status(400).json({ success: false, error: msg || 'Cancel failed', code: 'CANCEL_SUBSCRIPTION_FAILED' })
+        }
+      }
+    )
+
+    // POST /api/v1/subscription/upgrade
+    this.app.post(
+      '/api/v1/subscription/upgrade',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const schema = Joi.object({ planId: Joi.string().required() }).unknown(true)
+        const { error } = schema.validate(req.body)
+        if (error) {
+          return res.status(400).json({ success: false, error: error.message, code: 'MISSING_PLAN_ID' })
+        }
+
+        const commerce = assertCommerceAgent(res)
+        if (!commerce) return
+
+        try {
+          const userId = req.user!.id
+          const { planId } = req.body as any
+          const result = await commerce.changePlan(userId, planId)
+          if (!result.success) {
+            return res.status(400).json({
+              success: false,
+              error: result.error || 'Change plan failed',
+              code: 'CHANGE_PLAN_FAILED'
+            })
+          }
+          return res.json({ success: true, data: { planChanged: true } })
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          return res.status(400).json({ success: false, error: msg || 'Change plan failed', code: 'CHANGE_PLAN_FAILED' })
+        }
+      }
+    )
+
+    // GET /api/v1/subscription/usage (derived from the same sources as story creation quota enforcement)
+    this.app.get(
+      '/api/v1/subscription/usage',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        try {
+          const userId = req.user!.id
+          const testMode = req.headers['x-test-mode'] === 'true'
+
+          const { data: testUser } = await this.supabase
+            .from('users')
+            .select('test_mode_authorized')
+            .eq('id', userId)
+            .single()
+
+          const bypassQuota = testMode && testUser?.test_mode_authorized === true
+
+          const { data: subscription } = await this.supabase
+            .from('subscriptions')
+            .select('plan_id, status')
+            .eq('user_id', userId)
+            .eq('status', 'active')
+            .single()
+
+          const hasSub = subscription && subscription.plan_id !== 'free'
+
+          let packCredits = 0
+          if (!hasSub) {
+            const { data: packs } = await this.supabase
+              .from('story_packs')
+              .select('stories_remaining')
+              .eq('user_id', userId)
+              .gt('stories_remaining', 0)
+              .is('expires_at', null)
+
+            packCredits = packs?.reduce((sum: number, p: any) => sum + (p.stories_remaining || 0), 0) || 0
+          }
+
+          const { count: storyCount } = await this.supabase
+            .from('stories')
+            .select('*', { count: 'exact', head: true })
+            .eq('creator_user_id', userId)
+
+          const { data: user } = await this.supabase
+            .from('users')
+            .select('available_story_credits, lifetime_stories_created')
+            .eq('id', userId)
+            .single()
+
+          const storiesUsed = (storyCount ?? user?.lifetime_stories_created ?? 0) as number
+
+          return res.json({
+            success: true,
+            data: {
+              subscription: bypassQuota ? { tier: 'test_mode', unlimited: true } : hasSub ? { tier: subscription.plan_id, unlimited: true } : null,
+              usage: hasSub || bypassQuota ? { unlimited: true } : packCredits > 0 ? { tier: 'story_pack', packCreditsRemaining: packCredits } : { tier: 'free', used: storiesUsed, limit: 2 }
+            }
+          })
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          return res.status(400).json({ success: false, error: msg || 'Usage failed', code: 'GET_USAGE_FAILED' })
+        }
+      }
+    )
+
+    // GET /api/v1/users/me/story-packs
+    this.app.get(
+      '/api/v1/users/me/story-packs',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        try {
+          const userId = req.user!.id
+          const { data: packs } = await this.supabase
+            .from('story_packs')
+            .select('id, pack_type, stories_remaining, expires_at, purchased_at')
+            .eq('user_id', userId)
+            .gt('stories_remaining', 0)
+
+          const totalAvailable = (packs || []).reduce((sum: number, p: any) => sum + (p.stories_remaining || 0), 0)
+          return res.json({
+            success: true,
+            data: { summary: packs || [], totalAvailable }
+          })
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          return res.status(400).json({ success: false, error: msg || 'Failed to load story packs', code: 'GET_STORY_PACKS_FAILED' })
+        }
+      }
+    )
+
+    // POST /api/v1/story-packs/buy (Stripe Checkout Session, one-time payment)
+    this.app.post(
+      '/api/v1/story-packs/buy',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const schema = Joi.object({
+          packType: Joi.string().valid('5_pack', '10_pack', '25_pack').required()
+        }).unknown(true)
+
+        const { error } = schema.validate(req.body)
+        if (error) {
+          return res.status(400).json({ success: false, error: error.message, code: 'INVALID_PACK_TYPE' })
+        }
+
+        const stripe = getStripe(res)
+        if (!stripe) return
+
+        const packType = (req.body as any).packType as string
+        const envKey =
+          packType === '5_pack'
+            ? 'STRIPE_STORY_PACK_5_PRICE_ID'
+            : packType === '10_pack'
+              ? 'STRIPE_STORY_PACK_10_PRICE_ID'
+              : 'STRIPE_STORY_PACK_25_PRICE_ID'
+
+        const priceId = (process.env as any)[envKey]
+        if (typeof priceId !== 'string' || priceId.trim().length === 0) {
+          return res.status(503).json({
+            success: false,
+            error: `Missing Stripe price id for ${packType}`,
+            code: 'STRIPE_PRICE_NOT_CONFIGURED',
+            envKey
+          })
+        }
+
+        try {
+          const userId = req.user!.id
+          const { data: user } = await this.supabase.from('users').select('email').eq('id', userId).single()
+          const customerEmail = user?.email || req.user?.email
+
+          const base = process.env.FRONTEND_URL || process.env.APP_URL || 'https://storytailor.com'
+          const session = await stripe.checkout.sessions.create({
+            customer_email: customerEmail,
+            payment_method_types: ['card'],
+            line_items: [{ price: priceId.trim(), quantity: 1 }],
+            mode: 'payment',
+            success_url: `${base}/story-packs/success?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${base}/story-packs/cancel`,
+            client_reference_id: userId,
+            metadata: { userId, user_id: userId, purchaseType: 'story_pack', packType }
+          })
+
+          return res.json({ success: true, data: { url: session.url, sessionId: session.id } })
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          return res.status(400).json({ success: false, error: msg || 'Story pack checkout failed', code: 'CHECKOUT_FAILED' })
+        }
+      }
+    )
+
+    // GET /api/v1/gift-cards/:code/validate
+    this.app.get('/api/v1/gift-cards/:code/validate', async (req: Request, res: Response) => {
+      try {
+        const code = String(req.params.code || '').trim()
+        if (!code) {
+          return res.status(400).json({ success: false, error: 'Gift card code is required', code: 'MISSING_CODE' })
+        }
+
+        const { data: card } = await this.supabase
+          .from('gift_cards')
+          .select('id, code, type, status, expires_at, redeemed_at, value_months')
+          .eq('code', code)
+          .single()
+
+        if (!card) {
+          return res.status(404).json({ success: false, error: 'Gift card not found', code: 'GIFT_CARD_NOT_FOUND' })
+        }
+
+        const expired = card.expires_at ? new Date(card.expires_at).getTime() < Date.now() : false
+        const redeemed = !!card.redeemed_at || card.status === 'redeemed'
+
+        return res.json({
+          success: true,
+          data: {
+            valid: !expired && !redeemed,
+            type: card.type,
+            valueMonths: card.value_months,
+            expiresAt: card.expires_at,
+            redeemedAt: card.redeemed_at
+          }
+        })
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        return res.status(400).json({ success: false, error: msg || 'Validate failed', code: 'VALIDATE_FAILED' })
+      }
+    })
+
+    // POST /api/v1/gift-cards/purchase (Stripe Checkout Session, one-time payment)
+    this.app.post(
+      '/api/v1/gift-cards/purchase',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const schema = Joi.object({
+          giftCardType: Joi.string().valid('1_month', '3_month', '6_month', '12_month').required()
+        }).unknown(true)
+
+        const { error } = schema.validate(req.body)
+        if (error) {
+          return res.status(400).json({ success: false, error: error.message, code: 'INVALID_GIFT_CARD_TYPE' })
+        }
+
+        const stripe = getStripe(res)
+        if (!stripe) return
+
+        const giftCardType = (req.body as any).giftCardType as string
+        const envKey =
+          giftCardType === '1_month'
+            ? 'STRIPE_GIFT_CARD_1_MONTH_PRICE_ID'
+            : giftCardType === '3_month'
+              ? 'STRIPE_GIFT_CARD_3_MONTH_PRICE_ID'
+              : giftCardType === '6_month'
+                ? 'STRIPE_GIFT_CARD_6_MONTH_PRICE_ID'
+                : 'STRIPE_GIFT_CARD_12_MONTH_PRICE_ID'
+
+        const priceId = (process.env as any)[envKey]
+        if (typeof priceId !== 'string' || priceId.trim().length === 0) {
+          return res.status(503).json({
+            success: false,
+            error: `Missing Stripe price id for ${giftCardType}`,
+            code: 'STRIPE_PRICE_NOT_CONFIGURED',
+            envKey
+          })
+        }
+
+        try {
+          const userId = req.user!.id
+          const { data: user } = await this.supabase.from('users').select('email').eq('id', userId).single()
+          const customerEmail = user?.email || req.user?.email
+
+          const base = process.env.FRONTEND_URL || process.env.APP_URL || 'https://storytailor.com'
+          const session = await stripe.checkout.sessions.create({
+            customer_email: customerEmail,
+            payment_method_types: ['card'],
+            line_items: [{ price: priceId.trim(), quantity: 1 }],
+            mode: 'payment',
+            success_url: `${base}/gift-cards/success?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${base}/gift-cards/cancel`,
+            client_reference_id: userId,
+            metadata: { userId, user_id: userId, purchaseType: 'gift_card', giftCardType }
+          })
+
+          return res.json({ success: true, data: { url: session.url, sessionId: session.id } })
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          return res.status(400).json({ success: false, error: msg || 'Gift card checkout failed', code: 'GIFT_CARD_PURCHASE_FAILED' })
+        }
+      }
+    )
+
+    // POST /api/v1/gift-cards/redeem
+    this.app.post(
+      '/api/v1/gift-cards/redeem',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const schema = Joi.object({ code: Joi.string().min(1).required() }).unknown(true)
+        const { error } = schema.validate(req.body)
+        if (error) {
+          return res.status(400).json({ success: false, error: error.message, code: 'MISSING_CODE' })
+        }
+
+        try {
+          const userId = req.user!.id
+          const code = String((req.body as any).code || '').trim()
+
+          const { data: card } = await this.supabase
+            .from('gift_cards')
+            .select('*')
+            .eq('code', code)
+            .single()
+
+          if (!card) {
+            return res.status(404).json({ success: false, error: 'Gift card not found', code: 'GIFT_CARD_NOT_FOUND' })
+          }
+
+          const expired = card.expires_at ? new Date(card.expires_at).getTime() < Date.now() : false
+          if (expired) {
+            return res.status(400).json({ success: false, error: 'Gift card expired', code: 'GIFT_CARD_EXPIRED' })
+          }
+
+          const alreadyRedeemed = !!card.redeemed_at || card.status === 'redeemed'
+          if (alreadyRedeemed) {
+            return res.status(409).json({ success: false, error: 'Gift card already redeemed', code: 'GIFT_CARD_ALREADY_REDEEMED' })
+          }
+
+          const monthsAdded = Number(card.value_months || 0)
+          if (!Number.isFinite(monthsAdded) || monthsAdded <= 0) {
+            return res.status(400).json({ success: false, error: 'Invalid gift card value', code: 'INVALID_GIFT_CARD_VALUE' })
+          }
+
+          const now = new Date()
+          const { data: existingSub } = await this.supabase
+            .from('subscriptions')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('status', 'active')
+            .maybeSingle()
+
+          const currentEnd = existingSub?.current_period_end ? new Date(existingSub.current_period_end) : now
+          const baseDate = currentEnd.getTime() > now.getTime() ? currentEnd : now
+          const newEnd = new Date(baseDate)
+          newEnd.setMonth(newEnd.getMonth() + monthsAdded)
+
+          if (existingSub?.id) {
+            await this.supabase
+              .from('subscriptions')
+              .update({ current_period_end: newEnd.toISOString(), updated_at: new Date().toISOString() })
+              .eq('id', existingSub.id)
+          } else {
+            await this.supabase.from('subscriptions').insert({
+              user_id: userId,
+              plan_id: 'pro_individual',
+              status: 'active',
+              current_period_start: now.toISOString(),
+              current_period_end: newEnd.toISOString(),
+              updated_at: new Date().toISOString()
+            })
+          }
+
+          await this.supabase
+            .from('gift_cards')
+            .update({ redeemed_at: now.toISOString(), redeemed_by: userId, status: 'redeemed', updated_at: now.toISOString() })
+            .eq('id', card.id)
+
+          await this.supabase.from('gift_card_redemptions').insert({
+            gift_card_id: card.id,
+            user_id: userId,
+            months_added: monthsAdded,
+            redeemed_at: now.toISOString(),
+            subscription_extended_to: newEnd.toISOString()
+          })
+
+          return res.json({
+            success: true,
+            data: { redeemed: true, monthsAdded, subscriptionExtendedTo: newEnd.toISOString() }
+          })
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          return res.status(400).json({ success: false, error: msg || 'Redeem failed', code: 'REDEEM_FAILED' })
+        }
+      }
+    )
+
     // Account deletion endpoints
     this.app.post(
       '/api/v1/account/delete',
@@ -828,7 +1470,7 @@ export class RESTAPIGateway {
           // Try storytellerAPI first, fallback to Supabase on error
           if (this.storytellerAPI && this.storytellerAPI.getStories) {
             try {
-              const stories = await this.storytellerAPI.getStories(userId, libraryId);
+            const stories = await this.storytellerAPI.getStories(userId, libraryId);
               // Apply pagination to API results
               const paginatedStories = stories?.slice(offset, offset + limit) || [];
               res.json(this.buildPaginationResponse(
@@ -848,7 +1490,7 @@ export class RESTAPIGateway {
           
           // Always use Supabase fallback for consistent pagination
           
-          // Fallback: query Supabase directly
+            // Fallback: query Supabase directly
             const { data: ownedLibraries, error: ownedLibError } = await this.supabase
               .from('libraries')
               .select('id')
@@ -1223,7 +1865,7 @@ export class RESTAPIGateway {
 
           // Remove join data from main story object (keep it clean)
           const { library: storyLibrary, story_type, ...storyData } = story;
-
+          
           res.json({
             success: true,
             data: {
@@ -1266,6 +1908,26 @@ export class RESTAPIGateway {
       this.authMiddleware.requireAuth,
       async (req: AuthenticatedRequest, res: Response) => {
         try {
+          const createStorySchema = Joi.object({
+            title: Joi.string().min(1).required(),
+            content: Joi.object().optional(),
+            libraryId: Joi.string().optional(),
+            characterId: Joi.string().optional(),
+            storyIdea: Joi.string().optional(),
+            storyType: Joi.string().optional(),
+            themes: Joi.array().items(Joi.string()).optional(),
+            generateAssets: Joi.boolean().optional()
+          }).unknown(true);
+
+          const { error: validationError } = createStorySchema.validate(req.body);
+          if (validationError) {
+            return res.status(400).json({
+              success: false,
+              error: validationError.message,
+              code: 'INVALID_STORY_PAYLOAD'
+            });
+          }
+
           const userId = req.user!.id;
           const {
             characterId, libraryId, storyIdea, storyType, themes,
@@ -1414,6 +2076,8 @@ export class RESTAPIGateway {
               .eq('id', userId)
               .single();
             
+            let storiesUsed = storyCount ?? user?.lifetime_stories_created ?? 0;
+
             // Test mode bypass (production-safe admin override)
             if (user?.test_mode_authorized === true) {
               console.log(`quota_bypass userId=${userId} reason=test_mode_authorized`);
@@ -1421,8 +2085,6 @@ export class RESTAPIGateway {
               quotaInfo = {tier: 'test', available: 999, used: 0};
             } else {
               // Use direct count if available, fallback to trigger-synced value
-              const storiesUsed = storyCount ?? user?.lifetime_stories_created ?? 0;
-              
               canCreate = (user?.available_story_credits || 0) >= 1;
               quotaInfo = {tier: 'free', available: user?.available_story_credits || 0, used: storiesUsed};
             }
@@ -1564,7 +2226,7 @@ export class RESTAPIGateway {
             // CRITICAL: Create story record IMMEDIATELY with status='generating' to return ID
             const { data: storyRecord, error: createError } = await this.supabase
               .from('stories')
-              .insert({
+                .insert({
                 library_id: targetLibraryId,
                 creator_user_id: userId,
                 title: storyIdea ? `Story about ${characterName}` : (title || 'Untitled Story'),
@@ -1583,8 +2245,8 @@ export class RESTAPIGateway {
                 asset_generation_started_at: new Date().toISOString()
               })
               .select()
-              .single();
-            
+                .single();
+              
             if (createError) {
               this.logger.error('Failed to create story record', { error: createError });
               throw createError;
@@ -1762,20 +2424,20 @@ export class RESTAPIGateway {
             });
           } else {
             // MANUAL STORY CREATION (backward compatibility)
-            const { data: story, error } = await this.supabase
-              .from('stories')
-              .insert({
+          const { data: story, error } = await this.supabase
+            .from('stories')
+            .insert({
                 library_id: targetLibraryId,
                 creator_user_id: userId,  // CRITICAL: Track creator for quota attribution
-                title: title || 'Untitled Story',
-                content: content || {},
-                status: 'draft',
-                age_rating: 0
-              })
-              .select()
-              .single();
-            
-            if (error) throw error;
+              title: title || 'Untitled Story',
+              content: content || {},
+              status: 'draft',
+              age_rating: 0
+            })
+            .select()
+            .single();
+          
+          if (error) throw error;
             
             // 5. After successful creation, deduct credit
             if (!hasSub && packCredits > 0) {
@@ -1809,11 +2471,11 @@ export class RESTAPIGateway {
                 });
               }
             }
-            
-            res.status(201).json({
-              success: true,
-              data: story
-            });
+          
+          res.status(201).json({
+            success: true,
+            data: story
+          });
           }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
@@ -2089,6 +2751,18 @@ export class RESTAPIGateway {
       '/api/v1/stories/:storyId/activities',
       this.authMiddleware.requireAuth,
       async (req: AuthenticatedRequest, res: Response) => {
+        const paramsSchema = Joi.object({
+          storyId: Joi.string().required()
+        });
+        const { error: validationError } = paramsSchema.validate(req.params);
+        if (validationError) {
+          return res.status(400).json({
+            success: false,
+            error: validationError.details[0].message,
+            code: 'INVALID_STORY_ID'
+          });
+        }
+
         try {
           const userId = req.user!.id;
           const { storyId } = req.params;
@@ -2122,7 +2796,7 @@ export class RESTAPIGateway {
               return res.status(403).json({
                 success: false,
                 error: 'Access denied',
-                code: 'ACCESS_DENIED'
+                code: 'PERMISSION_DENIED'
               });
             }
           }
@@ -2142,6 +2816,485 @@ export class RESTAPIGateway {
             success: false,
             error: errorMessage,
             code: 'GET_ACTIVITIES_FAILED'
+          });
+        }
+      }
+    );
+
+    // Get story assets (stream/presign via stored URL)
+    this.app.get(
+      '/api/v1/stories/:id/assets/stream',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const paramsSchema = Joi.object({
+          id: Joi.string().required()
+        });
+        const querySchema = Joi.object({
+          assetType: Joi.string().optional()
+        });
+        const paramsValidation = paramsSchema.validate(req.params);
+        if (paramsValidation.error) {
+          return res.status(400).json({
+            success: false,
+            error: paramsValidation.error.details[0].message,
+            code: 'INVALID_STORY_ID'
+          });
+        }
+        const queryValidation = querySchema.validate(req.query);
+        if (queryValidation.error) {
+          return res.status(400).json({
+            success: false,
+            error: queryValidation.error.details[0].message,
+            code: 'INVALID_ASSET_QUERY'
+          });
+        }
+
+        try {
+          const userId = req.user!.id;
+          const storyId = req.params.id;
+          const assetType = (req.query.assetType as string | undefined) || undefined;
+
+          const { data: story, error: storyError } = await this.supabase
+            .from('stories')
+            .select('id, library_id, libraries!inner(owner)')
+            .eq('id', storyId)
+            .single();
+
+          if (storyError || !story) {
+            return res.status(404).json({
+              success: false,
+              error: 'Story not found',
+              code: 'STORY_NOT_FOUND'
+            });
+          }
+
+          if ((story as any).libraries?.owner !== userId) {
+            const { data: permission } = await this.supabase
+              .from('library_permissions')
+              .select('role')
+              .eq('library_id', story.library_id)
+              .eq('user_id', userId)
+              .maybeSingle();
+
+            if (!permission) {
+              return res.status(403).json({
+                success: false,
+                error: 'Permission denied',
+                code: 'PERMISSION_DENIED'
+              });
+            }
+          }
+
+          let query = this.supabase
+            .from('media_assets')
+            .select('*')
+            .eq('story_id', storyId)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          if (assetType) {
+            query = query.eq('asset_type', assetType);
+          }
+
+          const { data: assets, error: assetError } = await query;
+
+          if (assetError) {
+            this.logger.error('Failed to fetch media assets', { storyId, error: assetError.message });
+            return res.status(500).json({
+              success: false,
+              error: 'Failed to fetch media asset',
+              code: 'ASSET_STREAM_FAILED'
+            });
+          }
+
+          const asset = Array.isArray(assets) ? assets[0] : assets;
+
+          if (!asset) {
+            return res.status(404).json({
+              success: false,
+              error: 'Asset not found',
+              code: 'ASSET_NOT_FOUND'
+            });
+          }
+
+          if (assetType && asset.asset_type !== assetType) {
+            return res.status(404).json({
+              success: false,
+              error: 'Asset not found',
+              code: 'ASSET_NOT_FOUND'
+            });
+          }
+
+          res.json({
+            success: true,
+            data: {
+              id: asset.id,
+              assetType: asset.asset_type,
+              url: asset.url
+            }
+          });
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          this.logger.error('Asset stream unexpected error', { error: errorMessage });
+          res.status(500).json({
+            success: false,
+            error: errorMessage || 'Failed to stream asset',
+            code: 'ASSET_STREAM_FAILED'
+          });
+        }
+      }
+    );
+
+    // Story feedback summary
+    const storyFeedbackSummaryHandler = async (req: AuthenticatedRequest, res: Response) => {
+      const paramsSchema = Joi.object({
+        id: Joi.string().required()
+      });
+      const { error: validationError } = paramsSchema.validate(req.params);
+      if (validationError) {
+        return res.status(400).json({
+          success: false,
+          error: validationError.details[0].message,
+          code: 'INVALID_STORY_ID'
+        });
+      }
+
+      try {
+        const userId = req.user!.id;
+        const storyId = req.params.id;
+
+        const { data: story, error: storyError } = await this.supabase
+          .from('stories')
+          .select('id, library_id, libraries!inner(owner)')
+          .eq('id', storyId)
+          .single();
+
+        if (storyError || !story) {
+          return res.status(404).json({
+            success: false,
+            error: 'Story not found',
+            code: 'STORY_NOT_FOUND'
+          });
+        }
+
+        if ((story as any).libraries?.owner !== userId) {
+          const { data: permission } = await this.supabase
+            .from('library_permissions')
+            .select('role')
+            .eq('library_id', story.library_id)
+            .eq('user_id', userId)
+            .maybeSingle();
+
+          if (!permission) {
+            return res.status(403).json({
+              success: false,
+              error: 'Permission denied',
+              code: 'PERMISSION_DENIED'
+            });
+          }
+        }
+
+        const { data: summary, error: feedbackError } = await this.supabase.rpc(
+          'get_story_feedback_summary',
+          { p_story_id: storyId }
+        );
+
+        if (feedbackError) {
+          this.logger.error('Failed to fetch story feedback', { storyId, error: feedbackError.message });
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to fetch feedback',
+            code: 'STORY_FEEDBACK_FAILED'
+          });
+        }
+
+        res.json({
+          success: true,
+          data: summary || {}
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger.error('Story feedback unexpected error', { error: errorMessage });
+        res.status(500).json({
+          success: false,
+          error: errorMessage || 'Failed to fetch feedback',
+          code: 'STORY_FEEDBACK_FAILED'
+        });
+      }
+    };
+
+    this.app.get('/api/v1/stories/:id/feedback', this.authMiddleware.requireAuth, storyFeedbackSummaryHandler);
+    this.app.get('/api/v1/stories/:id/feedback/summary', this.authMiddleware.requireAuth, storyFeedbackSummaryHandler);
+
+    // POST /api/v1/stories/:id/feedback
+    this.app.post(
+      '/api/v1/stories/:id/feedback',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const paramsSchema = Joi.object({
+          id: Joi.string().required()
+        });
+        const bodySchema = Joi.object({
+          rating: Joi.number().integer().min(1).max(5).optional(),
+          sentiment: Joi.string().valid('positive', 'neutral', 'negative').required(),
+          message: Joi.string().max(5000).optional().allow('')
+        }).unknown(true);
+
+        const { error: paramsError } = paramsSchema.validate(req.params);
+        if (paramsError) {
+          return res.status(400).json({
+            success: false,
+            error: paramsError.details[0].message,
+            code: 'INVALID_STORY_ID'
+          });
+        }
+
+        const { error: bodyError } = bodySchema.validate(req.body);
+        if (bodyError) {
+          return res.status(400).json({
+            success: false,
+            error: bodyError.details[0].message,
+            code: 'INVALID_FEEDBACK_PAYLOAD'
+          });
+        }
+
+        try {
+          const userId = req.user!.id;
+          const storyId = req.params.id;
+          const { rating, sentiment, message } = req.body as any;
+
+          // Verify story exists
+          const { data: story, error: storyError } = await this.supabase
+            .from('stories')
+            .select('id')
+            .eq('id', storyId)
+            .single();
+
+          if (storyError || !story) {
+            return res.status(404).json({
+              success: false,
+              error: 'Story not found',
+              code: 'STORY_NOT_FOUND'
+            });
+          }
+
+          const { data: feedback, error: insertError } = await this.supabase
+            .from('story_feedback')
+            .insert({
+              story_id: storyId,
+              user_id: userId,
+              rating: rating || null,
+              sentiment,
+              message: message || null
+            })
+            .select()
+            .single();
+
+          if (insertError) {
+            this.logger.error('Failed to create story feedback', { storyId, error: insertError.message });
+            return res.status(500).json({
+              success: false,
+              error: 'Failed to submit feedback',
+              code: 'FEEDBACK_SUBMIT_FAILED'
+            });
+          }
+
+          res.status(201).json({
+            success: true,
+            data: feedback
+          });
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          this.logger.error('Story feedback submit unexpected error', { error: errorMessage });
+          return res.status(500).json({
+            success: false,
+            error: errorMessage || 'Failed to submit feedback',
+            code: 'FEEDBACK_SUBMIT_FAILED'
+          });
+        }
+      }
+    );
+
+    // Character feedback summary
+    const characterFeedbackSummaryHandler = async (req: AuthenticatedRequest, res: Response) => {
+      const paramsSchema = Joi.object({
+        id: Joi.string().required()
+      });
+      const { error: validationError } = paramsSchema.validate(req.params);
+      if (validationError) {
+        return res.status(400).json({
+          success: false,
+          error: validationError.details[0].message,
+          code: 'INVALID_CHARACTER_ID'
+        });
+      }
+
+      try {
+        const userId = req.user!.id;
+        const characterId = req.params.id;
+
+        const { data: character, error: charError } = await this.supabase
+          .from('characters')
+          .select('id, library_id')
+          .eq('id', characterId)
+          .single();
+
+        if (charError || !character) {
+          return res.status(404).json({
+            success: false,
+            error: 'Character not found',
+            code: 'CHARACTER_NOT_FOUND'
+          });
+        }
+
+        // Check library ownership/permission
+        const { data: library, error: libraryError } = await this.supabase
+          .from('libraries')
+          .select('id, owner')
+          .eq('id', character.library_id)
+          .single();
+
+        if (libraryError || !library) {
+          return res.status(404).json({
+            success: false,
+            error: 'Library not found',
+            code: 'LIBRARY_NOT_FOUND'
+          });
+        }
+
+        if (library.owner !== userId) {
+          const { data: permission } = await this.supabase
+            .from('library_permissions')
+            .select('role')
+            .eq('library_id', character.library_id)
+            .eq('user_id', userId)
+            .maybeSingle();
+
+          if (!permission) {
+            return res.status(403).json({
+              success: false,
+              error: 'Permission denied',
+              code: 'PERMISSION_DENIED'
+            });
+          }
+        }
+
+        const { data: summary, error: feedbackError } = await this.supabase.rpc(
+          'get_character_feedback_summary',
+          { p_character_id: characterId }
+        );
+
+        if (feedbackError) {
+          this.logger.error('Failed to fetch character feedback', { characterId, error: feedbackError.message });
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to fetch feedback',
+            code: 'CHARACTER_FEEDBACK_FAILED'
+          });
+        }
+
+        res.json({
+          success: true,
+          data: summary || {}
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger.error('Character feedback unexpected error', { error: errorMessage });
+        res.status(500).json({
+          success: false,
+          error: errorMessage || 'Failed to fetch feedback',
+          code: 'CHARACTER_FEEDBACK_FAILED'
+        });
+      }
+    };
+
+    this.app.get('/api/v1/characters/:id/feedback', this.authMiddleware.requireAuth, characterFeedbackSummaryHandler);
+    this.app.get('/api/v1/characters/:id/feedback/summary', this.authMiddleware.requireAuth, characterFeedbackSummaryHandler);
+
+    // POST /api/v1/characters/:id/feedback
+    this.app.post(
+      '/api/v1/characters/:id/feedback',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const paramsSchema = Joi.object({
+          id: Joi.string().required()
+        });
+        const bodySchema = Joi.object({
+          rating: Joi.number().integer().min(1).max(5).optional(),
+          sentiment: Joi.string().valid('positive', 'neutral', 'negative').required(),
+          message: Joi.string().max(5000).optional().allow('')
+        }).unknown(true);
+
+        const { error: paramsError } = paramsSchema.validate(req.params);
+        if (paramsError) {
+          return res.status(400).json({
+            success: false,
+            error: paramsError.details[0].message,
+            code: 'INVALID_CHARACTER_ID'
+          });
+        }
+
+        const { error: bodyError } = bodySchema.validate(req.body);
+        if (bodyError) {
+          return res.status(400).json({
+            success: false,
+            error: bodyError.details[0].message,
+            code: 'INVALID_FEEDBACK_PAYLOAD'
+          });
+        }
+
+        try {
+          const userId = req.user!.id;
+          const characterId = req.params.id;
+          const { rating, sentiment, message } = req.body as any;
+
+          // Verify character exists
+          const { data: character, error: charError } = await this.supabase
+            .from('characters')
+            .select('id')
+            .eq('id', characterId)
+            .single();
+
+          if (charError || !character) {
+            return res.status(404).json({
+              success: false,
+              error: 'Character not found',
+              code: 'CHARACTER_NOT_FOUND'
+            });
+          }
+
+          const { data: feedback, error: insertError } = await this.supabase
+            .from('character_feedback')
+            .insert({
+              character_id: characterId,
+              user_id: userId,
+              rating: rating || null,
+              sentiment,
+              message: message || null
+            })
+            .select()
+            .single();
+
+          if (insertError) {
+            this.logger.error('Failed to create character feedback', { characterId, error: insertError.message });
+            return res.status(500).json({
+              success: false,
+              error: 'Failed to submit feedback',
+              code: 'FEEDBACK_SUBMIT_FAILED'
+            });
+          }
+
+          res.status(201).json({
+            success: true,
+            data: feedback
+          });
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          this.logger.error('Character feedback submit unexpected error', { error: errorMessage });
+          return res.status(500).json({
+            success: false,
+            error: errorMessage || 'Failed to submit feedback',
+            code: 'FEEDBACK_SUBMIT_FAILED'
           });
         }
       }
@@ -2644,8 +3797,8 @@ export class RESTAPIGateway {
               .select('*', { count: 'exact', head: true })
               .in('library_id', accessibleLibraryIds),
             this.supabase
-              .from('characters')
-              .select('*')
+            .from('characters')
+            .select('*')
               .in('library_id', accessibleLibraryIds)
               .order('created_at', { ascending: false })
               .range(offset, offset + limit - 1)
@@ -2848,7 +4001,7 @@ export class RESTAPIGateway {
               // Create default library
               const { data: newLibrary, error: libError } = await this.supabase
                 .from('libraries')
-                .insert({
+            .insert({
                   owner: userId,
                   name: 'My Library'
                 })
@@ -3222,9 +4375,9 @@ export class RESTAPIGateway {
               .select('*', { count: 'exact', head: true })
               .eq('owner', userId),
             this.supabase
-              .from('libraries')
-              .select('*')
-              .eq('owner', userId)
+            .from('libraries')
+            .select('*')
+            .eq('owner', userId)
               .order('created_at', { ascending: false })
               .range(offset, offset + limit - 1)
           ]);
@@ -3374,6 +4527,419 @@ export class RESTAPIGateway {
             success: false,
             error: errorMessage || 'Failed to get library',
             code: 'GET_LIBRARY_FAILED'
+          });
+        }
+      }
+    );
+
+    // Delete library (owner only)
+    this.app.delete(
+      '/api/v1/libraries/:id',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const paramsSchema = Joi.object({
+          id: Joi.string().required()
+        });
+        const { error: validationError } = paramsSchema.validate(req.params);
+        if (validationError) {
+          return res.status(400).json({
+            success: false,
+            error: validationError.details[0].message,
+            code: 'INVALID_LIBRARY_ID'
+          });
+        }
+
+        try {
+          const userId = req.user!.id;
+          const libraryId = req.params.id;
+
+          const { data: library, error: fetchError } = await this.supabase
+            .from('libraries')
+            .select('id, owner')
+            .eq('id', libraryId)
+            .single();
+
+          if (fetchError) {
+            return res.status(404).json({
+              success: false,
+              error: 'Library not found',
+              code: 'LIBRARY_NOT_FOUND'
+            });
+          }
+
+          if (!library || library.owner !== userId) {
+            return res.status(403).json({
+              success: false,
+              error: 'Only library owner can delete library',
+              code: 'PERMISSION_DENIED'
+            });
+          }
+
+          const { error: deleteError } = await this.supabase
+            .from('libraries')
+            .delete()
+            .eq('id', libraryId)
+            .eq('owner', userId);
+
+          if (deleteError) {
+            this.logger.error('Failed to delete library', { libraryId, error: deleteError.message });
+            return res.status(500).json({
+              success: false,
+              error: 'Failed to delete library',
+              code: 'DELETE_LIBRARY_FAILED'
+            });
+          }
+
+          res.json({
+            success: true,
+            message: 'Library deleted'
+          });
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          this.logger.error('Delete library unexpected error', { error: errorMessage });
+          res.status(500).json({
+            success: false,
+            error: errorMessage || 'Failed to delete library',
+            code: 'DELETE_LIBRARY_FAILED'
+          });
+        }
+      }
+    );
+
+    // Remove library member (owner/admin only)
+    this.app.delete(
+      '/api/v1/libraries/:id/members/:userId/remove',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const paramsSchema = Joi.object({
+          id: Joi.string().required(),
+          userId: Joi.string().required()
+        });
+        const { error: validationError } = paramsSchema.validate(req.params);
+        if (validationError) {
+          return res.status(400).json({
+            success: false,
+            error: validationError.details[0].message,
+            code: 'INVALID_LIBRARY_MEMBER_PARAMS'
+          });
+        }
+
+        try {
+          const adminUserId = req.user!.id;
+          const libraryId = req.params.id;
+          const memberUserId = req.params.userId;
+
+          // Verify caller permission
+          const { data: library, error: libraryError } = await this.supabase
+            .from('libraries')
+            .select('id, owner')
+            .eq('id', libraryId)
+            .single();
+
+          if (libraryError || !library) {
+            return res.status(404).json({
+              success: false,
+              error: 'Library not found',
+              code: 'LIBRARY_NOT_FOUND'
+            });
+          }
+
+          if (library.owner !== adminUserId) {
+            // Check library_permissions for admin/owner role
+            const { data: perms, error: permsError } = await this.supabase
+              .from('library_permissions')
+              .select('role')
+              .eq('library_id', libraryId)
+              .eq('user_id', adminUserId)
+              .maybeSingle();
+
+            if (permsError || !perms || !['Owner', 'Admin'].includes(perms.role)) {
+              return res.status(403).json({
+                success: false,
+                error: 'Permission denied',
+                code: 'PERMISSION_DENIED'
+              });
+            }
+          }
+
+          // Delete membership
+          const { data: memberRow, error: memberError } = await this.supabase
+            .from('library_permissions')
+            .select('user_id')
+            .eq('library_id', libraryId)
+            .eq('user_id', memberUserId)
+            .maybeSingle();
+
+          if (memberError || !memberRow) {
+            return res.status(404).json({
+              success: false,
+              error: 'Member not found',
+              code: 'MEMBER_NOT_FOUND'
+            });
+          }
+
+          const { error: deleteError } = await this.supabase
+            .from('library_permissions')
+            .delete()
+            .eq('library_id', libraryId)
+            .eq('user_id', memberUserId);
+
+          if (deleteError) {
+            this.logger.error('Failed to remove library member', { libraryId, memberUserId, error: deleteError.message });
+            return res.status(500).json({
+              success: false,
+              error: 'Failed to remove library member',
+              code: 'LIBRARY_MEMBER_REMOVAL_FAILED'
+            });
+          }
+
+          res.json({
+            success: true,
+            message: 'Member removed'
+          });
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          this.logger.error('Library member removal unexpected error', { error: errorMessage });
+          res.status(500).json({
+            success: false,
+            error: errorMessage || 'Failed to remove library member',
+            code: 'LIBRARY_MEMBER_REMOVAL_FAILED'
+          });
+        }
+      }
+    );
+
+    // Library stats
+    this.app.get(
+      '/api/v1/libraries/:id/stats',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const paramsSchema = Joi.object({
+          id: Joi.string().required()
+        });
+        const { error: validationError } = paramsSchema.validate(req.params);
+        if (validationError) {
+          return res.status(400).json({
+            success: false,
+            error: validationError.details[0].message,
+            code: 'INVALID_LIBRARY_ID'
+          });
+        }
+
+        try {
+          const userId = req.user!.id;
+          const libraryId = req.params.id;
+
+          const { data: library, error: libraryError } = await this.supabase
+            .from('libraries')
+            .select('id, owner')
+            .eq('id', libraryId)
+            .single();
+
+          if (libraryError || !library) {
+            return res.status(404).json({
+              success: false,
+              error: 'Library not found',
+              code: 'LIBRARY_NOT_FOUND'
+            });
+          }
+
+          if (library.owner !== userId) {
+            const { data: perms, error: permsError } = await this.supabase
+              .from('library_permissions')
+              .select('role')
+              .eq('library_id', libraryId)
+              .eq('user_id', userId)
+              .maybeSingle();
+
+            if (permsError || !perms) {
+              return res.status(403).json({
+                success: false,
+                error: 'Permission denied',
+                code: 'PERMISSION_DENIED'
+              });
+            }
+          }
+
+          const { data: storyList, count: totalStories } = await this.supabase
+            .from('stories')
+            .select('id', { count: 'exact' })
+            .eq('library_id', libraryId);
+
+          const { count: totalCharacters } = await this.supabase
+            .from('characters')
+            .select('*', { count: 'exact', head: true })
+            .eq('library_id', libraryId);
+
+          const storyIds = (storyList || []).map((s: any) => s.id);
+
+          const { data: completions, error: interactionsError } = storyIds.length > 0
+            ? await this.supabase
+                .from('story_interactions')
+                .select('story_id, interaction_type')
+                .eq('interaction_type', 'completed')
+                .in('story_id', storyIds)
+            : { data: [], error: null };
+
+          if (interactionsError) {
+            this.logger.warn('Failed to fetch interactions for stats', { libraryId, error: interactionsError.message });
+          }
+
+          const completedStoryIds = new Set((completions || []).map((c: any) => c.story_id));
+          const completionRate = totalStories && totalStories > 0 ? (completedStoryIds.size / totalStories) * 100 : 0;
+
+          res.json({
+            success: true,
+            data: {
+              totalStories: totalStories || 0,
+              totalCharacters: totalCharacters || 0,
+              completionRate,
+              completedStories: completedStoryIds.size
+            }
+          });
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          this.logger.error('Failed to get library stats', { error: errorMessage });
+          res.status(500).json({
+            success: false,
+            error: errorMessage || 'Failed to get library stats',
+            code: 'GET_LIBRARY_STATS_FAILED'
+          });
+        }
+      }
+    );
+
+    // List stories within a library
+    this.app.get(
+      '/api/v1/libraries/:libraryId/stories',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        const paramsSchema = Joi.object({
+          libraryId: Joi.string().required()
+        });
+        const { error: validationError } = paramsSchema.validate(req.params);
+        if (validationError) {
+          return res.status(400).json({
+            success: false,
+            error: validationError.details[0].message,
+            code: 'INVALID_LIBRARY_ID'
+          });
+        }
+
+        try {
+          const userId = req.user!.id;
+          const libraryId = req.params.libraryId;
+          const { page, limit, offset } = this.parsePagination(req);
+
+          const { data: library, error: libraryError } = await this.supabase
+            .from('libraries')
+            .select('id, owner')
+            .eq('id', libraryId)
+            .single();
+
+          if (libraryError || !library) {
+            return res.status(404).json({
+              success: false,
+              error: 'Library not found',
+              code: 'LIBRARY_NOT_FOUND'
+            });
+          }
+
+          if (library.owner !== userId) {
+            const { data: perms, error: permsError } = await this.supabase
+              .from('library_permissions')
+              .select('role')
+              .eq('library_id', libraryId)
+              .eq('user_id', userId)
+              .maybeSingle();
+
+            if (permsError || !perms) {
+              return res.status(403).json({
+                success: false,
+                error: 'Permission denied',
+                code: 'PERMISSION_DENIED'
+              });
+            }
+          }
+
+          const [{ count: total }, { data: stories, error }] = await Promise.all([
+            this.supabase
+              .from('stories')
+              .select('*', { count: 'exact', head: true })
+              .eq('library_id', libraryId),
+            this.supabase
+              .from('stories')
+              .select('*')
+              .eq('library_id', libraryId)
+              .order('created_at', { ascending: false })
+              .range(offset, offset + limit - 1)
+          ]);
+
+          if (error) {
+            this.logger.error('Failed to list library stories', { libraryId, error: error.message });
+            return res.status(500).json({
+              success: false,
+              error: 'Failed to list stories',
+              code: 'LIST_LIBRARY_STORIES_FAILED'
+            });
+          }
+
+          res.json(
+            this.buildPaginationResponse(
+              stories || [],
+              total || 0,
+              page,
+              limit
+            )
+          );
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          this.logger.error('List library stories unexpected error', { error: errorMessage });
+          res.status(500).json({
+            success: false,
+            error: errorMessage || 'Failed to list stories',
+            code: 'LIST_LIBRARY_STORIES_FAILED'
+          });
+        }
+      }
+    );
+
+    // User subscriptions
+    this.app.get(
+      '/api/v1/commerce/subscriptions',
+      this.authMiddleware.requireAuth,
+      async (req: AuthenticatedRequest, res: Response) => {
+        try {
+          const userId = req.user!.id;
+          const { data: subscriptions, error } = await this.supabase
+            .from('subscriptions')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
+
+          if (error) {
+            this.logger.error('Failed to fetch subscriptions', { userId, error: error.message });
+            return res.status(500).json({
+              success: false,
+              error: 'Failed to fetch subscriptions',
+              code: 'FETCH_SUBSCRIPTIONS_FAILED'
+            });
+          }
+
+          res.json({
+            success: true,
+            data: {
+              subscriptions: subscriptions || [],
+              total: subscriptions?.length || 0
+            }
+          });
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          this.logger.error('subscriptions unexpected error', { error: errorMessage });
+          res.status(500).json({
+            success: false,
+            error: errorMessage || 'Failed to fetch subscriptions',
+            code: 'FETCH_SUBSCRIPTIONS_FAILED'
           });
         }
       }
@@ -3791,13 +5357,14 @@ export class RESTAPIGateway {
                 ? `${user.first_name} ${user.last_name}`
                 : user.email;
               
-              await this.emailService.sendParentConsentEmail(
+              await this.emailService.sendParentInsightEmail(
                 user.email,
                 parentName,
-                library.name, // childName (Storytailor ID name)
-                '', // childEmail (not applicable for Storytailor IDs)
-                consentUrl,
-                expiresAt
+                library.name,
+                {
+                  summary: `Please review consent for ${library.name} (Storytailor ID) before ${expiresAt}`,
+                  detailsUrl: consentUrl
+                }
               );
             } catch (emailError) {
               this.logger.warn('Failed to send consent email', { error: emailError });
@@ -5639,10 +7206,12 @@ export class RESTAPIGateway {
             limit
           );
 
+          const notificationsList = Array.isArray(paginationResponse.data) ? paginationResponse.data : [];
+
           res.json({
             ...paginationResponse,
             data: {
-              ...paginationResponse.data,
+              notifications: notificationsList,
               unreadCount: unreadCount || 0
             }
           });
@@ -8239,7 +9808,7 @@ export class RESTAPIGateway {
             .insert({
               affiliate_user_id: userId,
               amount,
-              method,
+            method,
               status: 'pending',
               requested_at: new Date().toISOString()
             })
@@ -8513,7 +10082,7 @@ export class RESTAPIGateway {
           const { narrationUrl, musicId, sfxIds, sfxTimings, mixProfile = 'balanced' } = req.body;
 
           if (!narrationUrl) {
-            return res.status(400).json({
+          return res.status(400).json({
               success: false,
               error: 'Narration URL is required',
               code: 'NARRATION_URL_REQUIRED'
@@ -8970,7 +10539,7 @@ export class RESTAPIGateway {
               error: errorMessage,
               code: 'ASSET_STREAM_FAILED'
             });
-          } else {
+        } else {
             try {
               res.write(`event: error\ndata: ${JSON.stringify({ error: errorMessage, code: 'ASSET_STREAM_FAILED' })}\n\n`);
               res.end();
@@ -9013,16 +10582,16 @@ export class RESTAPIGateway {
             success: true,
             data: story
           });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
           this.logger.error('Update story failed', { error: errorMessage });
-          res.status(500).json({
+            res.status(500).json({
             success: false,
             error: errorMessage,
             code: 'UPDATE_STORY_FAILED'
-          });
+            });
+          }
         }
-      }
     );
 
     // Delete story
@@ -11272,7 +12841,7 @@ export class RESTAPIGateway {
             success: true,
             data: config
           });
-        } catch (error) {
+    } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
           this.logger.error('Update config failed', { error: errorMessage });
           res.status(500).json({
@@ -11651,10 +13220,12 @@ export class RESTAPIGateway {
             limit
           );
 
+          const rewardsList = Array.isArray(paginationResponse.data) ? paginationResponse.data : [];
+
           res.json({
             ...paginationResponse,
             data: {
-              ...paginationResponse.data,
+              rewards: rewardsList,
               totalEarned,
               totalApplied,
               available: totalEarned - totalApplied
@@ -12044,1132 +13615,12 @@ export class RESTAPIGateway {
   }
 
   /**
-   * Setup A2A (Agent2Agent) Protocol routes
+   * A2A routes are disabled in this build.
    */
   private setupA2ARoutes(): void {
-    try {
-      // Initialize A2A adapter
-      const router = (this.storytellerAPI as any)?.router || null;
-      
-      this.a2aAdapter = new A2AAdapter({
-        router: router as any,
-        storytellerAPI: this.storytellerAPI as any,
-        supabase: this.supabase,
-        logger: this.logger,
-        config: {
-          baseUrl: process.env.A2A_BASE_URL || process.env.APP_URL || 'https://api.storytailor.dev',
-          webhookUrl: process.env.A2A_WEBHOOK_URL || `${process.env.APP_URL || 'https://api.storytailor.dev'}/a2a/webhook`,
-          healthUrl: process.env.A2A_HEALTH_URL || `${process.env.APP_URL || 'https://api.storytailor.dev'}/health`,
-          agentId: 'storytailor-agent',
-          agentName: 'Storytailor Agent',
-          agentVersion: '1.0.0',
-          capabilities: ['storytelling', 'emotional-check-in', 'crisis-detection'],
-          rateLimitPerMinute: parseInt(process.env.A2A_RATE_LIMIT_PER_MINUTE || '60', 10),
-          taskTimeoutMs: parseInt(process.env.A2A_TASK_TIMEOUT_MS || '300000', 10),
-          redis: {
-            url: process.env.REDIS_URL || 'redis://localhost:6379',
-            keyPrefix: 'a2a'
-          },
-          supabase: {
-            url: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-            key: process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || ''
-          }
-        }
-      });
-
-      // GET /a2a/discovery - Agent Card discovery
-      this.app.get('/a2a/discovery', async (req: Request, res: Response) => {
-        try {
-          if (!this.a2aAdapter) {
-            return res.status(503).json({ error: 'A2A adapter not available' });
-          }
-          const agentCard = await this.a2aAdapter.getAgentCard();
-          res.json({ agentCard });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          this.logger.error('A2A discovery failed', { error: errorMessage });
-          res.status(500).json({ error: 'Failed to retrieve agent card' });
-        }
-      });
-
-      // POST /a2a/message - JSON-RPC 2.0 messaging
-      this.app.post('/a2a/message', async (req: Request, res: Response) => {
-        try {
-          if (!this.a2aAdapter) {
-            return res.status(503).json({
-              jsonrpc: '2.0',
-              id: (req.body as { id?: string | number | null })?.id || null,
-              error: {
-                code: -32603,
-                message: 'A2A adapter not available'
-              }
-            });
-          }
-          const response = await this.a2aAdapter.handleMessage(req.body);
-          res.json(response);
-        } catch (error) {
-          this.logger.error('A2A message failed', { error });
-          const requestId = (req.body as { id?: string | number | null })?.id || null;
-          res.status(500).json({
-            jsonrpc: '2.0',
-            id: requestId,
-            error: {
-              code: -32603,
-              message: 'Internal error',
-              data: error instanceof Error ? error.message : String(error)
-            }
-          });
-        }
-      });
-
-      // POST /a2a/task - Task delegation
-      this.app.post('/a2a/task', async (req: Request, res: Response) => {
-        try {
-          if (!this.a2aAdapter) {
-            return res.status(503).json({
-              error: 'A2A adapter not available',
-              message: 'A2A adapter not initialized'
-            });
-          }
-
-          const { method, params, clientAgentId, sessionId } = req.body as {
-            method?: string;
-            params?: Record<string, unknown>;
-            clientAgentId?: string;
-            sessionId?: string;
-          };
-
-          if (!method) {
-            return res.status(400).json({
-              error: 'Method is required',
-              message: 'Task must include method field'
-            });
-          }
-
-          if (!clientAgentId) {
-            return res.status(400).json({
-              error: 'Client agent ID is required',
-              message: 'Task must include clientAgentId field'
-            });
-          }
-
-          const task = await this.a2aAdapter.createTask({
-            method,
-            params: params || {},
-            clientAgentId,
-            sessionId
-          });
-
-          res.json(task);
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          this.logger.error('A2A task creation failed', { error: errorMessage });
-          res.status(500).json({
-            error: 'Failed to create task',
-            message: errorMessage
-          });
-        }
-      });
-
-      // GET /a2a/status - Task status (with optional SSE)
-      this.app.get('/a2a/status', async (req: Request, res: Response) => {
-        const { taskId } = req.query;
-        const acceptHeader = req.headers.accept || '';
-
-        if (!taskId || typeof taskId !== 'string') {
-          return res.status(400).json({
-            error: 'Task ID is required',
-            message: 'Query parameter taskId is required'
-          });
-        }
-
-        if (!this.a2aAdapter) {
-          return res.status(503).json({
-            error: 'A2A adapter not available',
-            message: 'A2A adapter not initialized'
-          });
-        }
-
-        if (acceptHeader.includes('text/event-stream')) {
-          // SSE streaming
-          res.setHeader('Content-Type', 'text/event-stream');
-          res.setHeader('Cache-Control', 'no-cache');
-          res.setHeader('Connection', 'keep-alive');
-          res.setHeader('X-Accel-Buffering', 'no');
-          
-          const lastEventId = req.headers['last-event-id'] as string | undefined;
-          await this.a2aAdapter.streamTaskStatus(taskId, res, lastEventId);
-        } else {
-          // Standard JSON response
-          try {
-            const status = await this.a2aAdapter.getTaskStatus(taskId);
-            res.json(status);
-          } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            this.logger.error('A2A status check failed', { error: errorMessage });
-            res.status(500).json({
-              error: 'Failed to get task status',
-              message: errorMessage
-            });
-          }
-        }
-      });
-
-    // ==========================================================================
-    // COMMERCE ENDPOINTS (Category 17)
-    // ==========================================================================
-
-    // Create checkout session (individual)
-    this.app.post(
-      '/api/v1/checkout',
-      this.authMiddleware.requireAuth,
-      async (req: AuthenticatedRequest, res: Response) => {
-        try {
-          const userId = req.user!.id;
-          const { planId, billingInterval, discountCode, returnUrl } = req.body;
-
-          if (!this.commerceAgent) {
-            return res.status(503).json({
-              success: false,
-              error: 'Commerce service unavailable',
-              code: 'SERVICE_UNAVAILABLE'
-            });
-          }
-
-          // Validate billing interval
-          const interval = billingInterval === 'yearly' ? 'yearly' : 'monthly';
-
-          const checkout = await this.commerceAgent.createIndividualCheckout(
-            userId,
-            planId || 'pro_individual',
-            interval,
-            discountCode
-          );
-
-          res.json({
-            success: true,
-            data: {
-              sessionId: checkout.sessionId,
-              url: checkout.url,
-              expiresAt: checkout.expiresAt,
-              billingInterval: interval,
-              returnUrl: returnUrl || `${process.env.FRONTEND_URL || 'https://storytailor.com'}/subscription/success`
-            }
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          this.logger.error('Checkout creation failed', { error: errorMessage });
-          res.status(500).json({
-            success: false,
-            error: errorMessage,
-            code: 'CHECKOUT_FAILED'
-          });
-        }
-      }
-    );
-
-    // Alias for individual checkout
-    this.app.post(
-      '/api/v1/checkout/individual',
-      this.authMiddleware.requireAuth,
-      async (req: AuthenticatedRequest, res: Response) => {
-        try {
-          const userId = req.user!.id;
-          const { planId, billingInterval, discountCode, returnUrl } = req.body;
-
-          if (!this.commerceAgent) {
-            return res.status(503).json({
-              success: false,
-              error: 'Commerce service unavailable',
-              code: 'SERVICE_UNAVAILABLE'
-            });
-          }
-
-          // Validate billing interval
-          const interval = billingInterval === 'yearly' ? 'yearly' : 'monthly';
-
-          const checkout = await this.commerceAgent.createIndividualCheckout(
-            userId,
-            planId || 'pro_individual',
-            interval,
-            discountCode
-          );
-
-          res.json({
-            success: true,
-            data: {
-              sessionId: checkout.sessionId,
-              checkoutUrl: checkout.url,
-              url: checkout.url,
-              expiresAt: checkout.expiresAt,
-              billingInterval: interval,
-              returnUrl: returnUrl || `${process.env.FRONTEND_URL || 'https://storytailor.com'}/subscription/success`
-            }
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          this.logger.error('Checkout creation failed', { error: errorMessage });
-          res.status(500).json({
-            success: false,
-            error: errorMessage,
-            code: 'CHECKOUT_FAILED'
-          });
-        }
-      }
-    );
-
-    // Create organization checkout
-    this.app.post(
-      '/api/v1/checkout/organization',
-      this.authMiddleware.requireAuth,
-      async (req: AuthenticatedRequest, res: Response) => {
-        try {
-          const userId = req.user!.id;
-          const { organizationName, seatCount, planId, billingInterval } = req.body;
-
-          if (!organizationName || !seatCount) {
-            return res.status(400).json({
-              success: false,
-              error: 'Organization name and seat count are required',
-              code: 'MISSING_REQUIRED_FIELDS'
-            });
-          }
-
-          if (!this.commerceAgent) {
-            return res.status(503).json({
-              success: false,
-              error: 'Commerce service unavailable',
-              code: 'SERVICE_UNAVAILABLE'
-            });
-          }
-
-          // Validate billing interval
-          const interval = billingInterval === 'yearly' ? 'yearly' : 'monthly';
-
-          const checkout = await this.commerceAgent.createOrganizationCheckout(
-            userId,
-            organizationName,
-            seatCount,
-            planId || 'pro_organization',
-            interval
-          );
-
-          res.json({
-            success: true,
-            data: {
-              sessionId: checkout.sessionId,
-              url: checkout.url,
-              expiresAt: checkout.expiresAt,
-              billingInterval: interval
-            }
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          this.logger.error('Organization checkout failed', { error: errorMessage });
-          res.status(500).json({
-            success: false,
-            error: errorMessage,
-            code: 'ORGANIZATION_CHECKOUT_FAILED'
-          });
-        }
-      }
-    );
-
-    // Get subscription status
-    this.app.get(
-      '/api/v1/subscription',
-      this.authMiddleware.requireAuth,
-      async (req: AuthenticatedRequest, res: Response) => {
-        try {
-          const userId = req.user!.id;
-
-          if (!this.commerceAgent) {
-            return res.status(503).json({
-              success: false,
-              error: 'Commerce service unavailable',
-              code: 'SERVICE_UNAVAILABLE'
-            });
-          }
-
-          const subscription = await this.commerceAgent.getSubscriptionStatus(userId);
-
-          if (!subscription) {
-            return res.json({
-              success: true,
-              data: {
-                hasSubscription: false,
-                plan: 'free'
-              }
-            });
-          }
-
-          res.json({
-            success: true,
-            data: {
-              hasSubscription: true,
-              subscription: {
-                id: subscription.id,
-                planId: subscription.plan_id,
-                status: subscription.status,
-                currentPeriodStart: subscription.current_period_start,
-                currentPeriodEnd: subscription.current_period_end
-              }
-            }
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          this.logger.error('Get subscription failed', { error: errorMessage });
-          res.status(500).json({
-            success: false,
-            error: errorMessage,
-            code: 'GET_SUBSCRIPTION_FAILED'
-          });
-        }
-      }
-    );
-
-    // Alias for subscription status
-    this.app.get(
-      '/api/v1/subscriptions/me',
-      this.authMiddleware.requireAuth,
-      async (req: AuthenticatedRequest, res: Response) => {
-        try {
-          const userId = req.user!.id;
-
-          if (!this.commerceAgent) {
-            return res.status(503).json({
-              success: false,
-              error: 'Commerce service unavailable',
-              code: 'SERVICE_UNAVAILABLE'
-            });
-          }
-
-          const subscription = await this.commerceAgent.getSubscriptionStatus(userId);
-
-          if (!subscription) {
-            return res.json({
-              success: true,
-              data: {
-                hasSubscription: false,
-                plan: 'free'
-              }
-            });
-          }
-
-          res.json({
-            success: true,
-            data: {
-              hasSubscription: true,
-              subscription: {
-                id: subscription.id,
-                planId: subscription.plan_id,
-                status: subscription.status,
-                currentPeriodStart: subscription.current_period_start,
-                currentPeriodEnd: subscription.current_period_end
-              }
-            }
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          this.logger.error('Get subscription failed', { error: errorMessage });
-          res.status(500).json({
-            success: false,
-            error: errorMessage,
-            code: 'GET_SUBSCRIPTION_FAILED'
-          });
-        }
-      }
-    );
-
-    // Cancel subscription
-    this.app.post(
-      '/api/v1/subscription/cancel',
-      this.authMiddleware.requireAuth,
-      async (req: AuthenticatedRequest, res: Response) => {
-        try {
-          const userId = req.user!.id;
-          const { immediate } = req.body;
-
-          if (!this.commerceAgent) {
-            return res.status(503).json({
-              success: false,
-              error: 'Commerce service unavailable',
-              code: 'SERVICE_UNAVAILABLE'
-            });
-          }
-
-          const result = await this.commerceAgent.cancelSubscription(userId, immediate === true);
-
-          if (!result.success) {
-            return res.status(400).json({
-              success: false,
-              error: result.error,
-              code: 'CANCEL_SUBSCRIPTION_FAILED'
-            });
-          }
-
-          res.json({
-            success: true,
-            data: {
-              subscription: result.subscription,
-              cancelled: true,
-              effectiveDate: immediate ? new Date().toISOString() : result.subscription?.current_period_end
-            }
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          this.logger.error('Cancel subscription failed', { error: errorMessage });
-          res.status(500).json({
-            success: false,
-            error: errorMessage,
-            code: 'CANCEL_SUBSCRIPTION_FAILED'
-          });
-        }
-      }
-    );
-
-    // Upgrade/change plan
-    this.app.post(
-      '/api/v1/subscription/upgrade',
-      this.authMiddleware.requireAuth,
-      async (req: AuthenticatedRequest, res: Response) => {
-        try {
-          const userId = req.user!.id;
-          const { planId } = req.body;
-
-          if (!planId) {
-            return res.status(400).json({
-              success: false,
-              error: 'Plan ID is required',
-              code: 'MISSING_PLAN_ID'
-            });
-          }
-
-          if (!this.commerceAgent) {
-            return res.status(503).json({
-              success: false,
-              error: 'Commerce service unavailable',
-              code: 'SERVICE_UNAVAILABLE'
-            });
-          }
-
-          const result = await this.commerceAgent.changePlan(userId, planId);
-
-          if (!result.success) {
-            return res.status(400).json({
-              success: false,
-              error: result.error,
-              code: 'CHANGE_PLAN_FAILED'
-            });
-          }
-
-          res.json({
-            success: true,
-            data: {
-              subscription: result.subscription,
-              planChanged: true
-            }
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          this.logger.error('Change plan failed', { error: errorMessage });
-          res.status(500).json({
-            success: false,
-            error: errorMessage,
-            code: 'CHANGE_PLAN_FAILED'
-          });
-        }
-      }
-    );
-
-    // Get subscription usage
-    this.app.get(
-      '/api/v1/subscription/usage',
-      this.authMiddleware.requireAuth,
-      async (req: AuthenticatedRequest, res: Response) => {
-        try {
-          const userId = req.user!.id;
-
-          // Get subscription
-          const { data: subscription } = await this.supabase
-            .from('subscriptions')
-            .select('plan_id, status')
-            .eq('user_id', userId)
-            .eq('status', 'active')
-            .single();
-
-          // Get usage stats
-          const { count: storyCount } = await this.supabase
-            .from('stories')
-            .select('*', {count: 'exact', head: true})
-            .eq('creator_user_id', userId);
-
-          const { count: characterCount } = await this.supabase
-            .from('characters')
-            .select('*', {count: 'exact', head: true})
-            .eq('creator_user_id', userId);
-
-          const planId = subscription?.plan_id || 'free';
-          const isPro = planId !== 'free';
-
-          res.json({
-            success: true,
-            data: {
-              plan: planId,
-              usage: {
-                stories: {
-                  created: storyCount || 0,
-                  limit: isPro ? 'unlimited' : 2
-                },
-                characters: {
-                  created: characterCount || 0,
-                  limit: isPro ? 'unlimited' : 10
-                }
-              },
-              subscription: subscription ? {
-                status: subscription.status,
-                planId: subscription.plan_id
-              } : null
-            }
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          this.logger.error('Get subscription usage failed', { error: errorMessage });
-          res.status(500).json({
-            success: false,
-            error: errorMessage,
-            code: 'GET_USAGE_FAILED'
-          });
-        }
-      }
-    );
-
-    // ==========================================================================
-    // STORY PACKS ENDPOINTS (Category 19)
-    // ==========================================================================
-
-    // Buy story pack
-    this.app.post(
-      '/api/v1/story-packs/buy',
-      this.authMiddleware.requireAuth,
-      async (req: AuthenticatedRequest, res: Response) => {
-        try {
-          const userId = req.user!.id;
-          const { packType } = req.body;
-
-          if (!packType || !['5_pack', '10_pack', '25_pack'].includes(packType)) {
-            return res.status(400).json({
-              success: false,
-              error: 'Invalid pack type. Must be 5_pack, 10_pack, or 25_pack',
-              code: 'INVALID_PACK_TYPE'
-            });
-          }
-
-          if (!this.commerceAgent) {
-            return res.status(503).json({
-              success: false,
-              error: 'Commerce service unavailable',
-              code: 'SERVICE_UNAVAILABLE'
-            });
-          }
-
-          const checkout = await this.commerceAgent.createStoryPackCheckout(userId, packType);
-
-          res.json({
-            success: true,
-            data: {
-              sessionId: checkout.sessionId,
-              checkoutUrl: checkout.url,
-              url: checkout.url,
-              expiresAt: checkout.expiresAt,
-              packType,
-              stories: packType === '5_pack' ? 5 : packType === '10_pack' ? 10 : 25
-            }
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          this.logger.error('Story pack purchase failed', { error: errorMessage });
-          res.status(500).json({
-            success: false,
-            error: errorMessage,
-            code: 'STORY_PACK_PURCHASE_FAILED'
-          });
-        }
-      }
-    );
-
-    // Get user's story packs
-    this.app.get(
-      '/api/v1/users/me/story-packs',
-      this.authMiddleware.requireAuth,
-      async (req: AuthenticatedRequest, res: Response) => {
-        try {
-          const userId = req.user!.id;
-
-          const { data: packs, error } = await this.supabase
-            .from('story_packs')
-            .select('id, pack_type, stories_remaining, purchased_at, expires_at')
-            .eq('user_id', userId)
-            .gt('stories_remaining', 0)
-            .order('purchased_at', { ascending: false });
-
-          if (error) throw error;
-
-          // Get total available credits
-          const { data: totalCredits } = await this.supabase
-            .rpc('get_total_pack_credits', { p_user_id: userId });
-
-          res.json({
-            success: true,
-            data: {
-              packs: packs || [],
-              totalAvailable: totalCredits || 0,
-              summary: {
-                active: packs?.filter(p => !p.expires_at || new Date(p.expires_at) > new Date()).length || 0,
-                totalStories: totalCredits || 0
-              }
-            }
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          this.logger.error('Get story packs failed', { error: errorMessage });
-          res.status(500).json({
-            success: false,
-            error: errorMessage,
-            code: 'GET_STORY_PACKS_FAILED'
-          });
-        }
-      }
-    );
-
-    // ==========================================================================
-    // GIFT CARDS ENDPOINTS (Category 20)
-    // ==========================================================================
-
-    // Purchase gift card
-    this.app.post(
-      '/api/v1/gift-cards/purchase',
-      this.authMiddleware.requireAuth,
-      async (req: AuthenticatedRequest, res: Response) => {
-        try {
-          const userId = req.user!.id;
-          const { giftCardType, type } = req.body;
-          const cardType = giftCardType || type;
-
-          if (!cardType || !['1_month', '3_month', '6_month', '12_month'].includes(cardType)) {
-            return res.status(400).json({
-              success: false,
-              error: 'Invalid gift card type. Must be 1_month, 3_month, 6_month, or 12_month',
-              code: 'INVALID_GIFT_CARD_TYPE'
-            });
-          }
-
-          if (!this.commerceAgent) {
-            return res.status(503).json({
-              success: false,
-              error: 'Commerce service unavailable',
-              code: 'SERVICE_UNAVAILABLE'
-            });
-          }
-
-          const checkout = await (this.commerceAgent as any).createGiftCardCheckout(userId, cardType);
-
-          res.json({
-            success: true,
-            data: {
-              sessionId: checkout.sessionId,
-              url: checkout.url,
-              checkoutUrl: checkout.url,
-              expiresAt: checkout.expiresAt,
-              giftCardType: cardType,
-              months: cardType === '1_month' ? 1 : cardType === '3_month' ? 3 : cardType === '6_month' ? 6 : 12
-            }
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          this.logger.error('Gift card purchase failed', { error: errorMessage });
-          res.status(500).json({
-            success: false,
-            error: errorMessage,
-            code: 'GIFT_CARD_PURCHASE_FAILED'
-          });
-        }
-      }
-    );
-
-    // Redeem gift card
-    this.app.post(
-      '/api/v1/gift-cards/redeem',
-      this.authMiddleware.requireAuth,
-      async (req: AuthenticatedRequest, res: Response) => {
-        try {
-          const userId = req.user!.id;
-          const { code } = req.body;
-
-          if (!code) {
-            return res.status(400).json({
-              success: false,
-              error: 'Gift card code is required',
-              code: 'MISSING_CODE'
-            });
-          }
-
-          if (!this.commerceAgent) {
-            return res.status(503).json({
-              success: false,
-              error: 'Commerce service unavailable',
-              code: 'SERVICE_UNAVAILABLE'
-            });
-          }
-
-          const result = await (this.commerceAgent as any).redeemGiftCard(userId, code);
-
-          if (!result.success) {
-            return res.status(400).json({
-              success: false,
-              error: result.error,
-              code: 'REDEEM_FAILED'
-            });
-          }
-
-          res.json({
-            success: true,
-            data: {
-              monthsAdded: result.data?.monthsAdded,
-              subscriptionExtendedTo: result.data?.subscriptionExtendedTo,
-              message: `Gift card redeemed! Subscription extended by ${result.data?.monthsAdded} month(s).`
-            }
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          this.logger.error('Gift card redemption failed', { error: errorMessage });
-          res.status(500).json({
-            success: false,
-            error: errorMessage,
-            code: 'REDEEM_FAILED'
-          });
-        }
-      }
-    );
-
-    // Validate gift card code
-    this.app.get(
-      '/api/v1/gift-cards/:code/validate',
-      this.authMiddleware.requireAuth,
-      async (req: AuthenticatedRequest, res: Response) => {
-        try {
-          const { code } = req.params;
-
-          if (!this.commerceAgent) {
-            return res.status(503).json({
-              success: false,
-              error: 'Commerce service unavailable',
-              code: 'SERVICE_UNAVAILABLE'
-            });
-          }
-
-          const validation = await (this.commerceAgent as any).validateGiftCard(code);
-
-          if (!validation.valid) {
-            // Return 404 for not found, 400 for invalid/expired/redeemed
-            const statusCode = validation.error === 'Gift card not found' ? 404 : 400;
-            return res.status(statusCode).json({
-              success: false,
-              error: validation.error,
-              code: 'INVALID_GIFT_CARD'
-            });
-          }
-
-          res.json({
-            success: true,
-            data: {
-              valid: true,
-              giftCard: validation.giftCard
-            }
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          this.logger.error('Gift card validation failed', { error: errorMessage });
-          res.status(500).json({
-            success: false,
-            error: errorMessage,
-            code: 'VALIDATION_FAILED'
-          });
-        }
-      }
-    );
-
-    // ==========================================================================
-    // FEEDBACK ENDPOINTS (Category 21)
-    // ==========================================================================
-
-    // Submit story feedback
-    this.app.post(
-      '/api/v1/stories/:id/feedback',
-      this.authMiddleware.requireAuth,
-      async (req: AuthenticatedRequest, res: Response) => {
-        try {
-          const userId = req.user!.id;
-          const storyId = req.params.id;
-          const { sentiment, rating, message } = req.body;
-
-          if (!sentiment || !['positive', 'neutral', 'negative'].includes(sentiment)) {
-            return res.status(400).json({
-              success: false,
-              error: 'Sentiment must be positive, neutral, or negative',
-              code: 'INVALID_SENTIMENT'
-            });
-          }
-
-          if (rating && (rating < 1 || rating > 5)) {
-            return res.status(400).json({
-              success: false,
-              error: 'Rating must be between 1 and 5',
-              code: 'INVALID_RATING'
-            });
-          }
-
-          // Upsert feedback (user can update their feedback)
-          const { data: feedback, error } = await this.supabase
-            .from('story_feedback')
-            .upsert({
-              story_id: storyId,
-              user_id: userId,
-              sentiment,
-              rating: rating || null,
-              message: message || null,
-              updated_at: new Date().toISOString()
-            }, {
-              onConflict: 'story_id,user_id',
-              ignoreDuplicates: false
-            })
-            .select()
-            .single();
-
-          if (error) throw error;
-
-          // Check for negative feedback alert (3+ negative in 24h)
-          if (sentiment === 'negative') {
-            const { data: alertCheck } = await this.supabase
-              .rpc('check_negative_feedback_alert');
-
-            const storyAlert = alertCheck?.find((a: any) => a.story_id === storyId);
-            if (storyAlert && storyAlert.negative_count >= 3) {
-              // Send alert email to support
-              try {
-                await this.emailService.sendEmail({
-                  to: process.env.SUPPORT_EMAIL || 'support@storytailor.com',
-                  subject: `Alert: Story ${storyId} received 3+ negative feedback in 24h`,
-                  html: `
-                    <p>Story ${storyId} has received ${storyAlert.negative_count} negative feedback entries in the last 24 hours.</p>
-                    <p>Please review: <a href="${process.env.APP_URL || 'https://storytailor.com'}/admin/stories/${storyId}">View Story</a></p>
-                  `
-                });
-              } catch (emailError) {
-                this.logger.warn('Failed to send negative feedback alert', { error: emailError });
-              }
-            }
-          }
-
-          res.status(201).json({
-            success: true,
-            data: feedback
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          this.logger.error('Submit story feedback failed', { error: errorMessage });
-          res.status(500).json({
-            success: false,
-            error: errorMessage,
-            code: 'SUBMIT_FEEDBACK_FAILED'
-          });
-        }
-      }
-    );
-
-    // Get story feedback summary
-    this.app.get(
-      '/api/v1/stories/:id/feedback/summary',
-      this.authMiddleware.requireAuth,
-      async (req: AuthenticatedRequest, res: Response) => {
-        try {
-          const storyId = req.params.id;
-
-          const { data: summary, error } = await this.supabase
-            .rpc('get_story_feedback_summary', { p_story_id: storyId });
-
-          if (error) throw error;
-
-          res.json({
-            success: true,
-            data: summary || {
-              total: 0,
-              averageRating: 0,
-              sentimentCounts: { positive: 0, neutral: 0, negative: 0 },
-              ratingDistribution: { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 }
-            }
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          this.logger.error('Get story feedback summary failed', { error: errorMessage });
-          res.status(500).json({
-            success: false,
-            error: errorMessage,
-            code: 'GET_FEEDBACK_SUMMARY_FAILED'
-          });
-        }
-      }
-    );
-
-    // Submit character feedback
-    this.app.post(
-      '/api/v1/characters/:id/feedback',
-      this.authMiddleware.requireAuth,
-      async (req: AuthenticatedRequest, res: Response) => {
-        try {
-          const userId = req.user!.id;
-          const characterId = req.params.id;
-          const { sentiment, rating, message } = req.body;
-
-          if (!sentiment || !['positive', 'neutral', 'negative'].includes(sentiment)) {
-            return res.status(400).json({
-              success: false,
-              error: 'Sentiment must be positive, neutral, or negative',
-              code: 'INVALID_SENTIMENT'
-            });
-          }
-
-          if (rating && (rating < 1 || rating > 5)) {
-            return res.status(400).json({
-              success: false,
-              error: 'Rating must be between 1 and 5',
-              code: 'INVALID_RATING'
-            });
-          }
-
-          // Upsert feedback (user can update their feedback)
-          const { data: feedback, error } = await this.supabase
-            .from('character_feedback')
-            .upsert({
-              character_id: characterId,
-              user_id: userId,
-              sentiment,
-              rating: rating || null,
-              message: message || null,
-              updated_at: new Date().toISOString()
-            }, {
-              onConflict: 'character_id,user_id',
-              ignoreDuplicates: false
-            })
-            .select()
-            .single();
-
-          if (error) throw error;
-
-          // Check for negative feedback alert (3+ negative in 24h)
-          if (sentiment === 'negative') {
-            const { data: alertCheck } = await this.supabase
-              .rpc('check_negative_feedback_alert');
-
-            const characterAlert = alertCheck?.find((a: any) => a.character_id === characterId);
-            if (characterAlert && characterAlert.character_negative_count >= 3) {
-              // Send alert email to support
-              try {
-                await this.emailService.sendEmail({
-                  to: process.env.SUPPORT_EMAIL || 'support@storytailor.com',
-                  subject: `Alert: Character ${characterId} received 3+ negative feedback in 24h`,
-                  html: `
-                    <p>Character ${characterId} has received ${characterAlert.character_negative_count} negative feedback entries in the last 24 hours.</p>
-                    <p>Please review: <a href="${process.env.APP_URL || 'https://storytailor.com'}/admin/characters/${characterId}">View Character</a></p>
-                  `
-                });
-              } catch (emailError) {
-                this.logger.warn('Failed to send negative feedback alert', { error: emailError });
-              }
-            }
-          }
-
-          res.status(201).json({
-            success: true,
-            data: feedback
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          this.logger.error('Submit character feedback failed', { error: errorMessage });
-          res.status(500).json({
-            success: false,
-            error: errorMessage,
-            code: 'SUBMIT_FEEDBACK_FAILED'
-          });
-        }
-      }
-    );
-
-    // Get character feedback summary
-    this.app.get(
-      '/api/v1/characters/:id/feedback/summary',
-      this.authMiddleware.requireAuth,
-      async (req: AuthenticatedRequest, res: Response) => {
-        try {
-          const characterId = req.params.id;
-
-          const { data: summary, error } = await this.supabase
-            .rpc('get_character_feedback_summary', { p_character_id: characterId });
-
-          if (error) throw error;
-
-          res.json({
-            success: true,
-            data: summary || {
-              total: 0,
-              averageRating: 0,
-              sentimentCounts: { positive: 0, neutral: 0, negative: 0 },
-              ratingDistribution: { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 }
-            }
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          this.logger.error('Get character feedback summary failed', { error: errorMessage });
-          res.status(500).json({
-            success: false,
-            error: errorMessage,
-            code: 'GET_FEEDBACK_SUMMARY_FAILED'
-          });
-        }
-      }
-    );
-
-    // ==========================================================================
-    // A2A PROTOCOL ENDPOINTS (Category 18)
-    // ==========================================================================
-
-      // POST /a2a/webhook - Webhook notifications
-      this.app.post('/a2a/webhook', async (req: Request, res: Response) => {
-        try {
-          if (!this.a2aAdapter) {
-            return res.status(503).json({
-              error: 'A2A adapter not available',
-              message: 'A2A adapter not initialized'
-            });
-          }
-          await this.a2aAdapter.handleWebhook(req.body, req.headers);
-          res.json({ success: true });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          this.logger.error('A2A webhook failed', { error: errorMessage });
-          res.status(500).json({
-            error: 'Failed to process webhook',
-            message: errorMessage
-          });
-        }
-      });
-
-      this.logger.info('A2A routes registered');
-    } catch (error) {
-      this.logger.error('Failed to setup A2A routes', { error });
-      // Don't throw - allow other routes to work even if A2A fails
-    }
+    this.logger.info('A2A routes disabled');
   }
+
 
   /**
    * Initialize AuthAgent (must be called after constructor, before using auth routes)

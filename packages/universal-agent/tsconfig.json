@@ -24,7 +24,8 @@
     "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
-      "@alexa-multi-agent/*": ["../*"]
+      "@alexa-multi-agent/*": ["../*"],
+      "@storytailor/*": ["../*"]
     }
   },
   "include": [

@@ -1,5 +1,7 @@
 # REST API — Storytailor ID Endpoints — Complete Reference
 
+> **Contract Precedence (Product REST API)**: Treat `docs/api/REST_API_EXPERIENCE_MASTER.md` as canonical for the product REST API contract.
+
 **Date**: December 26, 2025  
 **Base URL**: `https://api.storytailor.dev/api/v1/storytailor-ids`  
 **Version**: 1.0

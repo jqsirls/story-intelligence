@@ -1,5 +1,16 @@
 import { Logger } from 'winston';
 
+type AccessibilityPrefs = {
+  screenReader?: boolean;
+  highContrast?: boolean;
+  largeText?: boolean;
+  reducedMotion?: boolean;
+  colorBlindFriendly?: boolean;
+  textToSpeech?: boolean;
+  reducedAudio?: boolean;
+  voiceSpeed?: number;
+};
+
 /**
  * Web Chat-specific optimizations for rich text and multimedia interactions
  */
@@ -214,7 +225,7 @@ export class WebChatOptimizations {
    * Generate accessibility enhancements
    */
   generateAccessibilityEnhancements(context: WebChatContext): AccessibilityConfig {
-    const userPrefs = context.userPreferences?.accessibility || {};
+    const userPrefs: AccessibilityPrefs = (context.userPreferences?.accessibility as AccessibilityPrefs) || {};
 
     return {
       screenReader: {

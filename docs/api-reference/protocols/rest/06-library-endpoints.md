@@ -1,10 +1,12 @@
 # REST API — Library Endpoints — Exhaustive
 
+> **Contract Precedence (Product REST API)**: Treat `docs/api/REST_API_EXPERIENCE_MASTER.md` as canonical for the product REST API contract.
+
 Source of truth:
-- Library routes: [`packages/universal-agent/src/api/RESTAPIGateway.ts`](../../../../packages/universal-agent/src/api/RESTAPIGateway.ts)
+- Library routes: [`lambda-deployments/universal-agent/src/api/RESTAPIGateway.ts`](../../../../lambda-deployments/universal-agent/src/api/RESTAPIGateway.ts)
 
 All library endpoints require:
-- `Authorization: Bearer [REDACTED_JWT]
+- `Authorization: Bearer [REDACTED_JWT]`
 
 ## 1) List libraries — `GET /api/v1/libraries`
 
@@ -154,9 +156,9 @@ The handler:
 }
 ```
 
-## 5) Remove library member — `POST /api/v1/libraries/:id/members/:userId/remove`
+## 5) Remove library member — `DELETE /api/v1/libraries/:id/members/:userId/remove`
 
-Removes a member from a library via `DeletionService.removeLibraryMember`.
+Removes a member from a library. Requires bearer auth and owner/admin role. Params validated with Joi (`id`, `userId` as strings).
 
 ### Path parameters
 
@@ -170,7 +172,37 @@ Removes a member from a library via `DeletionService.removeLibraryMember`.
 ```json
 {
   "success": true,
-  "message": "Library member removed successfully"
+  "message": "Member removed"
+}
+```
+
+#### 401 Unauthorized
+
+```json
+{
+  "success": false,
+  "error": "Auth required",
+  "code": "AUTH_REQUIRED"
+}
+```
+
+#### 403 Forbidden
+
+```json
+{
+  "success": false,
+  "error": "Access denied",
+  "code": "ACCESS_DENIED"
+}
+```
+
+#### 404 Not Found
+
+```json
+{
+  "success": false,
+  "error": "Member not found",
+  "code": "NOT_FOUND"
 }
 ```
 

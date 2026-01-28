@@ -485,7 +485,7 @@ const channel = supabase
 - **OpenAPI Spec**: `api/openapi-specification.yaml`
 - **Story Endpoints**: `docs/api-reference/protocols/rest/03-story-endpoints.md`
 - **Character Endpoints**: `docs/api-reference/protocols/rest/04-character-endpoints.md`
-- **Wized Integration**: `docs/integration-guides/WIZED_COMPLETE_API_REFERENCE.md`
+- **REST API Contract (Product)**: `docs/api/REST_API_EXPERIENCE_MASTER.md`
 
 ---
 

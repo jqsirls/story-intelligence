@@ -509,12 +509,12 @@ class StorytellerAPIError(Exception):
 class StorytellerClient:
     def __init__(
         self,
-        api_key: str,
-        base_url: str = "https://api.storytailor.com/v1",
+        bearer_token: str,
+        base_url: str = "https://api.storytailor.dev/api/v1",
         timeout: int = 30,
         max_retries: int = 3
     ):
-        self.api_key = api_key
+        self.bearer_token = bearer_token
         self.base_url = base_url
         self.timeout = aiohttp.ClientTimeout(total=timeout)
         self.max_retries = max_retries
@@ -524,7 +524,7 @@ class StorytellerClient:
         self.session = aiohttp.ClientSession(
             timeout=self.timeout,
             headers={
-                'Authorization': f'Bearer {self.api_key}',
+                'Authorization': f'Bearer {self.bearer_token}',
                 'Content-Type': 'application/json',
                 'User-Agent': 'Storytailor-Python-Client/1.0.0'
             }

@@ -66,12 +66,11 @@ export const UserSessionSchema = z.object({
   email: z.string().email(),
   alexaPersonId: z.string().optional(),
   isEmailConfirmed: z.boolean(),
-  age: z.number().optional(),
-  parentEmail: z.string().email().optional(),
+  isMinor: z.boolean().optional(),
   isCoppaProtected: z.boolean(),
   parentConsentVerified: z.boolean(),
   lastLoginAt: z.string().datetime().optional(),
-  createdAt: z.string().datetime(),
+  createdAt: z.string().datetime().optional(),
 });
 
 export type UserSession = z.infer<typeof UserSessionSchema>;

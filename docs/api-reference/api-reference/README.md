@@ -2,33 +2,33 @@
 
 > **🚨 BREAKING CHANGES**: Version 4.0.0 deployed with critical age validation fixes - [View Changelog](../CHANGELOG.md)
 
+> **REST API Contract Precedence (Product REST API)**: For the product REST API, the canonical contract is `docs/api/REST_API_EXPERIENCE_MASTER.md`.  
+> This `docs/api-reference/**` section contains legacy and multi-surface reference content and may not match the current product REST gateway.
+
 Complete reference documentation for the Storytailor API. Build Story Intelligence™ powered storytelling experiences with our comprehensive REST API and GraphQL endpoints.
 
 ## 🚀 Getting Started
 
 ### Base URLs
 
-**Production** (Coming Soon)
+**Production** (Product REST API)
 ```
-https://api.storytailor.com/v1
-```
-
-**Staging** (Current Active Endpoint)
-```
-https://sxjwfwffz7.execute-api.us-east-1.amazonaws.com/staging
+https://api.storytailor.dev/api/v1
 ```
 
-**Sandbox** (Development)
+**Staging** (Product REST API)
 ```
-https://sandbox-api.storytailor.com/v1
+https://staging-api.storytailor.dev/api/v1
 ```
+
+**Note**: If this file lists other base URLs elsewhere, treat them as legacy unless they are explicitly verified.
 
 ### Authentication
 
-All API requests require authentication using API keys:
+Product REST API requests require **JWT** authentication:
 
 ```http
-Authorization: Bearer your-api-key-here
+Authorization: Bearer <jwt_token>
 ```
 
 ### Request Format
@@ -41,18 +41,12 @@ Content-Type: application/json
 
 ### Response Format
 
-All responses are returned in JSON format:
+Most product REST responses are returned in JSON format:
 
 ```json
 {
   "success": true,
-  "data": {
-    // Response data
-  },
-  "meta": {
-    "requestId": "req_123456789",
-    "timestamp": "2024-01-15T10:30:00Z"
-  }
+  "data": { /* response data */ }
 }
 ```
 

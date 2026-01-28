@@ -2,9 +2,11 @@
 
 This document covers **every authentication endpoint** and the **exact request/response shapes** used by the production REST gateway.
 
+> **Contract Precedence (Product REST API)**: Treat `docs/api/REST_API_EXPERIENCE_MASTER.md` as canonical for the product REST API contract.
+
 Source of truth:
-- Auth router: [`packages/universal-agent/src/api/AuthRoutes.ts`](../../../../packages/universal-agent/src/api/AuthRoutes.ts)
-- Auth middleware usage in gateway routes: [`packages/universal-agent/src/api/RESTAPIGateway.ts`](../../../../packages/universal-agent/src/api/RESTAPIGateway.ts)
+- Auth router: [`lambda-deployments/universal-agent/src/api/AuthRoutes.ts`](../../../../lambda-deployments/universal-agent/src/api/AuthRoutes.ts)
+- Auth middleware usage in gateway routes: [`lambda-deployments/universal-agent/src/api/RESTAPIGateway.ts`](../../../../lambda-deployments/universal-agent/src/api/RESTAPIGateway.ts)
 
 ## Base path
 

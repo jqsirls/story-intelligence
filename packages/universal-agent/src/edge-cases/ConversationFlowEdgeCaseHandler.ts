@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { ConversationContext, UserInput, ConversationState, InterruptionContext } from '../types';
+import { ConversationContext, UserInput, InterruptionContext } from '../types';
 
 export interface InterruptionDetection {
   type: 'external' | 'internal' | 'user_initiated' | 'system_initiated';

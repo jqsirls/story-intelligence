@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { ConversationContext, StoryContent, NetworkQuality, OfflineState, SyncResult } from '../types';
+import { ConversationContext, StoryContent, NetworkQuality, OfflineState, SyncResult, ConflictResolution, EdgeCaseError } from '../types';
 
 export interface NetworkResilienceConfig {
   offlineStorageLimit: number;
@@ -19,13 +19,6 @@ export interface OfflineCapability {
   maxOfflineActions: number;
 }
 
-export interface ConflictResolution {
-  strategy: 'merge' | 'overwrite' | 'manual';
-  conflictedFields: string[];
-  resolution: any;
-  timestamp: Date;
-}
-
 export class NetworkResilienceManager extends EventEmitter {
   private isOnline: boolean = true;
   private networkQuality: NetworkQuality = 'excellent';
@@ -43,15 +36,19 @@ export class NetworkResilienceManager extends EventEmitter {
    * Initialize network monitoring and quality detection
    */
   private initializeNetworkMonitoring(): void {
+    const browserWindow = typeof globalThis === 'object'
+      ? (globalThis as { window?: { addEventListener?: (...args: unknown[]) => void } }).window
+      : undefined;
+
     // Monitor connection status
     this.connectionMonitor = setInterval(() => {
       this.checkConnectionQuality();
     }, 5000);
 
     // Listen for network events
-    if (typeof window !== 'undefined') {
-      window.addEventListener('online', () => this.handleOnlineEvent());
-      window.addEventListener('offline', () => this.handleOfflineEvent());
+    if (browserWindow?.addEventListener) {
+      browserWindow.addEventListener('online', () => this.handleOnlineEvent());
+      browserWindow.addEventListener('offline', () => this.handleOfflineEvent());
     }
   }
 
@@ -63,7 +60,6 @@ export class NetworkResilienceManager extends EventEmitter {
       const startTime = Date.now();
       const response = await fetch('/api/health', {
         method: 'HEAD',
-        cache: 'no-cache',
         signal: AbortSignal.timeout(this.config.connectionTimeoutMs)
       });
       
@@ -229,10 +225,13 @@ export class NetworkResilienceManager extends EventEmitter {
     );
 
     return {
+      success: failed.length === 0,
+      syncedChannels: synced,
+      conflicts,
+      errors: [] as EdgeCaseError[],
       totalActions: synced.length + failed.length,
       syncedActions: synced.length,
       failedActions: failed.length,
-      conflicts: conflicts.length,
       conflictResolutions: conflicts
     };
   }
@@ -240,7 +239,7 @@ export class NetworkResilienceManager extends EventEmitter {
   /**
    * Sync individual action with server
    */
-  private async syncAction(queuedAction: any): Promise<{ hasConflict: boolean; serverData?: any }> {
+  private async syncAction(queuedAction: any): Promise<{ hasConflict: boolean; serverData?: unknown }> {
     const response = await fetch('/api/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -251,9 +250,9 @@ export class NetworkResilienceManager extends EventEmitter {
       throw new Error(`Sync failed: ${response.statusText}`);
     }
 
-    const result = await response.json();
+    const result: { conflict?: boolean; serverData?: unknown } = await response.json();
     return {
-      hasConflict: result.conflict,
+      hasConflict: Boolean(result.conflict),
       serverData: result.serverData
     };
   }
@@ -265,34 +264,34 @@ export class NetworkResilienceManager extends EventEmitter {
     localAction: any,
     serverData: any
   ): Promise<ConflictResolution> {
-    // Implement intelligent conflict resolution
     const strategy = this.determineResolutionStrategy(localAction, serverData);
     
-    let resolution: any;
+    let resolvedValue: unknown = serverData;
     const conflictedFields: string[] = [];
 
-    switch (strategy) {
-      case 'merge':
-        resolution = this.mergeData(localAction.data, serverData);
-        conflictedFields.push(...this.findConflictedFields(localAction.data, serverData));
-        break;
-      
-      case 'overwrite':
-        resolution = localAction.data; // Prefer local changes
-        break;
-      
-      case 'manual':
-        // Queue for manual resolution
-        this.emit('manualResolutionRequired', { localAction, serverData });
-        resolution = null;
-        break;
+    if (strategy === 'merge') {
+      resolvedValue = this.mergeData(localAction.data, serverData);
+      conflictedFields.push(...this.findConflictedFields(localAction.data, serverData));
+    } else if (strategy === 'overwrite') {
+      resolvedValue = localAction.data;
+    } else {
+      this.emit('manualResolutionRequired', { localAction, serverData });
     }
 
+    const conflictField = conflictedFields[0] || 'general';
+    const resolutionMode: ConflictResolution['resolution'] =
+      strategy === 'overwrite' ? 'latest_wins' :
+      strategy === 'merge' ? 'merge' :
+      'user_choice';
+
+    const conflictType: ConflictResolution['conflictType'] =
+      strategy === 'overwrite' ? 'version_conflict' : 'data_mismatch';
+
     return {
-      strategy,
-      conflictedFields,
-      resolution,
-      timestamp: new Date()
+      field: conflictField,
+      conflictType,
+      resolution: resolutionMode,
+      resolvedValue
     };
   }
 
@@ -519,13 +518,17 @@ export class NetworkResilienceManager extends EventEmitter {
    * Clean up resources
    */
   destroy(): void {
+    const browserWindow = typeof globalThis === 'object'
+      ? (globalThis as { window?: { removeEventListener?: (...args: unknown[]) => void } }).window
+      : undefined;
+
     if (this.connectionMonitor) {
       clearInterval(this.connectionMonitor);
     }
     
-    if (typeof window !== 'undefined') {
-      window.removeEventListener('online', this.handleOnlineEvent);
-      window.removeEventListener('offline', this.handleOfflineEvent);
+    if (browserWindow?.removeEventListener) {
+      browserWindow.removeEventListener('online', this.handleOnlineEvent);
+      browserWindow.removeEventListener('offline', this.handleOfflineEvent);
     }
     
     this.removeAllListeners();

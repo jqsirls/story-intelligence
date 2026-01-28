@@ -10,8 +10,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "lint": "eslint src --ext ts",
-    "clean": "rm -rf dist",
-    "prepare": "npm run build"
+    "clean": "rm -rf dist"
   },
   "dependencies": {
     "@aws-sdk/client-eventbridge": "^3.0.0",

@@ -369,13 +369,12 @@ export class AuthAgent {
         userId: user.id,
         email: user.email,
         alexaPersonId: user.alexa_person_id || undefined,
-        isEmailConfirmed: user.email_confirmed,
-        age: user.age || undefined,
-        parentEmail: user.parent_email || undefined,
-        isCoppaProtected: user.is_coppa_protected,
-        parentConsentVerified: user.parent_consent_verified,
+        isEmailConfirmed: user.email_confirmed ?? false,
+        isMinor: user.is_minor ?? undefined,
+        isCoppaProtected: user.is_coppa_protected ?? false,
+        parentConsentVerified: user.parent_consent_verified ?? false,
         lastLoginAt: user.last_login_at || undefined,
-        createdAt: user.created_at,
+        createdAt: user.created_at || undefined,
       };
 
     } catch (error) {
@@ -548,13 +547,12 @@ export class AuthAgent {
         userId: user.id,
         email: user.email,
         alexaPersonId: user.alexa_person_id || undefined,
-        isEmailConfirmed: user.email_confirmed,
-        age: user.age || undefined,
-        parentEmail: user.parent_email || undefined,
-        isCoppaProtected: user.is_coppa_protected,
-        parentConsentVerified: user.parent_consent_verified,
+        isEmailConfirmed: user.email_confirmed ?? false,
+        isMinor: user.is_minor ?? undefined,
+        isCoppaProtected: user.is_coppa_protected ?? false,
+        parentConsentVerified: user.parent_consent_verified ?? false,
         lastLoginAt: user.last_login_at || undefined,
-        createdAt: user.created_at,
+        createdAt: user.created_at || undefined,
       };
 
     } catch (error) {
@@ -670,8 +668,8 @@ export class AuthAgent {
         p_agent_name: 'AuthAgent',
         p_action: action,
         p_payload: payload,
-        p_session_id: null,
-        p_correlation_id: payload.correlationId || null,
+        p_session_id: undefined,
+        p_correlation_id: payload.correlationId ?? undefined,
       });
     } catch (error) {
       this.logger.error('Failed to log audit event', { 

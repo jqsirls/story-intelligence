@@ -3,8 +3,8 @@ import { Resource } from '@opentelemetry/resources';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-otlp-http';
-import { OTLPMetricExporter } from '@opentelemetry/exporter-otlp-http';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
 import { trace, context, SpanStatusCode, SpanKind } from '@opentelemetry/api';
 import { Logger } from 'winston';
 

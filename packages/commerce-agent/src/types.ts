@@ -49,7 +49,7 @@ export interface OrganizationAccount {
   subscriptionId: string;
   seatCount: number;
   usedSeats: number;
-  createdAt: string;
+  createdAt: string | null;
 }
 
 export interface InviteDiscount {
@@ -58,19 +58,19 @@ export interface InviteDiscount {
   type: 'user_invite' | 'story_transfer';
   discountPercentage: number;
   validUntil: string;
-  usedBy?: string;
+  usedBy?: string | null;
   createdBy: string;
-  createdAt: string;
+  createdAt: string | null;
 }
 
 export interface ReferralTracking {
   id: string;
   referrerId: string;
-  refereeId: string;
-  discountCode: string;
+  refereeId?: string | null;
+  discountCode?: string | null;
   rewardAmount: number;
   status: 'pending' | 'completed' | 'expired';
-  createdAt: string;
+  createdAt: string | null;
 }
 
 export interface InvoiceData {

@@ -1,6 +1,7 @@
 // Universal Agent main entry point
 export { UniversalStorytellerAPI } from './UniversalStorytellerAPI';
 export { UniversalAPIServer } from './api/UniversalAPIServer';
+export { RESTAPIGateway } from './api/RESTAPIGateway';
 
 // Re-export types for easy access
 export type {

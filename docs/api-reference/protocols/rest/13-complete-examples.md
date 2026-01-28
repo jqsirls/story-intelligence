@@ -7,6 +7,8 @@ These examples are copy/paste-ready flows that cover:
 - conversation lifecycle
 - account export/deletion
 
+> **Contract Precedence (Product REST API)**: Treat `docs/api/REST_API_EXPERIENCE_MASTER.md` as canonical for the product REST API contract.
+
 ## Example 1 — Register → Login → Me
 
 ### 1.1 Register

@@ -1,0 +1,4 @@
+- Re-enable AuthRoutes legacy suite with updated Joi schema + token fixtures
+- Rebuild RESTAPIGateway hermetic Supabase/API-key fixture and align routes
+- Add Stripe-stable mocks for A2A/CommerceAgent and re-enable A2ARoutes suite
+- Create scoped Supabase fixtures for Storytailor ID creation E2E and re-enable

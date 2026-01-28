@@ -10,10 +10,10 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@storytailor/shared-types": "workspace:*",
     "winston": "^3.8.2",
     "jsonwebtoken": "^9.0.0",
-    "bcrypt": "^5.1.0"
+    "bcrypt": "^5.1.0",
+    "@alexa-multi-agent/shared-types": "workspace:*"
   },
   "optionalDependencies": {
     "web3": "^4.0.0",

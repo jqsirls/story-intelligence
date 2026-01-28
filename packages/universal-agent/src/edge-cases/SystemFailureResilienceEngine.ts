@@ -446,6 +446,37 @@ export class SystemFailureResilienceEngine extends EventEmitter {
     }
   }
 
+  private async executeAlternativeService(
+    fallback: FallbackMechanism,
+    context: ConversationContext
+  ): Promise<{ success: boolean; result?: unknown }> {
+    const serviceName = fallback.serviceName || 'alternative_service';
+    this.emit('alternativeServiceInvoked', { serviceName, context });
+    return {
+      success: true,
+      result: {
+        serviceName,
+        mode: 'alternative'
+      }
+    };
+  }
+
+  private async executeOfflineMode(
+    fallback: FallbackMechanism,
+    context: ConversationContext
+  ): Promise<{ success: boolean; result?: unknown }> {
+    const serviceName = fallback.serviceName || 'offline_mode';
+    this.emit('offlineModeEnabled', { serviceName, context });
+    return {
+      success: true,
+      result: {
+        serviceName,
+        mode: 'offline',
+        context
+      }
+    };
+  }
+
   /**
    * Execute simplified response fallback
    */

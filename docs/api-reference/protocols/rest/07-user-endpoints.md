@@ -2,8 +2,10 @@
 
 This section documents user account operations, including COPPA-related flows where applicable.
 
+> **Contract Precedence (Product REST API)**: Treat `docs/api/REST_API_EXPERIENCE_MASTER.md` as canonical for the product REST API contract.
+
 Source of truth:
-- Account routes: [`packages/universal-agent/src/api/RESTAPIGateway.ts`](../../../../packages/universal-agent/src/api/RESTAPIGateway.ts)
+- Account routes: [`lambda-deployments/universal-agent/src/api/RESTAPIGateway.ts`](../../../../lambda-deployments/universal-agent/src/api/RESTAPIGateway.ts)
 - Auth/COPPA fields: `rest/01-authentication.md`
 
 ## 1) Request account deletion — `POST /api/v1/account/delete`

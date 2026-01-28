@@ -1,4 +1,8 @@
-import { Database, UserRole } from '@alexa-multi-agent/shared-types';
+import { Database } from '@alexa-multi-agent/shared-types';
+export type { LibrarySupabaseClient } from './db/client';
+
+export type UserRole = 'Owner' | 'Admin' | 'Editor' | 'Viewer';
+export type MoodType = 'happy' | 'sad' | 'scared' | 'angry' | 'neutral';
 
 // Library-specific types
 export interface Library {
@@ -18,7 +22,7 @@ export interface LibraryPermission {
   user_id: string;
   role: UserRole;
   granted_by: string;
-  created_at: string;
+  created_at: string | null;
 }
 
 export interface LibraryInsights {
@@ -115,10 +119,10 @@ export interface LibraryAgentConfig {
 
 export interface LibraryOperationContext {
   user_id: string;
-  session_id?: string;
-  correlation_id?: string;
-  ip_address?: string;
-  user_agent?: string;
+  session_id?: string | null;
+  correlation_id?: string | null;
+  ip_address?: string | null;
+  user_agent?: string | null;
 }
 
 // Error types

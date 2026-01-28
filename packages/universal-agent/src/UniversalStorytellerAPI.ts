@@ -1,19 +1,42 @@
 // Universal Storyteller API that can be embedded anywhere
 // Router imported dynamically to avoid module resolution issues in Lambda
 // import { Router } from '@alexa-multi-agent/router';
-// @ts-ignore - Event-system is bundled at runtime, types may not be available during compilation
 import { EventPublisher } from '@alexa-multi-agent/event-system';
 import { Logger } from 'winston';
 // TODO: Re-enable when @alexa-multi-agent/kid-communication-intelligence package is available
 // import { KidCommunicationIntelligenceService, AudioInput as KidAudioInput, TranscriptionResult, ChildProfile } from '@alexa-multi-agent/kid-communication-intelligence';
 
-// Temporary stub types to avoid compilation errors
-type KidCommunicationIntelligenceService = any;
-type KidAudioInput = any;
-type TranscriptionResult = any;
-type ChildProfile = any;
+interface KidCommunicationIntelligenceClient {
+  initialize: () => Promise<void>;
+  preprocessAudio: (audio: AudioInput, profile?: ChildProfile) => Promise<AudioInput>;
+  enhanceTranscription: (
+    transcription: { text: string; confidence?: number },
+    audio: AudioInput,
+    profile?: ChildProfile,
+    context?: Record<string, unknown>
+  ) => Promise<{
+    text: string;
+    confidence: number;
+    inventedWords?: unknown[];
+    emotionalContext?: unknown;
+    developmentalStage?: unknown;
+  }>;
+}
 
-import { FEATURES } from '@alexa-multi-agent/api-contract';
+type KidCommunicationIntelligenceCtor = new (
+  config: Record<string, unknown>,
+  logger?: Logger
+) => KidCommunicationIntelligenceClient;
+const KidCommunicationIntelligenceServiceCtor: KidCommunicationIntelligenceCtor | null = null;
+type KidAudioInput = AudioInput;
+type TranscriptionResult = {
+  text: string;
+  confidence: number;
+  language?: string;
+};
+type ChildProfile = Record<string, unknown>;
+
+import { FEATURES } from '@storytailor/api-contract';
 
 export interface ConversationConfig {
   platform: 'web' | 'mobile' | 'alexa' | 'google' | 'apple' | 'api' | 'custom';
@@ -71,7 +94,7 @@ export class UniversalStorytellerAPI {
   private eventPublisher: EventPublisher;
   private logger: Logger;
   private activeSessions: Map<string, ConversationSession> = new Map();
-  private kidIntelligence: KidCommunicationIntelligenceService | null = null;
+  private kidIntelligence: KidCommunicationIntelligenceClient | null = null;
   private kidIntelligenceEnabled: boolean = false;
 
   constructor(
@@ -101,11 +124,17 @@ export class UniversalStorytellerAPI {
    */
   private async initializeKidIntelligence(): Promise<void> {
     try {
+      if (!KidCommunicationIntelligenceServiceCtor) {
+        this.logger.warn('Kid Communication Intelligence Service module not available');
+        this.kidIntelligenceEnabled = false;
+        return;
+      }
+
       const supabaseUrl = process.env.SUPABASE_URL;
       const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
       
       if (supabaseUrl && supabaseKey) {
-        this.kidIntelligence = new KidCommunicationIntelligenceService({
+        this.kidIntelligence = new KidCommunicationIntelligenceServiceCtor({
           enableAudioIntelligence: true,
           enableTestTimeAdaptation: true,
           enableMultimodal: true,
@@ -119,7 +148,7 @@ export class UniversalStorytellerAPI {
           supabaseUrl,
           supabaseKey,
           redisUrl: process.env.REDIS_URL
-        }, this.logger);
+        });
         
         // Initialize the service
         await this.kidIntelligence.initialize();
@@ -160,7 +189,7 @@ export class UniversalStorytellerAPI {
 
     // Log session start
     await this.eventPublisher.publishEvent(
-      'com.storytailor.conversation.started',
+      'com.storytailor.system.agent-started',
       {
         sessionId,
         userId,
@@ -211,7 +240,7 @@ export class UniversalStorytellerAPI {
 
       // Log interaction
       await this.eventPublisher.publishEvent(
-        'com.storytailor.conversation.message',
+        'com.storytailor.system.health-check',
         {
           sessionId,
           userId: session.userId,
@@ -301,14 +330,7 @@ export class UniversalStorytellerAPI {
     let processedAudio: KidAudioInput = {
       data: audioData.data,
       sampleRate: audioData.sampleRate || 16000,
-      channels: 1,
-      format: 'pcm',
-      metadata: {
-        childId: session.userId,
-        age: childProfile?.age,
-        sessionId,
-        timestamp: new Date().toISOString()
-      }
+      format: 'pcm'
     };
 
     if (this.kidIntelligenceEnabled && this.kidIntelligence) {
@@ -328,12 +350,7 @@ export class UniversalStorytellerAPI {
       content: transcription.text,
       metadata: {
         timestamp: new Date().toISOString(),
-        platform: session.platform,
-        originalAudio: true as any, // Type assertion - originalAudio may not be in metadata type
-        confidence: transcription.confidence,
-        inventedWords: transcription.inventedWords,
-        emotionalContext: transcription.emotionalContext,
-        developmentalStage: transcription.developmentalStage
+        platform: session.platform
       }
     };
 
@@ -410,7 +427,7 @@ export class UniversalStorytellerAPI {
 
     // Log session end
     await this.eventPublisher.publishEvent(
-      'com.storytailor.conversation.ended',
+      'com.storytailor.system.agent-stopped',
       {
         sessionId,
         userId: session.userId,
@@ -732,7 +749,7 @@ interface ResponseChunk {
   metadata: any;
 }
 
-interface VoiceResponse {
+export interface VoiceResponse {
   transcription: string;
   textResponse: string;
   audioResponse?: AudioData;
@@ -746,18 +763,18 @@ interface VoiceConfig {
   emotion: string;
 }
 
-interface StoryCreationRequest {
+export interface StoryCreationRequest {
   character: any;
   storyType: string;
 }
 
-interface SmartDeviceConfig {
+export interface SmartDeviceConfig {
   deviceType: string;
   userId: string;
   roomId: string;
 }
 
-interface DeviceConnection {
+export interface DeviceConnection {
   deviceId: string;
   status: string;
 }

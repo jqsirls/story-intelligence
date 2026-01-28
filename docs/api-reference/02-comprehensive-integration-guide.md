@@ -56,34 +56,30 @@ This master guide provides links and summaries of all documentation needed for s
 
 ## 🚀 **Quick Start Guides**
 
+> **Product REST API contract**: Treat `docs/api/REST_API_EXPERIENCE_MASTER.md` as canonical.  
+> The `execute-api` base URL and `/v1/...` examples in this file are legacy and may not match the current product REST gateway.
+
 ### **For Frontend Developers**
 
 #### **Get API Key**
 ```bash
-curl -X POST https://sxjwfwffz7.execute-api.us-east-1.amazonaws.com/staging/v1/auth/register \
+curl -X POST https://staging-api.storytailor.dev/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "dev@yourcompany.com",
-    "password": "SecurePassword123!",
-    "firstName": "Developer",
-    "lastName": "Name",
-    "age": 30,
-    "userType": "parent"
+    "...": "See docs/api/REST_API_EXPERIENCE_MASTER.md for the exact request body"
   }'
 ```
 
 #### **Generate Story**
 ```javascript
-const response = await fetch('https://sxjwfwffz7.execute-api.us-east-1.amazonaws.com/staging/v1/stories/generate', {
+const response = await fetch('https://staging-api.storytailor.dev/api/v1/stories', {
   method: 'POST',
   headers: {
     'Authorization': 'Bearer YOUR_ACCESS_TOKEN',
     'Content-Type': 'application/json'
   },
   body: JSON.stringify({
-    prompt: 'A brave little mouse adventure',
-    ageRange: '6-8',
-    mood: 'adventurous'
+    "...": "See docs/api/REST_API_EXPERIENCE_MASTER.md for story creation inputs"
   })
 });
 

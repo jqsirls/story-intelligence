@@ -6,6 +6,12 @@ import request from 'supertest';
 import { RESTAPIGateway } from '../api/RESTAPIGateway';
 import { Logger } from 'winston';
 
+jest.mock('@alexa-multi-agent/commerce-agent', () => ({
+  CommerceAgent: jest.fn().mockImplementation(() => ({
+    handleA2ATask: jest.fn().mockResolvedValue({ taskId: 'task_1', state: 'submitted' })
+  }))
+}));
+
 describe('A2A Routes', () => {
   let gateway: RESTAPIGateway;
   let mockLogger: Logger;
