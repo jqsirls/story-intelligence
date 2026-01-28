@@ -60,17 +60,36 @@ type SanitizeArrayOptions = {
   allowObject?: boolean
 }
 
-function summarizeCoercionInput(input: unknown): Record<string, unknown> {
-  if (input === null) return { type: 'null' }
-  if (input === undefined) return { type: 'undefined' }
-  if (Array.isArray(input)) return { type: 'array', length: input.length }
-  const valueType = typeof input
-  if (typeof input === 'string') return { type: 'string', length: input.length }
-  if (valueType === 'object') {
-    const keys = Object.keys(input as Record<string, unknown>)
-    return { type: 'object', keyCount: keys.length, keys: keys.slice(0, 5) }
+// Timeboxed coercion signal to avoid long-term prod logging noise.
+const SANITIZE_ARRAY_LOG_UNTIL = Date.parse('2026-02-04T23:59:59Z')
+
+function getCoercionTypeTag(input: unknown): string {
+  if (input === null) return 'null'
+  if (Array.isArray(input)) return 'array'
+  switch (typeof input) {
+    case 'string':
+      return 'string'
+    case 'number':
+      return 'number'
+    case 'boolean':
+      return 'bool'
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      return 'object'
+    default:
+      return 'other'
   }
-  return { type: valueType }
+}
+
+function logSanitizeArrayCoercion(label: string, input: unknown): void {
+  if (Number.isFinite(SANITIZE_ARRAY_LOG_UNTIL) && Date.now() > SANITIZE_ARRAY_LOG_UNTIL) {
+    return
+  }
+  console.warn('[Content Agent] sanitizeArray coerced non-array input', {
+    field: label,
+    type: getCoercionTypeTag(input)
+  })
 }
 
 export function sanitizeArray(
@@ -94,28 +113,16 @@ export function sanitizeArray(
 
   if (typeof input === 'string') {
     const sanitized = sanitizeText(input) || ''
-    console.warn('[Content Agent] sanitizeArray coerced non-array input', {
-      field: label,
-      allowObject,
-      summary: summarizeCoercionInput(input)
-    })
+    logSanitizeArrayCoercion(label, input)
     return sanitized ? [sanitized] : []
   }
 
   if (typeof input === 'object') {
-    console.warn('[Content Agent] sanitizeArray coerced non-array input', {
-      field: label,
-      allowObject,
-      summary: summarizeCoercionInput(input)
-    })
+    logSanitizeArrayCoercion(label, input)
     return allowObject ? [input as Record<string, unknown>] : []
   }
 
-  console.warn('[Content Agent] sanitizeArray coerced non-array input', {
-    field: label,
-    allowObject,
-    summary: summarizeCoercionInput(input)
-  })
+  logSanitizeArrayCoercion(label, input)
   return []
 }
 
