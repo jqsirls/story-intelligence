@@ -28,6 +28,21 @@ if (/tpose/i.test(content)) {
 }
 
 const jsonBlocks = []
+const forbiddenPublicKeys = new Set([
+  'reference_images',
+  'art_prompt',
+  'headshot_prompt',
+  'bodyshot_prompt',
+  'edit_prompt',
+  'prompt_hashes',
+  'headshot_trace_url',
+  'bodyshot_trace_url',
+  'validation_summary',
+  'validation_payload',
+  'failure_codes',
+  'failure_summary',
+  'admin_review_required'
+])
 const blockRegex = /```json\s*([\s\S]*?)```/g
 let match = null
 while ((match = blockRegex.exec(content)) !== null) {
@@ -42,6 +57,22 @@ while ((match = blockRegex.exec(content)) !== null) {
 const receiptFailures = []
 const alphaFailures = []
 const mustHaveFailures = []
+const forbiddenKeyFindings = []
+
+function collectForbiddenKeys(value, pathPrefix = '') {
+  if (!value || typeof value !== 'object') return
+  if (Array.isArray(value)) {
+    value.forEach((entry, index) => collectForbiddenKeys(entry, `${pathPrefix}[${index}]`))
+    return
+  }
+  Object.keys(value).forEach((key) => {
+    const nextPath = pathPrefix ? `${pathPrefix}.${key}` : key
+    if (forbiddenPublicKeys.has(key)) {
+      forbiddenKeyFindings.push(nextPath)
+    }
+    collectForbiddenKeys(value[key], nextPath)
+  })
+}
 
 jsonBlocks.forEach((block) => {
   if (block && Object.prototype.hasOwnProperty.call(block, 'public_snapshot_receipt')) {
@@ -59,6 +90,17 @@ jsonBlocks.forEach((block) => {
         url: receipt.url || null
       })
     }
+    if (receipt?.data) {
+      collectForbiddenKeys(receipt.data, 'public_snapshot_receipt.data')
+    }
+  }
+
+  if (block?.public_character_snapshot) {
+    collectForbiddenKeys(block.public_character_snapshot, 'public_character_snapshot')
+  }
+
+  if (block?.public_character_snapshot_receipt?.data) {
+    collectForbiddenKeys(block.public_character_snapshot_receipt.data, 'public_character_snapshot_receipt.data')
   }
 
   const headshotValidation = block?.validations?.headshot || block?.validation?.headshot
@@ -92,6 +134,10 @@ if (alphaFailures.length > 0) {
 if (mustHaveFailures.length > 0) {
   errors.push(`MUST-HAVE validator fires: ${JSON.stringify(mustHaveFailures, null, 2)}`)
 }
+if (forbiddenKeyFindings.length > 0) {
+  const uniquePaths = Array.from(new Set(forbiddenKeyFindings)).sort()
+  errors.push(`Forbidden keys found in public responses: ${uniquePaths.join(', ')}`)
+}
 
 if (errors.length > 0) {
   console.error('Review pack validation failed:\n' + errors.map(err => `- ${err}`).join('\n'))
@@ -99,3 +145,4 @@ if (errors.length > 0) {
 }
 
 console.log(`Review pack validation passed: ${path.basename(inputPath)}`)
+console.log('Forbidden-key scan passed')
