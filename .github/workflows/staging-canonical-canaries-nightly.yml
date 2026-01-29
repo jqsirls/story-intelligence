@@ -33,11 +33,26 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build shared-types (canonical dictionaries)
+      - name: Prepare canonical dictionaries
         run: |
-          pnpm -C packages/event-system build
-          pnpm -C packages/shared-types clean
-          pnpm -C packages/shared-types build
+          node - <<'NODE'
+          const fs = require('fs')
+          const path = require('path')
+          const ts = require('typescript')
+
+          const sourcePath = path.join('packages', 'shared-types', 'src', 'constants', 'CanonicalDictionaries.ts')
+          const outDir = path.join('packages', 'shared-types', 'dist', 'constants')
+          const source = fs.readFileSync(sourcePath, 'utf8')
+          const output = ts.transpileModule(source, {
+            compilerOptions: {
+              module: ts.ModuleKind.CommonJS,
+              target: ts.ScriptTarget.ES2020
+            }
+          }).outputText
+
+          fs.mkdirSync(outDir, { recursive: true })
+          fs.writeFileSync(path.join(outDir, 'CanonicalDictionaries.js'), output)
+          NODE
           test -f packages/shared-types/dist/constants/CanonicalDictionaries.js
 
       - name: Configure AWS credentials
