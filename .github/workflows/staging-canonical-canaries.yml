@@ -37,7 +37,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build shared-types (canonical dictionaries)
-        run: pnpm -C packages/shared-types build
+        run: |
+          pnpm -C packages/shared-types clean
+          pnpm -C packages/shared-types build
+          test -f packages/shared-types/dist/constants/CanonicalDictionaries.js
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
