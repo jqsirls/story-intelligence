@@ -64,4 +64,5 @@ jobs:
           retention-days: 30
       - name: Artifact retention info
         if: always()
-        run: echo "Artifact: staging-canonical-canary-review-pack | path: artifacts/ | retention-days: 30"
+        run: |
+          echo "Artifact: staging-canonical-canary-review-pack | path: artifacts/ | retention-days: 30"
