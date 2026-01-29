@@ -3,7 +3,7 @@ name: Staging Canonical Canaries Nightly
 on:
   schedule:
     - cron: "0 7 * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 env:
   AWS_REGION: us-east-1
