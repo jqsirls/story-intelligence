@@ -38,6 +38,7 @@ jobs:
 
       - name: Build shared-types (canonical dictionaries)
         run: |
+          pnpm -C packages/event-system build
           pnpm -C packages/shared-types clean
           pnpm -C packages/shared-types build
           test -f packages/shared-types/dist/constants/CanonicalDictionaries.js
