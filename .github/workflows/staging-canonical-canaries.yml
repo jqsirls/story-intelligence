@@ -1,0 +1,71 @@
+name: Staging Canonical Canaries
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "0 7 * * *"
+  push:
+    branches:
+      - "ci/canary-run-once/**"
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  staging-canonical-canaries:
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+          node -v
+          npm -v
+          pnpm -v
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run staging canonical canaries
+        env:
+          CANARY_IMAGE_REVIEW_MARKDOWN_RUN: ${{ github.workspace }}/artifacts/canary-review-pack-${{ github.run_id }}.md
+          CANARY_IMAGE_REVIEW_MARKDOWN: ${{ github.workspace }}/artifacts/canary-review-pack-latest.md
+        run: |
+          mkdir -p artifacts
+          node scripts/canary-image-runs.js --env=staging --canonical
+          echo "Review pack path: ${CANARY_IMAGE_REVIEW_MARKDOWN_RUN}"
+
+      - name: Verify review pack gate
+        env:
+          CANARY_IMAGE_REVIEW_MARKDOWN_RUN: ${{ github.workspace }}/artifacts/canary-review-pack-${{ github.run_id }}.md
+        run: |
+          node scripts/verify-canary-review-pack.js --input="${CANARY_IMAGE_REVIEW_MARKDOWN_RUN}"
+
+      - name: Upload review pack artifact (30 days)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-canonical-canary-review-pack
+          path: artifacts/
+          retention-days: 30
+
+      - name: Artifact retention info
+        if: always()
+        run: echo "Artifact: staging-canonical-canary-review-pack | path: artifacts/ | retention-days: 30"
